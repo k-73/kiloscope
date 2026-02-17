@@ -37,10 +37,9 @@ void main() {
     float g1 = SoftLine(fp.xy, sc);
     float g2 = SoftLine(fp.xy, sc * 10.0);
 
-    // Soft axis highlights
-    float axThick = max(sc * 0.06, fwidth(fp.x) * 2.0);
-    float axX = SoftAxis(fp.x, axThick);
-    float axY = SoftAxis(fp.y, axThick);
+    // Soft axis highlights — each axis uses its own screen-space derivative
+    float axX = SoftAxis(fp.x, max(sc * 0.06, fwidth(fp.x) * 2.0));
+    float axY = SoftAxis(fp.y, max(sc * 0.06, fwidth(fp.y) * 2.0));
 
     // Subtle blue-tinted grid, brighter major lines
     vec3 col = vec3(0.28, 0.30, 0.35) * g1 + vec3(0.45, 0.48, 0.55) * g2;
