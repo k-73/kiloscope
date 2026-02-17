@@ -1,10 +1,10 @@
-#include "PanelTimeseries.hpp"
+#include "Timeseries.hpp"
 #include <imgui.h>
 #include <implot.h>
 
 namespace ks::ui {
 
-void PanelTimeseries::Draw() {
+void Timeseries::Draw() {
     ImGui::Begin(title_.c_str(), &visible_);
     ImGui::SliderFloat("History (s)", &historySec_, 1.f, 60.f);
 

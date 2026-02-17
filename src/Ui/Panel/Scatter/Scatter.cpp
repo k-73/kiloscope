@@ -1,11 +1,11 @@
-#include "PanelScatter.hpp"
+#include "Scatter.hpp"
 #include <imgui.h>
 #include <implot.h>
 #include <algorithm>
 
 namespace ks::ui {
 
-void PanelScatter::Draw() {
+void Scatter::Draw() {
     ImGui::Begin(title_.c_str(), &visible_);
 
     auto ids = store_->ChannelIds();

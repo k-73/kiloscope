@@ -33,7 +33,7 @@ void main() {
     diff = diff * diff * 0.7;
 
     // Subtle hemisphere ambient (sky + ground bounce)
-    float hemi = N.y * 0.08 + 0.22;
+    float hemi = N.z * 0.08 + 0.22;
 
     // GGX-like specular — wider, softer highlight
     float rough = 0.35;

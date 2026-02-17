@@ -1,4 +1,4 @@
-#include "PanelViewport3d.hpp"
+#include "Viewport3d.hpp"
 #include <imgui.h>
 
 #ifndef ASSETS_DIR
@@ -7,7 +7,7 @@
 
 namespace ks::ui {
 
-void PanelViewport3d::Draw() {
+void Viewport3d::Draw() {
     ImGui::Begin(title_.c_str(), &visible_);
 
     if (!init_) {

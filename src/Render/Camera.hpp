@@ -9,7 +9,7 @@ namespace ks::render {
 class Camera {
 public:
     void Orbit(float dx, float dy) {
-        yaw_ += dx * 0.3f;
+        yaw_ -= dx * 0.3f;
         pitch_ = std::clamp(pitch_ + dy * 0.3f, -89.f, 89.f);
     }
 
@@ -19,20 +19,20 @@ public:
 
     void Pan(float dx, float dy) {
         float r = glm::radians(yaw_);
-        glm::vec3 right(std::cos(r), 0.f, -std::sin(r));
+        glm::vec3 right(-std::sin(r), std::cos(r), 0.f);
         float speed = dist_ * 0.002f;
-        target_ += -right * dx * speed + glm::vec3(0, 1, 0) * dy * speed;
+        target_ += -right * dx * speed + glm::vec3(0, 0, 1) * dy * speed;
     }
 
     glm::vec3 Position() const {
         float ry = glm::radians(yaw_), rp = glm::radians(pitch_);
         return target_ + glm::vec3(
             dist_ * std::cos(rp) * std::cos(ry),
-            dist_ * std::sin(rp),
-            dist_ * std::cos(rp) * std::sin(ry));
+            dist_ * std::cos(rp) * std::sin(ry),
+            dist_ * std::sin(rp));
     }
 
-    glm::mat4 View() const { return glm::lookAt(Position(), target_, {0, 1, 0}); }
+    glm::mat4 View() const { return glm::lookAt(Position(), target_, {0, 0, 1}); }
 
     glm::mat4 Projection(float aspect) const {
         float nr = std::max(0.01f, dist_ * 0.01f);

@@ -1,11 +1,11 @@
 #pragma once
-#include "Panel.hpp"
+#include "../Panel.hpp"
 
 namespace ks::ui {
 
-class PanelHistogram : public Panel {
+class Histogram : public Panel {
 public:
-    explicit PanelHistogram(std::shared_ptr<data::DataStore> s) : Panel("Histogram", std::move(s)) {}
+    explicit Histogram(std::shared_ptr<data::DataStore> s) : Panel("Histogram", std::move(s)) {}
     void Draw() override;
 
 private:

@@ -1,10 +1,10 @@
-#include "PanelHistogram.hpp"
+#include "Histogram.hpp"
 #include <imgui.h>
 #include <implot.h>
 
 namespace ks::ui {
 
-void PanelHistogram::Draw() {
+void Histogram::Draw() {
     ImGui::Begin(title_.c_str(), &visible_);
     ImGui::SliderInt("Bins", &bins_, 8, 256);
 

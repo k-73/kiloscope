@@ -1,11 +1,11 @@
 #pragma once
-#include "Panel.hpp"
+#include "../Panel.hpp"
 
 namespace ks::ui {
 
-class PanelTimeseries : public Panel {
+class Timeseries : public Panel {
 public:
-    explicit PanelTimeseries(std::shared_ptr<data::DataStore> s) : Panel("Time Series", std::move(s)) {}
+    explicit Timeseries(std::shared_ptr<data::DataStore> s) : Panel("Time Series", std::move(s)) {}
     void Draw() override;
 
 private:

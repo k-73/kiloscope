@@ -16,7 +16,7 @@ GLuint Scene::Render(std::shared_ptr<data::DataStore> store) {
     auto proj = cam_.Projection(aspect);
     auto pos  = cam_.Position();
 
-    prims_.Begin(view, proj, pos, glm::normalize(glm::vec3(.5f, 1.f, .3f)), w, h);
+    prims_.Begin(view, proj, pos, glm::normalize(glm::vec3(.5f, .3f, 1.f)), w, h);
     prims_.DrawAxes({0, 0, 0}, 1.f);
     geom_.Draw(store);
     prims_.FlushLines();

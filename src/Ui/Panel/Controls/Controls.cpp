@@ -1,10 +1,10 @@
-#include "PanelControls.hpp"
+#include "Controls.hpp"
 #include <imgui.h>
 #include <cinttypes>
 
 namespace ks::ui {
 
-void PanelControls::Draw() {
+void Controls::Draw() {
     ImGui::Begin(title_.c_str(), &visible_);
 
     ImGui::SeparatorText("Statistics");

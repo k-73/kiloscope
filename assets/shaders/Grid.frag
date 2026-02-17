@@ -28,30 +28,30 @@ float SoftAxis(float dist, float thickness) {
 }
 
 void main() {
-    float t = -vNear.y / (vFar.y - vNear.y);
+    float t = -vNear.z / (vFar.z - vNear.z);
     if (t < 0.0) discard;
 
     vec3 fp = vNear + t * (vFar - vNear);
 
     float sc = uCamDist > 200.0 ? 100.0 : uCamDist > 40.0 ? 10.0 : 1.0;
-    float g1 = SoftLine(fp.xz, sc);
-    float g2 = SoftLine(fp.xz, sc * 10.0);
+    float g1 = SoftLine(fp.xy, sc);
+    float g2 = SoftLine(fp.xy, sc * 10.0);
 
     // Soft axis highlights
     float axThick = max(sc * 0.06, fwidth(fp.x) * 2.0);
     float axX = SoftAxis(fp.x, axThick);
-    float axZ = SoftAxis(fp.z, axThick);
+    float axY = SoftAxis(fp.y, axThick);
 
     // Subtle blue-tinted grid, brighter major lines
     vec3 col = vec3(0.28, 0.30, 0.35) * g1 + vec3(0.45, 0.48, 0.55) * g2;
-    col += vec3(0.8, 0.2, 0.2) * axX + vec3(0.2, 0.2, 0.8) * axZ;
+    col += vec3(0.2, 0.8, 0.2) * axX + vec3(0.8, 0.2, 0.2) * axY;
 
     // Distance fade
-    float d = length(fp.xz - uCamPos.xz);
+    float d = length(fp.xy - uCamPos.xy);
     float fade = 1.0 - smoothstep(uCamDist * 2.5, uCamDist * 10.0, d);
 
     float alpha = max(g1 * 0.35, g2 * 0.55) * fade;
-    alpha = max(alpha, max(axX, axZ) * fade * 0.75);
+    alpha = max(alpha, max(axX, axY) * fade * 0.75);
     if (alpha < 0.003) discard;
 
     FragColor = vec4(col, alpha);
