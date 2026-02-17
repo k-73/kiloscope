@@ -2,9 +2,9 @@
 #include <algorithm>
 #include <mutex>
 
-namespace ks::data {
+namespace KiloScope::Data {
 
-void DataStore::Ingest(const net::Packet& pkt) {
+void DataStore::Ingest(const Net::Packet& pkt) {
     {
         std::shared_lock lk(mutex_);
         if (auto it = channels_.find(pkt.channelId); it != channels_.end()) {
@@ -47,4 +47,4 @@ void DataStore::Clear() {
     totalSamples_.store(0, std::memory_order_relaxed);
 }
 
-} // namespace ks::data
+} // namespace KiloScope::Data

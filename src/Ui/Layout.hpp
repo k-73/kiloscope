@@ -3,7 +3,7 @@
 #include <memory>
 #include <vector>
 
-namespace ks::ui {
+namespace KiloScope::UI {
 
 class Layout {
 public:
@@ -14,4 +14,4 @@ private:
     std::vector<std::unique_ptr<Panel>> panels_;
 };
 
-} // namespace ks::ui
+} // namespace KiloScope::UI

@@ -1,6 +1,6 @@
 #include "Scene.hpp"
 
-namespace ks::render {
+namespace KiloScope::Render {
 
 void Scene::Init(const std::string& dir) {
     grid_.Init(dir);
@@ -8,7 +8,7 @@ void Scene::Init(const std::string& dir) {
     geom_.Init(prims_);
 }
 
-GLuint Scene::Render(std::shared_ptr<data::DataStore> store) {
+GLuint Scene::Render(std::shared_ptr<Data::DataStore> store) {
     fbo_.Bind();
     int w = fbo_.Width(), h = fbo_.Height();
     float aspect = (float)w / std::max(1, h);
@@ -26,4 +26,4 @@ GLuint Scene::Render(std::shared_ptr<data::DataStore> store) {
     return fbo_.Texture();
 }
 
-} // namespace ks::render
+} // namespace KiloScope::Render

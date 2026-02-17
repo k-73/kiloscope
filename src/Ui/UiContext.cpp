@@ -7,8 +7,9 @@
 #include <implot.h>
 #include <imgui_freetype.h>
 #include <stdexcept>
+#include <cstdio>
 
-namespace ks::ui {
+namespace KiloScope::UI {
 
 UiContext::UiContext()  { InitGlfw(); InitImGui(); ApplyStyle(); }
 
@@ -22,13 +23,13 @@ UiContext::~UiContext() {
 }
 
 void UiContext::InitGlfw() {
-    glfwSetErrorCallback([](int c, const char* d) { fprintf(stderr, "GLFW %d: %s\n", c, d); });
+    glfwSetErrorCallback([](int c, const char* d) { std::fprintf(stderr, "GLFW %d: %s\n", c, d); });
     if (!glfwInit()) throw std::runtime_error("GLFW init failed");
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_MAXIMIZED, GLFW_TRUE);
-    win_ = glfwCreateWindow(1920, 1080, "Kiloscope", nullptr, nullptr);
+    win_ = glfwCreateWindow(1920, 1080, "KiloScope", nullptr, nullptr);
     if (!win_) throw std::runtime_error("Window creation failed");
     glfwMakeContextCurrent(win_);
     glfwSwapInterval(1);
@@ -97,4 +98,4 @@ void UiContext::EndFrame() {
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
-} // namespace ks::ui
+} // namespace KiloScope::UI

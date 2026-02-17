@@ -1,9 +1,10 @@
 #pragma once
 #include "RingBuffer.hpp"
 #include <algorithm>
+#include <limits>
 #include <string>
 
-namespace ks::data {
+namespace KiloScope::Data {
 
 struct Sample { double timestamp, value; };
 
@@ -24,7 +25,13 @@ public:
 
     size_t ReadLast(Sample* out, size_t n) const { return buf_.ReadLast(out, n); }
     size_t Size() const { return buf_.Size(); }
-    void Clear() { buf_.Clear(); minVal_ = maxVal_ = 0; }
+
+    void Clear() {
+        buf_.Clear();
+        minVal_ = std::numeric_limits<double>::max();
+        maxVal_ = std::numeric_limits<double>::lowest();
+    }
+
     double MinValue() const { return minVal_; }
     double MaxValue() const { return maxVal_; }
 
@@ -32,7 +39,8 @@ private:
     uint16_t id_;
     std::string name_;
     RingBuffer<Sample> buf_;
-    double minVal_ = 0, maxVal_ = 0;
+    double minVal_ = std::numeric_limits<double>::max();
+    double maxVal_ = std::numeric_limits<double>::lowest();
 };
 
-} // namespace ks::data
+} // namespace KiloScope::Data

@@ -1,10 +1,9 @@
 #include "Shader.hpp"
 #include <fstream>
-#include <sstream>
 #include <stdexcept>
 #include <glm/gtc/type_ptr.hpp>
 
-namespace ks::render {
+namespace KiloScope::Render {
 
 Shader::Shader(const std::string& vertPath, const std::string& fragPath) {
     auto vs = Compile(GL_VERTEX_SHADER, ReadFile(vertPath));
@@ -17,7 +16,7 @@ Shader::Shader(const std::string& vertPath, const std::string& fragPath) {
     GLint ok;
     glGetProgramiv(prog_, GL_LINK_STATUS, &ok);
     if (!ok) {
-        char log[512];
+        char log[1024];
         glGetProgramInfoLog(prog_, sizeof(log), nullptr, log);
         glDeleteProgram(prog_); glDeleteShader(vs); glDeleteShader(fs);
         prog_ = 0;
@@ -49,7 +48,7 @@ GLuint Shader::Compile(GLenum type, const std::string& src) {
     GLint ok;
     glGetShaderiv(s, GL_COMPILE_STATUS, &ok);
     if (!ok) {
-        char log[512];
+        char log[1024];
         glGetShaderInfoLog(s, sizeof(log), nullptr, log);
         glDeleteShader(s);
         throw std::runtime_error(std::string("Shader compile: ") + log);
@@ -63,4 +62,4 @@ std::string Shader::ReadFile(const std::string& path) {
     return {std::istreambuf_iterator<char>(f), {}};
 }
 
-} // namespace ks::render
+} // namespace KiloScope::Render

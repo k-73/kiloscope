@@ -8,13 +8,13 @@
 #include <memory>
 #include <string>
 
-namespace ks::render {
+namespace KiloScope::Render {
 
 class Scene {
 public:
     void Init(const std::string& shaderDir);
     void Resize(int w, int h) { fbo_.Resize(w, h, 8); }
-    GLuint Render(std::shared_ptr<data::DataStore> store);
+    GLuint Render(std::shared_ptr<Data::DataStore> store);
     Camera& GetCamera() { return cam_; }
 
 private:
@@ -25,4 +25,4 @@ private:
     GeometryRenderer geom_;
 };
 
-} // namespace ks::render
+} // namespace KiloScope::Render

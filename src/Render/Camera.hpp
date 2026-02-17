@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace ks::render {
+namespace KiloScope::Render {
 
 class Camera {
 public:
@@ -48,4 +48,4 @@ private:
     float dist_ = 8.f, yaw_ = 45.f, pitch_ = 30.f;
 };
 
-} // namespace ks::render
+} // namespace KiloScope::Render

@@ -5,7 +5,7 @@
 #define ASSETS_DIR "assets"
 #endif
 
-namespace ks::ui {
+namespace KiloScope::UI {
 
 void Viewport3d::Draw() {
     ImGui::Begin(title_.c_str(), &visible_);
@@ -37,4 +37,4 @@ void Viewport3d::Draw() {
     ImGui::End();
 }
 
-} // namespace ks::ui
+} // namespace KiloScope::UI

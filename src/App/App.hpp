@@ -5,7 +5,7 @@
 #include "Ui/Layout.hpp"
 #include <memory>
 
-namespace ks::app {
+namespace KiloScope::App {
 
 class App {
 public:
@@ -13,10 +13,10 @@ public:
     void Run();
 
 private:
-    std::shared_ptr<data::DataStore> store_;
-    std::unique_ptr<ui::UiContext> ui_;
-    ui::Layout layout_;
-    std::unique_ptr<net::UdpReceiver> receiver_;
+    std::shared_ptr<Data::DataStore> store_;
+    std::unique_ptr<UI::UiContext> ui_;
+    UI::Layout layout_;
+    std::unique_ptr<Net::UdpReceiver> receiver_;
 };
 
-} // namespace ks::app
+} // namespace KiloScope::App

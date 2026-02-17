@@ -3,11 +3,11 @@
 #include <memory>
 #include <string>
 
-namespace ks::ui {
+namespace KiloScope::UI {
 
 class Panel {
 public:
-    Panel(std::string title, std::shared_ptr<data::DataStore> s)
+    Panel(std::string title, std::shared_ptr<Data::DataStore> s)
         : title_(std::move(title)), store_(std::move(s)) {}
     virtual ~Panel() = default;
     virtual void Draw() = 0;
@@ -16,8 +16,8 @@ public:
 
 protected:
     std::string title_;
-    std::shared_ptr<data::DataStore> store_;
+    std::shared_ptr<Data::DataStore> store_;
     bool visible_ = true;
 };
 
-} // namespace ks::ui
+} // namespace KiloScope::UI

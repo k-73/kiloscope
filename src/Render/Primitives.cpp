@@ -2,7 +2,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <cmath>
 
-namespace ks::render {
+namespace KiloScope::Render {
 
 Primitives::~Primitives() {
     if (meshVao_) glDeleteVertexArrays(1, &meshVao_);
@@ -222,4 +222,4 @@ void Primitives::BuildCone(std::vector<MeshVert>& out, const glm::vec3& base,
     }
 }
 
-} // namespace ks::render
+} // namespace KiloScope::Render

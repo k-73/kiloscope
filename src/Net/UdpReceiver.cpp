@@ -1,7 +1,7 @@
 #include "UdpReceiver.hpp"
 #include <iostream>
 
-namespace ks::net {
+namespace KiloScope::Net {
 
 UdpReceiver::UdpReceiver(uint16_t port, Callback cb)
     : callback_(std::move(cb))
@@ -29,4 +29,4 @@ void UdpReceiver::StartReceive() {
         });
 }
 
-} // namespace ks::net
+} // namespace KiloScope::Net

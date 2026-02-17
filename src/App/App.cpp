@@ -7,20 +7,20 @@
 #include "Ui/Panel/Viewport3d/Viewport3d.hpp"
 #include <GLFW/glfw3.h>
 
-namespace ks::app {
+namespace KiloScope::App {
 
 App::App()
-    : store_(std::make_shared<data::DataStore>())
-    , ui_(std::make_unique<ui::UiContext>())
+    : store_(std::make_shared<Data::DataStore>())
+    , ui_(std::make_unique<UI::UiContext>())
 {
-    layout_.Add(std::make_unique<ui::Controls>(store_));
-    layout_.Add(std::make_unique<ui::Timeseries>(store_));
-    layout_.Add(std::make_unique<ui::Scatter>(store_));
-    layout_.Add(std::make_unique<ui::Histogram>(store_));
-    layout_.Add(std::make_unique<ui::Viewport3d>(store_));
+    layout_.Add(std::make_unique<UI::Controls>(store_));
+    layout_.Add(std::make_unique<UI::Timeseries>(store_));
+    layout_.Add(std::make_unique<UI::Scatter>(store_));
+    layout_.Add(std::make_unique<UI::Histogram>(store_));
+    layout_.Add(std::make_unique<UI::Viewport3d>(store_));
 
-    receiver_ = std::make_unique<net::UdpReceiver>(9000, [this](std::span<const uint8_t> raw) {
-        if (auto pkt = net::ParsePacket(raw)) store_->Ingest(*pkt);
+    receiver_ = std::make_unique<Net::UdpReceiver>(9000, [this](std::span<const uint8_t> raw) {
+        if (auto pkt = Net::ParsePacket(raw)) store_->Ingest(*pkt);
     });
 }
 
@@ -35,4 +35,4 @@ void App::Run() {
     }
 }
 
-} // namespace ks::app
+} // namespace KiloScope::App

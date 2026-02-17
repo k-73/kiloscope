@@ -1,7 +1,7 @@
 #include "Packet.hpp"
 #include <cstring>
 
-namespace ks::net {
+namespace KiloScope::Net {
 
 std::optional<Packet> ParsePacket(std::span<const uint8_t> raw) {
     if (raw.size() < HeaderSize) return std::nullopt;
@@ -26,4 +26,4 @@ std::optional<Packet> ParsePacket(std::span<const uint8_t> raw) {
     return p;
 }
 
-} // namespace ks::net
+} // namespace KiloScope::Net

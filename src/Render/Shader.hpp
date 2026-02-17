@@ -3,7 +3,7 @@
 #include <glm/glm.hpp>
 #include <string>
 
-namespace ks::render {
+namespace KiloScope::Render {
 
 class Shader {
 public:
@@ -32,4 +32,4 @@ private:
     static std::string ReadFile(const std::string& path);
 };
 
-} // namespace ks::render
+} // namespace KiloScope::Render

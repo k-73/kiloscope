@@ -1,17 +1,17 @@
 #pragma once
 #include "../Panel.hpp"
 
-namespace ks::ui {
+namespace KiloScope::UI {
 
 class Timeseries : public Panel {
 public:
-    explicit Timeseries(std::shared_ptr<data::DataStore> s) : Panel("Time Series", std::move(s)) {}
+    explicit Timeseries(std::shared_ptr<Data::DataStore> s) : Panel("Time Series", std::move(s)) {}
     void Draw() override;
 
 private:
     static constexpr size_t MaxDisplay = 8192;
-    std::vector<data::Sample> buf_ = std::vector<data::Sample>(MaxDisplay);
+    std::vector<Data::Sample> buf_ = std::vector<Data::Sample>(MaxDisplay);
     float historySec_ = 10.f;
 };
 
-} // namespace ks::ui
+} // namespace KiloScope::UI

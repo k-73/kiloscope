@@ -4,7 +4,7 @@
 #include <cstddef>
 #include <optional>
 
-namespace ks::data {
+namespace KiloScope::Data {
 
 template <typename T, size_t Cap = 131072>
 class RingBuffer {
@@ -52,4 +52,4 @@ private:
     std::array<T, Cap> buf_{};
 };
 
-} // namespace ks::data
+} // namespace KiloScope::Data

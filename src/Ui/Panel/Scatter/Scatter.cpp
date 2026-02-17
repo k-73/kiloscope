@@ -3,7 +3,7 @@
 #include <implot.h>
 #include <algorithm>
 
-namespace ks::ui {
+namespace KiloScope::UI {
 
 void Scatter::Draw() {
     ImGui::Begin(title_.c_str(), &visible_);
@@ -44,4 +44,4 @@ void Scatter::Draw() {
     ImGui::End();
 }
 
-} // namespace ks::ui
+} // namespace KiloScope::UI

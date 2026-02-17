@@ -2,7 +2,7 @@
 #include <imgui.h>
 #include <implot.h>
 
-namespace ks::ui {
+namespace KiloScope::UI {
 
 void Timeseries::Draw() {
     ImGui::Begin(title_.c_str(), &visible_);
@@ -32,4 +32,4 @@ void Timeseries::Draw() {
     ImGui::End();
 }
 
-} // namespace ks::ui
+} // namespace KiloScope::UI

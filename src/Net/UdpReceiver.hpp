@@ -6,7 +6,7 @@
 #include <span>
 #include <thread>
 
-namespace ks::net {
+namespace KiloScope::Net {
 
 class UdpReceiver {
 public:
@@ -29,4 +29,4 @@ private:
     std::jthread thread_;
 };
 
-} // namespace ks::net
+} // namespace KiloScope::Net

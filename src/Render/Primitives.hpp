@@ -4,7 +4,7 @@
 #include <glm/glm.hpp>
 #include <vector>
 
-namespace ks::render {
+namespace KiloScope::Render {
 
 class Primitives {
 public:
@@ -47,4 +47,4 @@ private:
     void BuildCone(std::vector<MeshVert>& out, const glm::vec3& base, const glm::vec3& tip, float r, int seg);
 };
 
-} // namespace ks::render
+} // namespace KiloScope::Render

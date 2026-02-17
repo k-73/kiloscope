@@ -2,7 +2,7 @@
 #include <imgui.h>
 #include <cinttypes>
 
-namespace ks::ui {
+namespace KiloScope::UI {
 
 void Controls::Draw() {
     ImGui::Begin(title_.c_str(), &visible_);
@@ -29,4 +29,4 @@ void Controls::Draw() {
     ImGui::End();
 }
 
-} // namespace ks::ui
+} // namespace KiloScope::UI

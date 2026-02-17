@@ -2,7 +2,7 @@
 #include <imgui.h>
 #include <implot.h>
 
-namespace ks::ui {
+namespace KiloScope::UI {
 
 void Histogram::Draw() {
     ImGui::Begin(title_.c_str(), &visible_);
@@ -25,4 +25,4 @@ void Histogram::Draw() {
     ImGui::End();
 }
 
-} // namespace ks::ui
+} // namespace KiloScope::UI

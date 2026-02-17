@@ -3,13 +3,13 @@
 #include "Data/DataStore.hpp"
 #include <memory>
 
-namespace ks::render {
+namespace KiloScope::Render {
 
 class GeometryRenderer {
 public:
     void Init(Primitives& p) { prims_ = &p; bufs_.resize(3); for (auto& b : bufs_) b.resize(MaxPts); }
 
-    void Draw(std::shared_ptr<data::DataStore> store) {
+    void Draw(std::shared_ptr<Data::DataStore> store) {
         if (!prims_ || !store) return;
         std::shared_lock lk(store->Mutex());
 
@@ -32,14 +32,17 @@ public:
             prev = pt;
         }
 
-        prims_->DrawSphere({val(0,counts[0]-1), val(1,counts[1]-1), val(2,counts[2]-1)},
+        // Endpoint sphere — guard against empty channels
+        size_t lastIdx[3]{};
+        for (int i = 0; i < 3; ++i) lastIdx[i] = counts[i] ? counts[i] - 1 : 0;
+        prims_->DrawSphere({val(0,lastIdx[0]), val(1,lastIdx[1]), val(2,lastIdx[2])},
                            0.1f, {1.f, .8f, .2f, 1.f}, 32);
     }
 
 private:
     static constexpr size_t MaxPts = 4096;
     Primitives* prims_ = nullptr;
-    std::vector<std::vector<data::Sample>> bufs_;
+    std::vector<std::vector<Data::Sample>> bufs_;
 };
 
-} // namespace ks::render
+} // namespace KiloScope::Render

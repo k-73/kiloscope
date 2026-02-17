@@ -1,14 +1,17 @@
 #pragma once
 #include <GL/glew.h>
 
-namespace ks::render {
+namespace KiloScope::Render {
 
 class Fbo {
 public:
+    Fbo() = default;
     ~Fbo();
+
+    Fbo(Fbo&& o) noexcept;
+    Fbo& operator=(Fbo&& o) noexcept;
     Fbo(const Fbo&) = delete;
     Fbo& operator=(const Fbo&) = delete;
-    Fbo() = default;
 
     void Resize(int w, int h, int samples = 8);
     void Bind();
@@ -25,4 +28,4 @@ private:
     GLuint resolveFbo_ = 0, resolvedTex_ = 0;
 };
 
-} // namespace ks::render
+} // namespace KiloScope::Render

@@ -6,14 +6,16 @@
 #include <unordered_map>
 #include <vector>
 
-namespace ks::data {
+namespace KiloScope::Data {
 
 class DataStore {
 public:
-    void Ingest(const net::Packet& pkt);
+    void Ingest(const Net::Packet& pkt);
 
+    // Caller must hold Mutex() (shared_lock) when using these
     Channel* GetChannel(uint16_t id);
     const Channel* GetChannel(uint16_t id) const;
+
     std::vector<uint16_t> ChannelIds() const;
 
     std::shared_mutex& Mutex() const { return mutex_; }
@@ -28,4 +30,4 @@ private:
     std::atomic<uint64_t> totalPackets_{0}, totalSamples_{0};
 };
 
-} // namespace ks::data
+} // namespace KiloScope::Data

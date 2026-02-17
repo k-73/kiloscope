@@ -1,9 +1,30 @@
 #include "Fbo.hpp"
 #include <algorithm>
+#include <utility>
 
-namespace ks::render {
+namespace KiloScope::Render {
 
 Fbo::~Fbo() { Destroy(); }
+
+Fbo::Fbo(Fbo&& o) noexcept
+    : w_(o.w_), h_(o.h_), samples_(o.samples_)
+    , msaaFbo_(o.msaaFbo_), msaaColor_(o.msaaColor_), msaaDepth_(o.msaaDepth_)
+    , resolveFbo_(o.resolveFbo_), resolvedTex_(o.resolvedTex_) {
+    o.msaaFbo_ = o.msaaColor_ = o.msaaDepth_ = o.resolveFbo_ = o.resolvedTex_ = 0;
+    o.w_ = o.h_ = 0;
+}
+
+Fbo& Fbo::operator=(Fbo&& o) noexcept {
+    if (this != &o) {
+        Destroy();
+        w_ = o.w_; h_ = o.h_; samples_ = o.samples_;
+        msaaFbo_ = o.msaaFbo_; msaaColor_ = o.msaaColor_; msaaDepth_ = o.msaaDepth_;
+        resolveFbo_ = o.resolveFbo_; resolvedTex_ = o.resolvedTex_;
+        o.msaaFbo_ = o.msaaColor_ = o.msaaDepth_ = o.resolveFbo_ = o.resolvedTex_ = 0;
+        o.w_ = o.h_ = 0;
+    }
+    return *this;
+}
 
 void Fbo::Destroy() {
     if (msaaFbo_)     { glDeleteFramebuffers(1, &msaaFbo_);    msaaFbo_ = 0; }
@@ -20,7 +41,7 @@ void Fbo::Resize(int w, int h, int samples) {
     w_ = w; h_ = h;
 
     GLint maxS = 0; glGetIntegerv(GL_MAX_SAMPLES, &maxS);
-    samples_ = std::clamp(samples, 1, (int)maxS);
+    samples_ = std::clamp(samples, 1, std::max(1, (int)maxS));
 
     glCreateFramebuffers(1, &msaaFbo_);
     glCreateRenderbuffers(1, &msaaColor_);
@@ -63,4 +84,4 @@ void Fbo::Resolve() {
     glDisable(GL_DEPTH_TEST);
 }
 
-} // namespace ks::render
+} // namespace KiloScope::Render
