@@ -1,0 +1,9 @@
+/home/kilo/Projects/kiloscope/build/CMakeFiles/imgui.dir
+/home/kilo/Projects/kiloscope/build/CMakeFiles/implot.dir
+/home/kilo/Projects/kiloscope/build/CMakeFiles/kiloscope.dir
+/home/kilo/Projects/kiloscope/build/CMakeFiles/edit_cache.dir
+/home/kilo/Projects/kiloscope/build/CMakeFiles/rebuild_cache.dir
+/home/kilo/Projects/kiloscope/build/_deps/glm-build/CMakeFiles/edit_cache.dir
+/home/kilo/Projects/kiloscope/build/_deps/glm-build/CMakeFiles/rebuild_cache.dir
+/home/kilo/Projects/kiloscope/build/_deps/glm-build/glm/CMakeFiles/edit_cache.dir
+/home/kilo/Projects/kiloscope/build/_deps/glm-build/glm/CMakeFiles/rebuild_cache.dir

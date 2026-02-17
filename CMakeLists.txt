@@ -1,0 +1,47 @@
+cmake_minimum_required(VERSION 3.24)
+project(kiloscope LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# ── system dependencies ──────────────────────────────────────────────
+find_package(OpenGL REQUIRED)
+find_package(glfw3 3.3 REQUIRED)
+find_package(GLEW REQUIRED)
+find_package(Freetype REQUIRED)
+
+# ── fetched dependencies ─────────────────────────────────────────────
+include(cmake/FetchDependencies.cmake)
+
+# ── sources ──────────────────────────────────────────────────────────
+file(GLOB_RECURSE KILOSCOPE_SRC CONFIGURE_DEPENDS
+    src/*.cpp
+)
+
+add_executable(kiloscope ${KILOSCOPE_SRC})
+
+target_include_directories(kiloscope PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(kiloscope PRIVATE
+    imgui
+    implot
+    glm::glm
+    asio
+    OpenGL::GL
+    glfw
+    GLEW::GLEW
+    Freetype::Freetype
+)
+
+target_compile_definitions(kiloscope PRIVATE
+    ASSETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets"
+    IMGUI_IMPL_OPENGL_LOADER_GLEW
+)
+
+# ── compiler warnings ───────────────────────────────────────────────
+target_compile_options(kiloscope PRIVATE
+    -Wall -Wextra -Wpedantic -Wno-unused-parameter
+)

@@ -1,0 +1,100 @@
+#include "UiContext.hpp"
+#include <GL/glew.h>
+#include <GLFW/glfw3.h>
+#include <imgui.h>
+#include <imgui_impl_glfw.h>
+#include <imgui_impl_opengl3.h>
+#include <implot.h>
+#include <imgui_freetype.h>
+#include <stdexcept>
+
+namespace ks::ui {
+
+UiContext::UiContext()  { InitGlfw(); InitImGui(); ApplyStyle(); }
+
+UiContext::~UiContext() {
+    ImPlot::DestroyContext();
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
+    if (win_) glfwDestroyWindow(win_);
+    glfwTerminate();
+}
+
+void UiContext::InitGlfw() {
+    glfwSetErrorCallback([](int c, const char* d) { fprintf(stderr, "GLFW %d: %s\n", c, d); });
+    if (!glfwInit()) throw std::runtime_error("GLFW init failed");
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_MAXIMIZED, GLFW_TRUE);
+    win_ = glfwCreateWindow(1920, 1080, "Kiloscope", nullptr, nullptr);
+    if (!win_) throw std::runtime_error("Window creation failed");
+    glfwMakeContextCurrent(win_);
+    glfwSwapInterval(1);
+    if (glewInit() != GLEW_OK) throw std::runtime_error("GLEW init failed");
+}
+
+void UiContext::InitImGui() {
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImPlot::CreateContext();
+    auto& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_NavEnableKeyboard;
+    io.Fonts->SetFontLoader(ImGuiFreeType::GetFontLoader());
+    io.Fonts->AddFontDefault();
+    ImGui_ImplGlfw_InitForOpenGL(win_, true);
+    ImGui_ImplOpenGL3_Init("#version 450");
+}
+
+void UiContext::ApplyStyle() {
+    ImGui::StyleColorsDark();
+    auto& s = ImGui::GetStyle();
+    s.WindowRounding = 4; s.FrameRounding = 3; s.GrabRounding = 3;
+    s.TabRounding = 3; s.ScrollbarRounding = 3;
+    s.FramePadding = {6, 4}; s.ItemSpacing = {8, 5};
+    s.WindowBorderSize = 1; s.FrameBorderSize = 0;
+    auto& c = s.Colors;
+    c[ImGuiCol_WindowBg]      = {.10f, .10f, .12f, 1};
+    c[ImGuiCol_TitleBg]       = {.08f, .08f, .10f, 1};
+    c[ImGuiCol_TitleBgActive] = {.14f, .14f, .18f, 1};
+    c[ImGuiCol_Tab]           = {.14f, .14f, .18f, 1};
+    c[ImGuiCol_TabSelected]   = {.24f, .24f, .32f, 1};
+    c[ImGuiCol_FrameBg]       = {.14f, .14f, .18f, 1};
+    c[ImGuiCol_Header]        = {.20f, .20f, .26f, 1};
+    c[ImGuiCol_HeaderHovered] = {.26f, .26f, .34f, 1};
+    ImPlot::StyleColorsDark();
+    ImPlot::GetStyle().PlotDefaultSize = {400, 300};
+}
+
+void UiContext::BeginFrame() {
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+
+    auto* vp = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(vp->WorkPos);
+    ImGui::SetNextWindowSize(vp->WorkSize);
+    ImGui::SetNextWindowViewport(vp->ID);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {0, 0});
+    ImGui::Begin("##Dock", nullptr,
+        ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse |
+        ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus |
+        ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoBackground);
+    ImGui::PopStyleVar(3);
+    ImGui::DockSpace(ImGui::GetID("Main"), {0, 0}, ImGuiDockNodeFlags_PassthruCentralNode);
+    ImGui::End();
+}
+
+void UiContext::EndFrame() {
+    ImGui::Render();
+    int w, h; glfwGetFramebufferSize(win_, &w, &h);
+    glViewport(0, 0, w, h);
+    glClearColor(.08f, .08f, .10f, 1.f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+}
+
+} // namespace ks::ui
