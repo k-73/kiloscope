@@ -8,7 +8,7 @@ uniform int uUnlit;
 
 out vec4 FragColor;
 
-const vec3 FogColor = vec3(0.12, 0.12, 0.14);
+const vec3 BgColor = vec3(0.12, 0.12, 0.14);
 
 float Fog(float d) { return clamp(exp(-0.00015 * d * d), 0.0, 1.0); }
 
@@ -17,7 +17,7 @@ void main() {
     float fog = Fog(dist);
 
     if (uUnlit != 0) {
-        FragColor = vec4(mix(FogColor, uColor.rgb, fog), uColor.a);
+        FragColor = vec4(mix(BgColor, uColor.rgb, fog), uColor.a);
         return;
     }
 
@@ -25,12 +25,27 @@ void main() {
     vec3 L = normalize(uLightDir);
     vec3 V = normalize(uCamPos - vWorldPos);
     vec3 H = normalize(L + V);
+    float NdL = dot(N, L);
+    float NdV = dot(N, V);
 
-    float diff = max(dot(N, L), 0.0) * 0.65;
-    float fill = max(-dot(N, L), 0.0) * 0.08;
-    float spec = pow(max(dot(N, H), 0.0), 48.0) * 0.4;
-    float rim  = pow(1.0 - max(dot(N, V), 0.0), 3.0) * 0.15;
+    // Wrap diffuse — softer transition into shadow
+    float diff = max(NdL * 0.5 + 0.5, 0.0);
+    diff = diff * diff * 0.7;
 
-    vec3 lit = uColor.rgb * (0.18 + diff + fill) + spec + vec3(0.6) * rim;
-    FragColor = vec4(mix(FogColor, lit, fog), uColor.a);
+    // Subtle hemisphere ambient (sky + ground bounce)
+    float hemi = N.y * 0.08 + 0.22;
+
+    // GGX-like specular — wider, softer highlight
+    float rough = 0.35;
+    float r2 = rough * rough;
+    float NdH = max(dot(N, H), 0.0);
+    float denom = NdH * NdH * (r2 - 1.0) + 1.0;
+    float spec = r2 / (3.14159 * denom * denom + 0.001) * 0.15;
+
+    // Fresnel rim — brighter at grazing angles
+    float fresnel = pow(1.0 - max(NdV, 0.0), 4.0) * 0.25;
+
+    vec3 lit = uColor.rgb * (hemi + diff) + vec3(1.0) * spec + uColor.rgb * fresnel;
+
+    FragColor = vec4(mix(BgColor, lit, fog), uColor.a);
 }

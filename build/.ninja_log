@@ -52,3 +52,9 @@
 6	1950	1771359430519967799	CMakeFiles/kiloscope.dir/src/Net/UdpReceiver.cpp.o	2418aa3cf46c2d45
 1950	2019	1771359430588968609	kiloscope	b7edeee4e381f56d
 1	7	0	/home/kilo/Projects/kiloscope/build/CMakeFiles/cmake.verify_globs	b0e6395d04dabe97
+1	9	0	/home/kilo/Projects/kiloscope/build/CMakeFiles/cmake.verify_globs	b0e6395d04dabe97
+11	511	1771360851824471040	CMakeFiles/kiloscope.dir/src/Render/Primitives.cpp.o	22b1fc0f8a42ad18
+511	577	1771360851890471830	kiloscope	b7edeee4e381f56d
+1	8	0	/home/kilo/Projects/kiloscope/build/CMakeFiles/cmake.verify_globs	b0e6395d04dabe97
+10	509	1771361233674015062	CMakeFiles/kiloscope.dir/src/Render/Primitives.cpp.o	22b1fc0f8a42ad18
+509	576	1771361233741015856	kiloscope	b7edeee4e381f56d

@@ -83,7 +83,6 @@ void Primitives::FlushLines() {
 void Primitives::DrawLine(const glm::vec3& a, const glm::vec3& b,
                            const glm::vec4& color, float width) {
     lineWidth_ = width;
-    // 6 verts = 2 tris forming a screen-space quad; all verts share same (a,b) order
     lineBatch_.push_back({a, b, {-1, 0}, color});
     lineBatch_.push_back({a, b, { 1, 0}, color});
     lineBatch_.push_back({a, b, { 1, 1}, color});
@@ -97,13 +96,15 @@ void Primitives::DrawArrow(const glm::vec3& from, const glm::vec3& to,
     auto dir = to - from;
     float len = glm::length(dir);
     if (len < 1e-6f) return;
-    float headLen = std::min(len * 0.3f, headR * 3.f);
+
+    float headLen = std::min(len * 0.25f, headR * 2.5f);
     auto shaftEnd = from + dir * ((len - headLen) / len);
 
     SetMeshUniforms(color);
     std::vector<MeshVert> v;
-    BuildCylinder(v, from, shaftEnd, shaftR, 12);
-    BuildCone(v, shaftEnd, to, headR, 12);
+    v.reserve(24 * 6 * 2);
+    BuildCylinder(v, from, shaftEnd, shaftR, 24);
+    BuildCone(v, shaftEnd, to, headR, 24);
     UploadMesh(v);
 }
 
@@ -132,22 +133,29 @@ void Primitives::DrawArc(const glm::vec3& center, const glm::vec3& axis,
     for (int i = 0; i < seg; ++i) {
         auto r0 = glm::rotate(glm::mat4(1), step * i,       nAxis);
         auto r1 = glm::rotate(glm::mat4(1), step * (i + 1), nAxis);
-        auto p0 = center + glm::vec3(r0 * glm::vec4(nStart * radius, 0));
-        auto p1 = center + glm::vec3(r1 * glm::vec4(nStart * radius, 0));
-        DrawLine(p0, p1, color, 2.f);
+        DrawLine(center + glm::vec3(r0 * glm::vec4(nStart * radius, 0)),
+                 center + glm::vec3(r1 * glm::vec4(nStart * radius, 0)), color, 2.f);
     }
 }
 
 void Primitives::DrawAxes(const glm::vec3& o, float len) {
-    DrawArrow(o, o + glm::vec3(len, 0, 0), {1, .15f, .15f, 1});
-    DrawArrow(o, o + glm::vec3(0, len, 0), {.15f, 1, .15f, 1});
-    DrawArrow(o, o + glm::vec3(0, 0, len), {.3f, .3f, 1, 1});
+    float s = len * 0.025f;   // shaft radius proportional to length
+    float h = len * 0.07f;    // head radius
+    DrawArrow(o, o + glm::vec3(len, 0, 0), {.95f, .25f, .25f, 1}, s, h);
+    DrawArrow(o, o + glm::vec3(0, len, 0), {.35f, .85f, .35f, 1}, s, h);
+    DrawArrow(o, o + glm::vec3(0, 0, len), {.35f, .50f, .95f, 1}, s, h);
 }
 
 // ── mesh builders ───────────────────────────────────────────────────
 
-static glm::vec3 Perp(const glm::vec3& ax) {
-    return glm::normalize(glm::cross(ax, std::abs(ax.y) < .99f ? glm::vec3(0,1,0) : glm::vec3(1,0,0)));
+static void Basis(const glm::vec3& ax, glm::vec3& u, glm::vec3& v) {
+    u = glm::normalize(glm::cross(ax, std::abs(ax.y) < .99f ? glm::vec3(0,1,0) : glm::vec3(1,0,0)));
+    v = glm::cross(ax, u);
+}
+
+static glm::vec3 Circle(const glm::vec3& u, const glm::vec3& v, int i, int seg) {
+    float a = 2.f * glm::pi<float>() * (float)i / (float)seg;
+    return u * std::cos(a) + v * std::sin(a);
 }
 
 void Primitives::BuildSphere(std::vector<MeshVert>& out, const glm::vec3& c, float r, int seg) {
@@ -162,6 +170,7 @@ void Primitives::BuildSphere(std::vector<MeshVert>& out, const glm::vec3& c, flo
                 return {c + n*r, n};
             };
             auto a = pt(lat0,lon0), b = pt(lat1,lon0), d = pt(lat1,lon1), e = pt(lat0,lon1);
+            // CCW winding when viewed from outside
             out.insert(out.end(), {a, b, d, a, d, e});
         }
     }
@@ -172,16 +181,17 @@ void Primitives::BuildCylinder(std::vector<MeshVert>& out, const glm::vec3& a,
     auto dir = b - a; float len = glm::length(dir);
     if (len < 1e-6f) return;
     auto ax = dir / len;
-    auto p1 = Perp(ax), p2 = glm::cross(ax, p1);
+    glm::vec3 u, v; Basis(ax, u, v);
 
     for (int i = 0; i < seg; ++i) {
-        float a0 = 2.f * glm::pi<float>() * i / seg;
-        float a1 = 2.f * glm::pi<float>() * (i+1) / seg;
-        auto n0 = p1*std::cos(a0) + p2*std::sin(a0);
-        auto n1 = p1*std::cos(a1) + p2*std::sin(a1);
+        auto n0 = Circle(u, v, i,   seg);
+        auto n1 = Circle(u, v, i+1, seg);
         auto pa0 = a+n0*r, pa1 = a+n1*r, pb0 = b+n0*r, pb1 = b+n1*r;
-        out.insert(out.end(), {{pa0,n0},{pb0,n0},{pb1,n1}, {pa0,n0},{pb1,n1},{pa1,n1}});
-        out.insert(out.end(), {{a,-ax},{pa1,-ax},{pa0,-ax}, {b,ax},{pb0,ax},{pb1,ax}});
+        // Side quads — CCW from outside (normal points outward)
+        out.insert(out.end(), {{pa0,n0},{pa1,n1},{pb1,n1}, {pa0,n0},{pb1,n1},{pb0,n0}});
+        // End caps — CCW from cap face direction
+        out.insert(out.end(), {{a,-ax},{pa1,-ax},{pa0,-ax}});  // bottom cap
+        out.insert(out.end(), {{b, ax},{pb0, ax},{pb1, ax}});  // top cap
     }
 }
 
@@ -189,19 +199,25 @@ void Primitives::BuildCone(std::vector<MeshVert>& out, const glm::vec3& base,
                              const glm::vec3& tip, float r, int seg) {
     auto dir = tip - base; float len = glm::length(dir);
     if (len < 1e-6f) return;
-    auto ax = dir / len; float slope = r / len;
-    auto p1 = Perp(ax), p2 = glm::cross(ax, p1);
+    auto ax = dir / len;
+    glm::vec3 u, v; Basis(ax, u, v);
+
+    // Correct cone normal: for cone with radius r and height len,
+    // the surface normal has radial component `len` and axial component `r`
+    float nRatio = r / std::sqrt(r*r + len*len);
+    float aRatio = len / std::sqrt(r*r + len*len);
 
     for (int i = 0; i < seg; ++i) {
-        float a0 = 2.f * glm::pi<float>() * i / seg;
-        float a1 = 2.f * glm::pi<float>() * (i+1) / seg;
-        auto n0 = p1*std::cos(a0) + p2*std::sin(a0);
-        auto n1 = p1*std::cos(a1) + p2*std::sin(a1);
-        auto cn0 = glm::normalize(n0 + ax*slope);
-        auto cn1 = glm::normalize(n1 + ax*slope);
+        auto n0 = Circle(u, v, i,   seg);
+        auto n1 = Circle(u, v, i+1, seg);
+        // Cone surface normals — perpendicular to the slant surface
+        auto cn0 = glm::normalize(n0 * aRatio + ax * nRatio);
+        auto cn1 = glm::normalize(n1 * aRatio + ax * nRatio);
         auto cnt = glm::normalize(cn0 + cn1);
         auto q0 = base+n0*r, q1 = base+n1*r;
+        // Side — CCW from outside
         out.insert(out.end(), {{q0,cn0},{q1,cn1},{tip,cnt}});
+        // Base cap — CCW from -ax
         out.insert(out.end(), {{base,-ax},{q1,-ax},{q0,-ax}});
     }
 }
