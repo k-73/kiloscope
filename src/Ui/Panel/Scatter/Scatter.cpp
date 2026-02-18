@@ -1,17 +1,35 @@
 #include "Scatter.hpp"
+#include "Ui/Panel/PanelRegistry.hpp"
 #include <imgui.h>
 #include <implot.h>
 #include <algorithm>
 
 namespace KiloScope::UI {
 
-void Scatter::Draw() {
-    ImGui::Begin(title_.c_str(), &visible_);
+void Scatter::OnUpdate() {
+    plotCount_ = 0;
+    std::shared_lock lk(store_->Mutex());
+    auto* cx = store_->GetChannel((uint16_t)chX_);
+    auto* cy = store_->GetChannel((uint16_t)chY_);
+    if (!cx || !cy) return;
 
+    auto n = std::min(cx->ReadLast(bufX_.data(), MaxDisplay),
+                      cy->ReadLast(bufY_.data(), MaxDisplay));
+    if (!n) return;
+
+    if (n > xs_.size()) { xs_.resize(n); ys_.resize(n); }
+    for (size_t i = 0; i < n; ++i) {
+        xs_[i] = bufX_[i].value;
+        ys_[i] = bufY_[i].value;
+    }
+    plotCount_ = n;
+}
+
+void Scatter::OnDraw() {
     auto ids = store_->ChannelIds();
     if (ids.size() < 2) {
         ImGui::TextWrapped("Need at least 2 channels.");
-        ImGui::End(); return;
+        return;
     }
 
     auto combo = [&](const char* label, int& sel) {
@@ -27,21 +45,21 @@ void Scatter::Draw() {
 
     if (ImPlot::BeginPlot("##scatter", ImVec2(-1, -1))) {
         ImPlot::SetupAxes("X", "Y");
-        std::shared_lock lk(store_->Mutex());
-        auto* cx = store_->GetChannel((uint16_t)chX_);
-        auto* cy = store_->GetChannel((uint16_t)chY_);
-        if (cx && cy) {
-            auto n = std::min(cx->ReadLast(bufX_.data(), MaxDisplay),
-                              cy->ReadLast(bufY_.data(), MaxDisplay));
-            if (n) {
-                std::vector<double> xs(n), ys(n);
-                for (size_t i = 0; i < n; ++i) { xs[i] = bufX_[i].value; ys[i] = bufY_[i].value; }
-                ImPlot::PlotScatter("data", xs.data(), ys.data(), (int)n);
-            }
-        }
+        if (plotCount_)
+            ImPlot::PlotScatter("data", xs_.data(), ys_.data(), (int)plotCount_);
         ImPlot::EndPlot();
     }
-    ImGui::End();
 }
+
+json Scatter::SaveSettings() const {
+    return {{"chX", chX_}, {"chY", chY_}};
+}
+
+void Scatter::LoadSettings(const json& j) {
+    if (j.contains("chX")) chX_ = j["chX"].get<int>();
+    if (j.contains("chY")) chY_ = j["chY"].get<int>();
+}
+
+REGISTER_PANEL(Scatter, "Scatter", "Scatter Plot", KiloScope::UI::PanelFlags::None)
 
 } // namespace KiloScope::UI

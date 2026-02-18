@@ -1,4 +1,5 @@
 #include "Viewport3d.hpp"
+#include "Ui/Panel/PanelRegistry.hpp"
 #include <imgui.h>
 
 #ifndef ASSETS_DIR
@@ -7,9 +8,7 @@
 
 namespace KiloScope::UI {
 
-void Viewport3d::Draw() {
-    ImGui::Begin(title_.c_str(), &visible_);
-
+void Viewport3d::OnDraw() {
     if (!init_) {
         scene_->Init(std::string(ASSETS_DIR) + "/shaders");
         init_ = true;
@@ -34,7 +33,8 @@ void Viewport3d::Draw() {
     GLuint tex = scene_->Render(store_);
     ImGui::SetCursorScreenPos(cursor);
     ImGui::Image((ImTextureID)(uintptr_t)tex, avail, {0, 1}, {1, 0});
-    ImGui::End();
 }
+
+REGISTER_PANEL(Viewport3d, "Viewport3d", "3D Viewport", KiloScope::UI::PanelFlags::Singleton | KiloScope::UI::PanelFlags::NeedsScene)
 
 } // namespace KiloScope::UI

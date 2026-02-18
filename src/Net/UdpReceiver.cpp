@@ -1,5 +1,5 @@
 #include "UdpReceiver.hpp"
-#include <iostream>
+#include "Core/Log.hpp"
 
 namespace KiloScope::Net {
 
@@ -13,7 +13,7 @@ UdpReceiver::UdpReceiver(uint16_t port, Callback cb)
         auto work = asio::make_work_guard(ioCtx_);
         while (!st.stop_requested()) ioCtx_.run_for(std::chrono::milliseconds(10));
     });
-    std::cout << "[UDP] Listening on port " << port << '\n';
+    Log::Net().info("Listening on UDP port {}", port);
 }
 
 UdpReceiver::~UdpReceiver() {

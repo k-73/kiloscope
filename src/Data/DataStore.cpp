@@ -1,4 +1,6 @@
 #include "DataStore.hpp"
+#include "Core/Events.hpp"
+#include "Core/Log.hpp"
 #include <algorithm>
 #include <mutex>
 
@@ -19,6 +21,9 @@ void DataStore::Ingest(const Net::Packet& pkt) {
     for (auto& s : pkt.samples) ch->Push(s);
     totalPackets_.fetch_add(1, std::memory_order_relaxed);
     totalSamples_.fetch_add(pkt.samples.size(), std::memory_order_relaxed);
+    lk.unlock();
+    Log::Data().info("Channel {} added", pkt.channelId);
+    Bus().enqueue(ChannelAdded{pkt.channelId});
 }
 
 Channel* DataStore::GetChannel(uint16_t id) {
@@ -45,6 +50,9 @@ void DataStore::Clear() {
     channels_.clear();
     totalPackets_.store(0, std::memory_order_relaxed);
     totalSamples_.store(0, std::memory_order_relaxed);
+    lk.unlock();
+    Log::Data().info("Data cleared");
+    Bus().enqueue(DataCleared{});
 }
 
 } // namespace KiloScope::Data

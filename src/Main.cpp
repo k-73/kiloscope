@@ -1,7 +1,8 @@
+#include "Core/Log.hpp"
 #include "App/App.hpp"
-#include <iostream>
 
 int main() {
+    KiloScope::Log::Init();
     try { KiloScope::App::App{}.Run(); }
-    catch (const std::exception& e) { std::cerr << "Fatal: " << e.what() << '\n'; return 1; }
+    catch (const std::exception& e) { KiloScope::Log::App().critical("Fatal: {}", e.what()); return 1; }
 }

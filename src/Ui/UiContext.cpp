@@ -1,4 +1,5 @@
 #include "UiContext.hpp"
+#include "Core/Log.hpp"
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <imgui.h>
@@ -7,7 +8,6 @@
 #include <implot.h>
 #include <imgui_freetype.h>
 #include <stdexcept>
-#include <cstdio>
 
 namespace KiloScope::UI {
 
@@ -23,7 +23,7 @@ UiContext::~UiContext() {
 }
 
 void UiContext::InitGlfw() {
-    glfwSetErrorCallback([](int c, const char* d) { std::fprintf(stderr, "GLFW %d: %s\n", c, d); });
+    glfwSetErrorCallback([](int c, const char* d) { Log::Render().error("GLFW {}: {}", c, d); });
     if (!glfwInit()) throw std::runtime_error("GLFW init failed");
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);

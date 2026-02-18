@@ -1,12 +1,11 @@
 #include "Controls.hpp"
+#include "Ui/Panel/PanelRegistry.hpp"
 #include <imgui.h>
 #include <cinttypes>
 
 namespace KiloScope::UI {
 
-void Controls::Draw() {
-    ImGui::Begin(title_.c_str(), &visible_);
-
+void Controls::OnDraw() {
     ImGui::SeparatorText("Statistics");
     ImGui::Text("Packets: %" PRIu64, store_->TotalPackets());
     ImGui::Text("Samples: %" PRIu64, store_->TotalSamples());
@@ -26,7 +25,8 @@ void Controls::Draw() {
 
     ImGui::Separator();
     if (ImGui::Button("Clear Data")) store_->Clear();
-    ImGui::End();
 }
+
+REGISTER_PANEL(Controls, "Controls", "Controls", KiloScope::UI::PanelFlags::Singleton | KiloScope::UI::PanelFlags::NoSettings)
 
 } // namespace KiloScope::UI

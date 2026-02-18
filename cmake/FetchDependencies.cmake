@@ -76,3 +76,29 @@ FetchContent_MakeAvailable(asio)
 add_library(asio INTERFACE)
 target_include_directories(asio INTERFACE ${asio_SOURCE_DIR}/asio/include)
 target_compile_definitions(asio INTERFACE ASIO_STANDALONE)
+
+# ── spdlog ──────────────────────────────────────────────────────────
+FetchContent_Declare(spdlog
+    GIT_REPOSITORY https://github.com/gabime/spdlog.git
+    GIT_TAG        v1.15.1
+    GIT_SHALLOW    ON
+)
+set(SPDLOG_BUILD_EXAMPLE OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(spdlog)
+
+# ── nlohmann/json ───────────────────────────────────────────────────
+FetchContent_Declare(json
+    GIT_REPOSITORY https://github.com/nlohmann/json.git
+    GIT_TAG        v3.11.3
+    GIT_SHALLOW    ON
+)
+set(JSON_BuildTests OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(json)
+
+# ── EnTT ────────────────────────────────────────────────────────────
+FetchContent_Declare(entt
+    GIT_REPOSITORY https://github.com/skypjack/entt.git
+    GIT_TAG        v3.14.0
+    GIT_SHALLOW    ON
+)
+FetchContent_MakeAvailable(entt)

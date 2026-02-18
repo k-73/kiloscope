@@ -1,4 +1,5 @@
 #include "Shader.hpp"
+#include "Core/Log.hpp"
 #include <fstream>
 #include <stdexcept>
 #include <glm/gtc/type_ptr.hpp>
@@ -16,29 +17,44 @@ Shader::Shader(const std::string& vertPath, const std::string& fragPath) {
     GLint ok;
     glGetProgramiv(prog_, GL_LINK_STATUS, &ok);
     if (!ok) {
-        char log[1024];
-        glGetProgramInfoLog(prog_, sizeof(log), nullptr, log);
+        char buf[1024];
+        glGetProgramInfoLog(prog_, sizeof(buf), nullptr, buf);
         glDeleteProgram(prog_); glDeleteShader(vs); glDeleteShader(fs);
         prog_ = 0;
-        throw std::runtime_error(std::string("Shader link: ") + log);
+        Log::Render().error("Shader link failed: {}", buf);
+        throw std::runtime_error(std::string("Shader link: ") + buf);
     }
     glDeleteShader(vs);
     glDeleteShader(fs);
+    Log::Render().info("Shader linked: {} + {}", vertPath, fragPath);
 }
 
 Shader::~Shader() { if (prog_) glDeleteProgram(prog_); }
 
 Shader& Shader::operator=(Shader&& o) noexcept {
-    if (this != &o) { if (prog_) glDeleteProgram(prog_); prog_ = o.prog_; o.prog_ = 0; }
+    if (this != &o) {
+        if (prog_) glDeleteProgram(prog_);
+        prog_ = o.prog_;
+        uniformCache_ = std::move(o.uniformCache_);
+        o.prog_ = 0;
+    }
     return *this;
 }
 
-void Shader::Set(const char* n, const glm::mat4& m) const { glUniformMatrix4fv(glGetUniformLocation(prog_, n), 1, GL_FALSE, glm::value_ptr(m)); }
-void Shader::Set(const char* n, const glm::vec2& v) const { glUniform2fv(glGetUniformLocation(prog_, n), 1, glm::value_ptr(v)); }
-void Shader::Set(const char* n, const glm::vec3& v) const { glUniform3fv(glGetUniformLocation(prog_, n), 1, glm::value_ptr(v)); }
-void Shader::Set(const char* n, const glm::vec4& v) const { glUniform4fv(glGetUniformLocation(prog_, n), 1, glm::value_ptr(v)); }
-void Shader::Set(const char* n, float f)            const { glUniform1f(glGetUniformLocation(prog_, n), f); }
-void Shader::Set(const char* n, int i)              const { glUniform1i(glGetUniformLocation(prog_, n), i); }
+GLint Shader::Loc(const char* name) const {
+    auto it = uniformCache_.find(name);
+    if (it != uniformCache_.end()) return it->second;
+    GLint loc = glGetUniformLocation(prog_, name);
+    uniformCache_[name] = loc;
+    return loc;
+}
+
+void Shader::Set(const char* n, const glm::mat4& m) const { glUniformMatrix4fv(Loc(n), 1, GL_FALSE, glm::value_ptr(m)); }
+void Shader::Set(const char* n, const glm::vec2& v) const { glUniform2fv(Loc(n), 1, glm::value_ptr(v)); }
+void Shader::Set(const char* n, const glm::vec3& v) const { glUniform3fv(Loc(n), 1, glm::value_ptr(v)); }
+void Shader::Set(const char* n, const glm::vec4& v) const { glUniform4fv(Loc(n), 1, glm::value_ptr(v)); }
+void Shader::Set(const char* n, float f)            const { glUniform1f(Loc(n), f); }
+void Shader::Set(const char* n, int i)              const { glUniform1i(Loc(n), i); }
 
 GLuint Shader::Compile(GLenum type, const std::string& src) {
     GLuint s = glCreateShader(type);
@@ -48,10 +64,11 @@ GLuint Shader::Compile(GLenum type, const std::string& src) {
     GLint ok;
     glGetShaderiv(s, GL_COMPILE_STATUS, &ok);
     if (!ok) {
-        char log[1024];
-        glGetShaderInfoLog(s, sizeof(log), nullptr, log);
+        char buf[1024];
+        glGetShaderInfoLog(s, sizeof(buf), nullptr, buf);
         glDeleteShader(s);
-        throw std::runtime_error(std::string("Shader compile: ") + log);
+        Log::Render().error("Shader compile failed: {}", buf);
+        throw std::runtime_error(std::string("Shader compile: ") + buf);
     }
     return s;
 }

@@ -30,6 +30,9 @@ target_link_libraries(kiloscope PRIVATE
     implot
     glm::glm
     asio
+    spdlog::spdlog
+    nlohmann_json::nlohmann_json
+    EnTT::EnTT
     OpenGL::GL
     glfw
     GLEW::GLEW

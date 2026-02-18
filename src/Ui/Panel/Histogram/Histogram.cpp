@@ -1,28 +1,53 @@
 #include "Histogram.hpp"
+#include "Ui/Panel/PanelRegistry.hpp"
 #include <imgui.h>
 #include <implot.h>
 
 namespace KiloScope::UI {
 
-void Histogram::Draw() {
-    ImGui::Begin(title_.c_str(), &visible_);
+void Histogram::OnUpdate() {
+    histData_.clear();
+    size_t totalUsed = 0;
+
+    std::shared_lock lk(store_->Mutex());
+    for (auto id : store_->ChannelIds()) {
+        auto* ch = store_->GetChannel(id);
+        if (!ch) continue;
+        auto count = ch->ReadLast(buf_.data(), MaxDisplay);
+        if (!count) continue;
+
+        size_t needed = totalUsed + count;
+        if (needed > vals_.size()) vals_.resize(needed);
+
+        for (size_t i = 0; i < count; ++i)
+            vals_[totalUsed + i] = buf_[i].value;
+
+        histData_.push_back({count, ch->Name(), totalUsed});
+        totalUsed += count;
+    }
+}
+
+void Histogram::OnDraw() {
     ImGui::SliderInt("Bins", &bins_, 8, 256);
 
     if (ImPlot::BeginPlot("##hist", ImVec2(-1, -1))) {
         ImPlot::SetupAxes("Value", "Count");
-        std::shared_lock lk(store_->Mutex());
-        for (auto id : store_->ChannelIds()) {
-            auto* ch = store_->GetChannel(id);
-            if (!ch) continue;
-            auto count = ch->ReadLast(buf_.data(), MaxDisplay);
-            if (!count) continue;
-            std::vector<double> vals(count);
-            for (size_t i = 0; i < count; ++i) vals[i] = buf_[i].value;
-            ImPlot::PlotHistogram(ch->Name().c_str(), vals.data(), (int)count, bins_);
+        for (auto& hd : histData_) {
+            ImPlot::PlotHistogram(hd.name.c_str(),
+                vals_.data() + hd.offset, (int)hd.count, bins_);
         }
         ImPlot::EndPlot();
     }
-    ImGui::End();
 }
+
+json Histogram::SaveSettings() const {
+    return {{"bins", bins_}};
+}
+
+void Histogram::LoadSettings(const json& j) {
+    if (j.contains("bins")) bins_ = j["bins"].get<int>();
+}
+
+REGISTER_PANEL(Histogram, "Histogram", "Histogram", KiloScope::UI::PanelFlags::None)
 
 } // namespace KiloScope::UI

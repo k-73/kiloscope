@@ -1,18 +1,27 @@
 #pragma once
 #include "../Panel.hpp"
+#include <vector>
 
 namespace KiloScope::UI {
 
 class Scatter : public Panel {
 public:
-    explicit Scatter(std::shared_ptr<Data::DataStore> s) : Panel("Scatter Plot", std::move(s)) {}
-    void Draw() override;
+    explicit Scatter(std::shared_ptr<Data::DataStore> s)
+        : Panel("Scatter", "Scatter Plot", std::move(s)) {}
+
+    void OnUpdate() override;
+    void OnDraw() override;
+    json SaveSettings() const override;
+    void LoadSettings(const json& j) override;
 
 private:
     static constexpr size_t MaxDisplay = 4096;
-    std::vector<Data::Sample> bufX_ = std::vector<Data::Sample>(MaxDisplay);
-    std::vector<Data::Sample> bufY_ = std::vector<Data::Sample>(MaxDisplay);
+    std::vector<Data::Sample> bufX_{MaxDisplay};
+    std::vector<Data::Sample> bufY_{MaxDisplay};
+    std::vector<double> xs_{MaxDisplay};
+    std::vector<double> ys_{MaxDisplay};
     int chX_ = 0, chY_ = 1;
+    size_t plotCount_ = 0;
 };
 
 } // namespace KiloScope::UI
