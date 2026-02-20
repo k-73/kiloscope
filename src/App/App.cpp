@@ -2,6 +2,18 @@
 #include "Core/Log.hpp"
 #include "Net/Packet.hpp"
 #include <GLFW/glfw3.h>
+#include <atomic>
+#include <csignal>
+
+namespace {
+std::atomic<bool> g_shutdown{false};
+void OnSignal(int sig) {
+    if (g_shutdown.exchange(true)) {
+        std::signal(sig, SIG_DFL);
+        std::raise(sig);
+    }
+}
+}
 
 namespace KiloScope::App {
 
@@ -34,8 +46,16 @@ App::~App() {
 }
 
 void App::Run() {
+    std::signal(SIGINT,  OnSignal);
+    std::signal(SIGTERM, OnSignal);
+
     auto* w = ui_->Window();
     while (!glfwWindowShouldClose(w)) {
+        if (g_shutdown.load(std::memory_order_relaxed)) {
+            Log::App().info("Signal received, shutting down");
+            glfwSetWindowShouldClose(w, GLFW_TRUE);
+            break;
+        }
         glfwPollEvents();
         dispatcher_.update();
         ui_->BeginFrame();

@@ -33,23 +33,28 @@ void main() {
 
     vec3 fp = vNear + t * (vFar - vNear);
 
-    float sc = uCamDist > 200.0 ? 100.0 : uCamDist > 40.0 ? 10.0 : 1.0;
-    float g1 = SoftLine(fp.xy, sc);
-    float g2 = SoftLine(fp.xy, sc * 10.0);
+    // Layered grid — all decade scales always present, coarser = brighter overlay
+    // SoftLine naturally returns ~0 when grid becomes sub-pixel dense
+    float g1   = SoftLine(fp.xy, 1.0);
+    float g10  = SoftLine(fp.xy, 10.0);
+    float g100 = SoftLine(fp.xy, 100.0);
 
-    // Soft axis highlights — each axis uses its own screen-space derivative
-    float axX = SoftAxis(fp.x, max(sc * 0.06, fwidth(fp.x) * 2.0));
-    float axY = SoftAxis(fp.y, max(sc * 0.06, fwidth(fp.y) * 2.0));
+    // Additive color: finer grids persist underneath, coarser ones glow brighter
+    vec3 col = vec3(0.20, 0.22, 0.26) * g1
+             + vec3(0.28, 0.30, 0.36) * g10
+             + vec3(0.42, 0.45, 0.52) * g100;
 
-    // Subtle blue-tinted grid, brighter major lines
-    vec3 col = vec3(0.28, 0.30, 0.35) * g1 + vec3(0.45, 0.48, 0.55) * g2;
+    // Axis highlights — continuous thickness proportional to camera distance
+    float axThick = uCamDist * 0.006;
+    float axX = SoftAxis(fp.x, max(axThick, fwidth(fp.x) * 2.0));
+    float axY = SoftAxis(fp.y, max(axThick, fwidth(fp.y) * 2.0));
     col += vec3(0.2, 0.8, 0.2) * axX + vec3(0.8, 0.2, 0.2) * axY;
 
     // Distance fade
     float d = length(fp.xy - uCamPos.xy);
     float fade = 1.0 - smoothstep(uCamDist * 2.5, uCamDist * 10.0, d);
 
-    float alpha = max(g1 * 0.35, g2 * 0.55) * fade;
+    float alpha = max(max(g1 * 0.25, g10 * 0.40), g100 * 0.60) * fade;
     alpha = max(alpha, max(axX, axY) * fade * 0.75);
     if (alpha < 0.003) discard;
 
