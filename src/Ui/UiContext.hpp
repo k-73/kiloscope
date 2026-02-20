@@ -1,4 +1,5 @@
 #pragma once
+#include "Core/Config.hpp"
 
 struct GLFWwindow;
 
@@ -6,7 +7,7 @@ namespace KiloScope::UI {
 
 class UiContext {
 public:
-    UiContext();
+    explicit UiContext(const AppConfig& config);
     ~UiContext();
     UiContext(const UiContext&) = delete;
     UiContext& operator=(const UiContext&) = delete;
@@ -14,10 +15,11 @@ public:
     GLFWwindow* Window() const { return win_; }
     void BeginFrame();
     void EndFrame();
+    void SaveWindowState(AppConfig& cfg) const;
 
 private:
     GLFWwindow* win_ = nullptr;
-    void InitGlfw();
+    void InitGlfw(const AppConfig& config);
     void InitImGui();
     void ApplyStyle();
 };

@@ -7,11 +7,13 @@ namespace KiloScope::App {
 
 App::App()
     : store_(std::make_shared<Data::DataStore>())
-    , ui_(std::make_unique<UI::UiContext>())
-    , panels_(std::make_unique<UI::PanelManager>(store_))
 {
     SetBus(dispatcher_);
     config_.LoadFromFile("kiloscope.json");
+    Log::SetLevel(config_.logLevel);
+
+    ui_ = std::make_unique<UI::UiContext>(config_);
+    panels_ = std::make_unique<UI::PanelManager>(store_);
 
     panels_->LoadFromFile(config_.panelConfigPath);
     if (panels_->Empty())
@@ -26,6 +28,7 @@ App::App()
 }
 
 App::~App() {
+    ui_->SaveWindowState(config_);
     panels_->SaveToFile(config_.panelConfigPath);
     config_.SaveToFile("kiloscope.json");
 }

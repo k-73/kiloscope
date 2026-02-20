@@ -7,6 +7,7 @@ namespace KiloScope {
 class Log {
 public:
     static void Init();
+    static void SetLevel(const std::string& level);
 
     static spdlog::logger& App()    { return *sApp_; }
     static spdlog::logger& Net()    { return *sNet_; }

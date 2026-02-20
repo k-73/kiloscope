@@ -11,7 +11,7 @@
 
 namespace KiloScope::UI {
 
-UiContext::UiContext()  { InitGlfw(); InitImGui(); ApplyStyle(); }
+UiContext::UiContext(const AppConfig& config)  { InitGlfw(config); InitImGui(); ApplyStyle(); }
 
 UiContext::~UiContext() {
     ImPlot::DestroyContext();
@@ -22,17 +22,20 @@ UiContext::~UiContext() {
     glfwTerminate();
 }
 
-void UiContext::InitGlfw() {
+void UiContext::InitGlfw(const AppConfig& config) {
     glfwSetErrorCallback([](int c, const char* d) { Log::Render().error("GLFW {}: {}", c, d); });
     if (!glfwInit()) throw std::runtime_error("GLFW init failed");
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    glfwWindowHint(GLFW_MAXIMIZED, GLFW_TRUE);
-    win_ = glfwCreateWindow(1920, 1080, "KiloScope", nullptr, nullptr);
+    glfwWindowHint(GLFW_MAXIMIZED, config.maximized ? GLFW_TRUE : GLFW_FALSE);
+    glfwWindowHint(GLFW_DECORATED, config.decorated ? GLFW_TRUE : GLFW_FALSE);
+    win_ = glfwCreateWindow(config.windowWidth, config.windowHeight, "KiloScope", nullptr, nullptr);
     if (!win_) throw std::runtime_error("Window creation failed");
+    if (!config.maximized && config.windowPosX != -1)
+        glfwSetWindowPos(win_, config.windowPosX, config.windowPosY);
     glfwMakeContextCurrent(win_);
-    glfwSwapInterval(1);
+    glfwSwapInterval(config.vsync ? 1 : 0);
     if (glewInit() != GLEW_OK) throw std::runtime_error("GLEW init failed");
 }
 
@@ -96,6 +99,14 @@ void UiContext::EndFrame() {
     glClearColor(.08f, .08f, .10f, 1.f);
     glClear(GL_COLOR_BUFFER_BIT);
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+}
+
+void UiContext::SaveWindowState(AppConfig& cfg) const {
+    cfg.maximized = glfwGetWindowAttrib(win_, GLFW_MAXIMIZED) != 0;
+    if (!cfg.maximized) {
+        glfwGetWindowPos(win_, &cfg.windowPosX, &cfg.windowPosY);
+        glfwGetWindowSize(win_, &cfg.windowWidth, &cfg.windowHeight);
+    }
 }
 
 } // namespace KiloScope::UI
