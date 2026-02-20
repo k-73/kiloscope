@@ -56,9 +56,11 @@ void PanelManager::DrawMenuBar() {
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("Panels")) {
             for (auto& p : panels_) {
+                ImGui::PushID(p->Id().c_str());
                 bool vis = p->IsVisible();
                 if (ImGui::MenuItem(p->Title().c_str(), nullptr, vis))
                     p->SetVisible(!vis);
+                ImGui::PopID();
             }
             ImGui::Separator();
             auto& reg = PanelRegistry::Instance();

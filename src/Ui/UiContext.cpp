@@ -62,11 +62,17 @@ void UiContext::ApplyStyle() {
     c[ImGuiCol_WindowBg]      = {.10f, .10f, .12f, 1};
     c[ImGuiCol_TitleBg]       = {.08f, .08f, .10f, 1};
     c[ImGuiCol_TitleBgActive] = {.14f, .14f, .18f, 1};
-    c[ImGuiCol_Tab]           = {.14f, .14f, .18f, 1};
-    c[ImGuiCol_TabSelected]   = {.24f, .24f, .32f, 1};
+    c[ImGuiCol_Tab]                      = {.14f, .14f, .18f, 1};
+    c[ImGuiCol_TabHovered]               = {.22f, .22f, .28f, 1};
+    c[ImGuiCol_TabSelected]              = {.24f, .24f, .32f, 1};
+    c[ImGuiCol_TabSelectedOverline]      = {.36f, .36f, .48f, 1};
+    c[ImGuiCol_TabDimmed]                = {.10f, .10f, .13f, 1};
+    c[ImGuiCol_TabDimmedSelected]        = {.18f, .18f, .24f, 1};
+    c[ImGuiCol_TabDimmedSelectedOverline]= {.26f, .26f, .36f, 1};
     c[ImGuiCol_FrameBg]       = {.14f, .14f, .18f, 1};
     c[ImGuiCol_Header]        = {.20f, .20f, .26f, 1};
     c[ImGuiCol_HeaderHovered] = {.26f, .26f, .34f, 1};
+    c[ImGuiCol_HeaderActive]  = {.30f, .30f, .40f, 1};
     ImPlot::StyleColorsDark();
     ImPlot::GetStyle().PlotDefaultSize = {400, 300};
 }

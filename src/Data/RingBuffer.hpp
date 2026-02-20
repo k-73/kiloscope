@@ -12,12 +12,14 @@ class RingBuffer {
     static_assert(std::is_trivially_copyable_v<T>);
 
 public:
-    bool Push(const T& item) noexcept {
+    void Push(const T& item) noexcept {
         auto w = write_.load(std::memory_order_relaxed);
-        if (w - read_.load(std::memory_order_acquire) >= Cap) return false;
         buf_[w & Mask] = item;
         write_.store(w + 1, std::memory_order_release);
-        return true;
+        // Advance read pointer to keep sliding window of latest Cap entries
+        auto r = read_.load(std::memory_order_relaxed);
+        if (w + 1 - r > Cap)
+            read_.store(w + 1 - Cap, std::memory_order_release);
     }
 
     std::optional<T> Pop() noexcept {

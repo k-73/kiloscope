@@ -73,6 +73,7 @@ void App::CreateDefaultPanels() {
     panels_->Add("Scatter");
     panels_->Add("Histogram");
     panels_->Add("Viewport3d");
+    panels_->Add("Diagnostics");
     Log::App().info("Created default panel layout");
 }
 

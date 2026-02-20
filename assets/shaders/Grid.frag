@@ -40,9 +40,9 @@ void main() {
     float g100 = SoftLine(fp.xy, 100.0);
 
     // Additive color: finer grids persist underneath, coarser ones glow brighter
-    vec3 col = vec3(0.20, 0.22, 0.26) * g1
-             + vec3(0.28, 0.30, 0.36) * g10
-             + vec3(0.42, 0.45, 0.52) * g100;
+    vec3 col = vec3(0.30, 0.32, 0.38) * g1
+             + vec3(0.36, 0.38, 0.44) * g10
+             + vec3(0.48, 0.52, 0.58) * g100;
 
     // Axis highlights — continuous thickness proportional to camera distance
     float axThick = uCamDist * 0.006;
@@ -54,7 +54,7 @@ void main() {
     float d = length(fp.xy - uCamPos.xy);
     float fade = 1.0 - smoothstep(uCamDist * 2.5, uCamDist * 10.0, d);
 
-    float alpha = max(max(g1 * 0.25, g10 * 0.40), g100 * 0.60) * fade;
+    float alpha = max(max(g1 * 0.35, g10 * 0.50), g100 * 0.65) * fade;
     alpha = max(alpha, max(axX, axY) * fade * 0.75);
     if (alpha < 0.003) discard;
 

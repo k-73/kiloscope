@@ -48,6 +48,7 @@ FetchContent_MakeAvailable(implot)
 add_library(implot STATIC
     ${implot_SOURCE_DIR}/implot.cpp
     ${implot_SOURCE_DIR}/implot_items.cpp
+    ${implot_SOURCE_DIR}/implot_demo.cpp
 )
 
 target_include_directories(implot PUBLIC
