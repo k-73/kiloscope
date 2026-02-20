@@ -10,20 +10,15 @@ PanelManager::PanelManager(std::shared_ptr<Data::DataStore> store)
     : store_(std::move(store)) {}
 
 Panel* PanelManager::Add(std::string_view typeId) {
-    // Enforce singleton constraint
-    auto& reg = PanelRegistry::Instance();
-    for (auto& e : reg.Entries()) {
-        if (e.typeId == typeId && (e.defaultFlags & PanelFlags::Singleton)) {
-            for (auto& p : panels_) {
-                if (p->TypeId() == typeId) {
-                    p->SetVisible(true);
-                    return p.get();
-                }
-            }
+    // One instance per type — return existing if present
+    for (auto& p : panels_) {
+        if (p->TypeId() == typeId) {
+            p->SetVisible(true);
+            return p.get();
         }
     }
 
-    auto panel = reg.Create(typeId, store_);
+    auto panel = PanelRegistry::Instance().Create(typeId, store_);
     if (!panel) return nullptr;
     panel->OnAttach();
     auto* ptr = panel.get();
@@ -61,15 +56,6 @@ void PanelManager::DrawMenuBar() {
                 if (ImGui::MenuItem(p->Title().c_str(), nullptr, vis))
                     p->SetVisible(!vis);
                 ImGui::PopID();
-            }
-            ImGui::Separator();
-            auto& reg = PanelRegistry::Instance();
-            if (ImGui::BeginMenu("Add Panel")) {
-                for (auto& e : reg.Entries()) {
-                    if (ImGui::MenuItem(e.displayName.c_str()))
-                        Add(e.typeId);
-                }
-                ImGui::EndMenu();
             }
             ImGui::EndMenu();
         }
