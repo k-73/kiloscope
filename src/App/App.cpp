@@ -33,7 +33,10 @@ App::App()
 
     receiver_ = std::make_unique<Net::UdpReceiver>(config_.udpPort,
         [this](std::span<const uint8_t> raw) {
-            if (auto pkt = Net::ParsePacket(raw)) store_->Ingest(*pkt);
+            if (auto pkt = Net::ParsePacket(raw)) {
+                store_->Ingest(*pkt);
+                panels_->NotifyData();
+            }
         });
 
     Log::App().info("KiloScope initialized");
@@ -60,7 +63,6 @@ void App::Run() {
         dispatcher_.update();
         ui_->BeginFrame();
         panels_->DrawMenuBar();
-        panels_->Update();
         panels_->Draw();
         ui_->EndFrame();
         glfwSwapBuffers(w);

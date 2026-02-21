@@ -5,7 +5,7 @@
 
 namespace KiloScope {
 
-void Histogram::OnUpdate() {
+void Histogram::OnData() {
     histData_.clear();
     size_t totalUsed = 0;
 

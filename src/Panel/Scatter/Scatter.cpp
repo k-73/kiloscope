@@ -6,7 +6,7 @@
 
 namespace KiloScope {
 
-void Scatter::OnUpdate() {
+void Scatter::OnData() {
     plotCount_ = 0;
     std::shared_lock lk(store_->Mutex());
     auto* cx = store_->GetChannel((uint16_t)chX_);

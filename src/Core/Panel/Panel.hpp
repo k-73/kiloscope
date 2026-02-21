@@ -1,7 +1,9 @@
 #pragma once
 #include "Data/DataStore.hpp"
 #include <nlohmann/json.hpp>
+#include <atomic>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <string_view>
 #include <cstdint>
@@ -24,6 +26,8 @@ inline bool operator&(PanelFlags a, PanelFlags b) {
     return (static_cast<uint8_t>(a) & static_cast<uint8_t>(b)) != 0;
 }
 
+class PanelManager;
+
 class Panel {
 public:
     Panel(std::string_view typeId, std::string title,
@@ -34,10 +38,9 @@ public:
 
     virtual void OnAttach() {}
     virtual void OnDetach() {}
-    virtual void OnUpdate() {}
-    virtual void OnDraw() = 0;
-    virtual void OnData(Data::DataStore& store) {}
+    virtual void OnData() {}
     virtual void OnLoop() {}
+    virtual void OnDraw() = 0;
 
     virtual json SaveSettings() const { return {}; }
     virtual void LoadSettings(const json&) {}
@@ -49,17 +52,23 @@ public:
     bool IsVisible()            const { return visible_; }
     void SetVisible(bool v)           { visible_ = v; }
 
-    void Draw();  // wraps ImGui::Begin/End + calls OnDraw()
+    void Draw();  // acquires mutex_, wraps ImGui::Begin/End + calls OnDraw()
 
 protected:
     std::string typeId_;
-    std::string id_;       // "TypeId##N" — unique ImGui ID
-    std::string title_;    // display name for menus
+    std::string id_;
+    std::string title_;
     std::shared_ptr<Data::DataStore> store_;
     PanelFlags flags_;
     bool visible_ = true;
 
 private:
+    friend class PanelManager;
+    std::mutex mutex_;
+    std::atomic<bool> dirty_{false};
+
+    void MarkDirty() { dirty_.store(true, std::memory_order_relaxed); }
+
     static int NextInstanceId(const std::string& typeId);
 };
 

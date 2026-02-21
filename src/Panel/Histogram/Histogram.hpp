@@ -9,7 +9,7 @@ public:
     Histogram()
         : Panel("Histogram", "Histogram") {}
 
-    void OnUpdate() override;
+    void OnData() override;
     void OnDraw() override;
     json SaveSettings() const override;
     void LoadSettings(const json& j) override;
@@ -19,13 +19,9 @@ private:
     std::vector<Data::Sample> buf_{MaxDisplay};
     int bins_ = 64;
 
-    struct ChannelHistData {
-        size_t count = 0;
-        std::string name;
-        size_t offset = 0;
-    };
+    struct ChannelHistData { size_t count = 0; std::string name; size_t offset = 0; };
     std::vector<ChannelHistData> histData_;
-    std::vector<double> vals_;  // preallocated
+    std::vector<double> vals_;
 };
 
 } // namespace KiloScope

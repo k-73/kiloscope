@@ -46,10 +46,8 @@ void PanelManager::Remove(const std::string& id) {
     }
 }
 
-void PanelManager::Update() {
-    for (auto& p : panels_) {
-        if (p->IsVisible()) p->OnUpdate();
-    }
+void PanelManager::NotifyData() {
+    for (auto& p : panels_) p->MarkDirty();
 }
 
 void PanelManager::Draw() {
@@ -76,6 +74,9 @@ void PanelManager::WorkerLoop(std::stop_token st) {
     using namespace std::chrono_literals;
     while (!st.stop_requested()) {
         for (auto& p : panels_) {
+            std::lock_guard g(p->mutex_);
+            if (p->dirty_.exchange(false, std::memory_order_relaxed))
+                p->OnData();
             p->OnLoop();
         }
         std::this_thread::sleep_for(1ms);

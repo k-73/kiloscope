@@ -16,7 +16,7 @@ public:
 
     Panel* Add(std::string_view typeId);
     void   Remove(const std::string& id);
-    void   Update();
+    void   NotifyData();
     void   Draw();
     void   DrawMenuBar();
 

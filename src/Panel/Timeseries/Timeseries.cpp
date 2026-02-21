@@ -5,7 +5,7 @@
 
 namespace KiloScope {
 
-void Timeseries::OnUpdate() {
+void Timeseries::OnData() {
     plotData_.clear();
     offsets_.clear();
     size_t totalUsed = 0;
@@ -17,12 +17,8 @@ void Timeseries::OnUpdate() {
         auto count = ch->ReadLast(buf_.data(), MaxDisplay);
         if (!count) continue;
 
-        // Ensure we have enough room in xs_/ys_
         size_t needed = totalUsed + count;
-        if (needed > xs_.size()) {
-            xs_.resize(needed);
-            ys_.resize(needed);
-        }
+        if (needed > xs_.size()) { xs_.resize(needed); ys_.resize(needed); }
 
         double tLatest = buf_[count - 1].timestamp;
         for (size_t i = 0; i < count; ++i) {
