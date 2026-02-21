@@ -1,0 +1,3 @@
+- Nowoczesny, elegancki, zwarty i zwięzły kod
+- Kod absolutnie poprawny i dobrze przemyślany
+- Projekt jest profesjonalny
