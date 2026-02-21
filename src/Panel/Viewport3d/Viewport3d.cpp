@@ -14,37 +14,23 @@ Viewport3d::Viewport3d()
 }
 
 void Viewport3d::OnData(Data::DataStore& store) {
-    // Snapshot write positions first (3 atomic loads, near-instantaneous).
-    // This ensures all channels are read up to the same logical time,
-    // eliminating cross-channel misalignment from concurrent Ingest.
     Data::Channel* chs[3]{};
-    size_t wpos[3]{};
-    for (int i = 0; i < 3; ++i)
-        if ((chs[i] = store.GetChannel(i)))
-            wpos[i] = chs[i]->WritePos();
-
-    size_t endPos = SIZE_MAX;
-    for (int i = 0; i < 3; ++i)
-        if (chs[i]) endPos = std::min(endPos, wpos[i]);
-
-    if (endPos == 0 || endPos == SIZE_MAX) {
-        pending_.valid = false; newData_ = true; return;
+    Data::Sample*  bufs[3]{};
+    for (int i = 0; i < 3; ++i) {
+        chs[i]  = store.GetChannel(i);
+        bufs[i] = sampleBufs_[i].data();
     }
 
-    size_t n = 0;
-    for (int i = 0; i < 3; ++i)
-        if (chs[i]) n = chs[i]->ReadAt(sampleBufs_[i].data(), MaxPts, endPos);
-
+    auto n = Data::ReadAligned(chs, bufs, MaxPts);
     if (!n) { pending_.valid = false; newData_ = true; return; }
 
     pending_.path.resize(n);
     for (size_t i = 0; i < n; ++i)
         pending_.path[i] = {
-            static_cast<float>(sampleBufs_[0][i].value),
-            static_cast<float>(sampleBufs_[1][i].value),
-            static_cast<float>(sampleBufs_[2][i].value)};
+            static_cast<float>(bufs[0][i].value),
+            static_cast<float>(bufs[1][i].value),
+            static_cast<float>(bufs[2][i].value)};
 
-    pending_.endpoint = pending_.path[n - 1];
     pending_.valid = true;
     newData_ = true;
 }
@@ -66,7 +52,7 @@ void Viewport3d::OnRender(Render::Scene& scene) {
                    {.2f + .8f * t, .4f, 1.f - .6f * t, 1.f}, 2.5f);
     }
 
-    p.DrawSphere(active_.endpoint, 0.1f, {1.f, .8f, .2f, 1.f}, 32);
+    p.DrawSphere(active_.path.back(), 0.1f, {1.f, .8f, .2f, 1.f}, 32);
 }
 
 void Viewport3d::OnDraw() {

@@ -7,21 +7,23 @@ namespace KiloScope::Render {
 Fbo::~Fbo() { Destroy(); }
 
 Fbo::Fbo(Fbo&& o) noexcept
-    : w_(o.w_), h_(o.h_), samples_(o.samples_)
-    , msaaFbo_(o.msaaFbo_), msaaColor_(o.msaaColor_), msaaDepth_(o.msaaDepth_)
-    , resolveFbo_(o.resolveFbo_), resolvedTex_(o.resolvedTex_) {
-    o.msaaFbo_ = o.msaaColor_ = o.msaaDepth_ = o.resolveFbo_ = o.resolvedTex_ = 0;
-    o.w_ = o.h_ = 0;
-}
+    : w_(std::exchange(o.w_, 0)), h_(std::exchange(o.h_, 0)), samples_(o.samples_)
+    , msaaFbo_(std::exchange(o.msaaFbo_, 0))
+    , msaaColor_(std::exchange(o.msaaColor_, 0))
+    , msaaDepth_(std::exchange(o.msaaDepth_, 0))
+    , resolveFbo_(std::exchange(o.resolveFbo_, 0))
+    , resolvedTex_(std::exchange(o.resolvedTex_, 0))
+{}
 
 Fbo& Fbo::operator=(Fbo&& o) noexcept {
     if (this != &o) {
         Destroy();
-        w_ = o.w_; h_ = o.h_; samples_ = o.samples_;
-        msaaFbo_ = o.msaaFbo_; msaaColor_ = o.msaaColor_; msaaDepth_ = o.msaaDepth_;
-        resolveFbo_ = o.resolveFbo_; resolvedTex_ = o.resolvedTex_;
-        o.msaaFbo_ = o.msaaColor_ = o.msaaDepth_ = o.resolveFbo_ = o.resolvedTex_ = 0;
-        o.w_ = o.h_ = 0;
+        w_ = std::exchange(o.w_, 0); h_ = std::exchange(o.h_, 0); samples_ = o.samples_;
+        msaaFbo_     = std::exchange(o.msaaFbo_, 0);
+        msaaColor_   = std::exchange(o.msaaColor_, 0);
+        msaaDepth_   = std::exchange(o.msaaDepth_, 0);
+        resolveFbo_  = std::exchange(o.resolveFbo_, 0);
+        resolvedTex_ = std::exchange(o.resolvedTex_, 0);
     }
     return *this;
 }

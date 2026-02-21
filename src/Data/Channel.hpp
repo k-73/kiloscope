@@ -45,4 +45,20 @@ private:
     double maxVal_ = std::numeric_limits<double>::lowest();
 };
 
+/// Read up to `maxPts` most-recent samples from multiple channels, aligned
+/// to the same logical time point. Snapshots all write positions first
+/// (one atomic load each), then reads each channel up to the common minimum.
+/// Array sizes must match at compile time.
+template <size_t N>
+size_t ReadAligned(Channel* (&chs)[N], Sample* (&bufs)[N], size_t maxPts) {
+    size_t endPos = SIZE_MAX;
+    for (size_t i = 0; i < N; ++i)
+        if (chs[i]) endPos = std::min(endPos, chs[i]->WritePos());
+    if (endPos == SIZE_MAX) return 0;
+    size_t n = 0;
+    for (size_t i = 0; i < N; ++i)
+        if (chs[i]) n = chs[i]->ReadAt(bufs[i], maxPts, endPos);
+    return n;
+}
+
 } // namespace KiloScope::Data

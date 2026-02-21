@@ -8,12 +8,10 @@ namespace KiloScope {
 
 void Scatter::OnData(Data::DataStore& store) {
     plotCount_ = 0;
-    auto* cx = store.GetChannel((uint16_t)chX_);
-    auto* cy = store.GetChannel((uint16_t)chY_);
-    if (!cx || !cy) return;
-
-    auto n = std::min(cx->ReadLast(bufX_.data(), MaxDisplay),
-                      cy->ReadLast(bufY_.data(), MaxDisplay));
+    Data::Channel* chs[2]{store.GetChannel((uint16_t)chX_),
+                           store.GetChannel((uint16_t)chY_)};
+    Data::Sample*  bufs[2]{bufX_.data(), bufY_.data()};
+    auto n = Data::ReadAligned(chs, bufs, MaxDisplay);
     if (!n) return;
 
     if (n > xs_.size()) { xs_.resize(n); ys_.resize(n); }

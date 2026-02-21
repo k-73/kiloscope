@@ -21,7 +21,6 @@ private:
 
     struct Snapshot {
         std::vector<glm::vec3> path;
-        glm::vec3 endpoint{0.f};
         bool valid = false;
     };
 
