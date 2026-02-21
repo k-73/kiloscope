@@ -14,6 +14,7 @@ public:
     PanelManager(std::shared_ptr<Data::DataStore> store, std::string shaderDir);
     ~PanelManager();
 
+    void   Start();  // starts worker thread — call after initial panels are added
     Panel* Add(std::string_view typeId);
     void   Remove(const std::string& id);
     void   NotifyData();

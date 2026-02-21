@@ -3,6 +3,7 @@
 #include <glm/glm.hpp>
 #include <string>
 #include <unordered_map>
+#include <utility>
 
 namespace KiloScope::Render {
 
@@ -12,7 +13,7 @@ public:
     Shader(const std::string& vertPath, const std::string& fragPath);
     ~Shader();
 
-    Shader(Shader&& o) noexcept : prog_(o.prog_), uniformCache_(std::move(o.uniformCache_)) { o.prog_ = 0; }
+    Shader(Shader&& o) noexcept : prog_(std::exchange(o.prog_, 0)), uniformCache_(std::move(o.uniformCache_)) {}
     Shader& operator=(Shader&& o) noexcept;
     Shader(const Shader&) = delete;
     Shader& operator=(const Shader&) = delete;

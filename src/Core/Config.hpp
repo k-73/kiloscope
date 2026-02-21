@@ -25,4 +25,7 @@ struct AppConfig {
     void SaveToFile(const std::string& path) const;
 };
 
+void to_json(nlohmann::json& j, const AppConfig& c);
+void from_json(const nlohmann::json& j, AppConfig& c);
+
 } // namespace KiloScope

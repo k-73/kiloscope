@@ -34,9 +34,8 @@ Shader::~Shader() { if (prog_) glDeleteProgram(prog_); }
 Shader& Shader::operator=(Shader&& o) noexcept {
     if (this != &o) {
         if (prog_) glDeleteProgram(prog_);
-        prog_ = o.prog_;
+        prog_ = std::exchange(o.prog_, 0);
         uniformCache_ = std::move(o.uniformCache_);
-        o.prog_ = 0;
     }
     return *this;
 }

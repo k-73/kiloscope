@@ -1,12 +1,11 @@
 #pragma once
 #include "RingBuffer.hpp"
+#include "Sample.hpp"
 #include <algorithm>
 #include <limits>
 #include <string>
 
 namespace KiloScope::Data {
-
-struct Sample { double timestamp, value; };
 
 class Channel {
 public:

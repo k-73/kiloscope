@@ -44,7 +44,7 @@ json Histogram::SaveSettings() const {
 }
 
 void Histogram::LoadSettings(const json& j) {
-    if (j.contains("bins")) bins_ = j["bins"].get<int>();
+    bins_ = j.value("bins", bins_);
 }
 
 REGISTER_PANEL(Histogram, "Histogram", "Histogram", KiloScope::PanelFlags::None)

@@ -30,6 +30,7 @@ App::App()
     panels_->LoadFromFile(config_.panelConfigPath);
     if (panels_->Empty())
         CreateDefaultPanels();
+    panels_->Start();
 
     receiver_ = std::make_unique<Net::UdpReceiver>(config_.udpPort,
         [this](std::span<const uint8_t> raw) {

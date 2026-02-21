@@ -2,7 +2,6 @@
 #include "Core/Panel/PanelRegistry.hpp"
 #include <imgui.h>
 #include <implot.h>
-#include <algorithm>
 
 namespace KiloScope {
 
@@ -53,8 +52,8 @@ json Scatter::SaveSettings() const {
 }
 
 void Scatter::LoadSettings(const json& j) {
-    if (j.contains("chX")) chX_ = j["chX"].get<int>();
-    if (j.contains("chY")) chY_ = j["chY"].get<int>();
+    chX_ = j.value("chX", chX_);
+    chY_ = j.value("chY", chY_);
 }
 
 REGISTER_PANEL(Scatter, "Scatter", "Scatter Plot", KiloScope::PanelFlags::None)

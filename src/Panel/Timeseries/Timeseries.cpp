@@ -54,7 +54,7 @@ json Timeseries::SaveSettings() const {
 }
 
 void Timeseries::LoadSettings(const json& j) {
-    if (j.contains("historySec")) historySec_ = j["historySec"].get<float>();
+    historySec_ = j.value("historySec", historySec_);
 }
 
 REGISTER_PANEL(Timeseries, "Timeseries", "Time Series", KiloScope::PanelFlags::None)

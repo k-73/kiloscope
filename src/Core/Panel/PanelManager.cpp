@@ -11,8 +11,11 @@ namespace KiloScope {
 PanelManager::PanelManager(std::shared_ptr<Data::DataStore> store, std::string shaderDir)
     : store_(std::move(store))
     , shaderDir_(std::move(shaderDir))
-    , worker_([this](std::stop_token st) { WorkerLoop(st); })
 {}
+
+void PanelManager::Start() {
+    worker_ = std::jthread([this](std::stop_token st) { WorkerLoop(st); });
+}
 
 PanelManager::~PanelManager() {
     worker_.request_stop();
@@ -126,11 +129,9 @@ void PanelManager::LoadFromFile(const std::string& path) {
     try {
         json arr = json::parse(f);
         for (auto& entry : arr) {
-            auto typeId = entry.at("typeId").get<std::string>();
-            auto* panel = Add(typeId);
+            auto* panel = Add(entry.at("typeId").get<std::string>());
             if (!panel) continue;
-            if (entry.contains("visible"))
-                panel->SetVisible(entry["visible"].get<bool>());
+            panel->SetVisible(entry.value("visible", true));
             if (entry.contains("settings"))
                 panel->LoadSettings(entry["settings"]);
         }

@@ -61,21 +61,22 @@ protected:
     virtual void OnRender(Render::Scene& scene) {}
     void DrawViewport();
 
-    std::string typeId_;
-    std::string id_;
-    std::string title_;
     std::shared_ptr<Data::DataStore> store_;
-    PanelFlags flags_;
-    bool visible_ = true;
 
 private:
     friend class PanelManager;
+
+    std::string typeId_;
+    std::string id_;
+    std::string title_;
+    PanelFlags flags_;
+    bool visible_ = true;
+
     std::unique_ptr<Render::Scene> scene_;
     std::mutex mutex_;
     std::atomic<bool> dirty_{false};
 
     void MarkDirty() { dirty_.store(true, std::memory_order_relaxed); }
-
     static int NextInstanceId(const std::string& typeId);
 };
 

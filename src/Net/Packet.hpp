@@ -1,5 +1,5 @@
 #pragma once
-#include "Data/Channel.hpp"
+#include "Data/Sample.hpp"
 #include <cstdint>
 #include <optional>
 #include <span>
