@@ -16,7 +16,7 @@ public:
 
     void   Start();  // starts worker thread — call after initial panels are added
     Panel* Add(std::string_view typeId);
-    void   Remove(const std::string& id);
+    void   Remove(std::string_view id);
     void   NotifyData();
     void   Draw();
     void   DrawMenuBar();

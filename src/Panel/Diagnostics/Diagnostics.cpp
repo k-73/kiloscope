@@ -33,7 +33,6 @@ void Diagnostics::OnDraw() {
     if (showImPlotDemo_) ImPlot::ShowDemoWindow(&showImPlotDemo_);
 }
 
-REGISTER_PANEL(Diagnostics, "Diagnostics", "Diagnostics",
-    KiloScope::PanelFlags::Singleton | KiloScope::PanelFlags::NoSettings)
+static const bool reg_ = RegisterPanel<Diagnostics>("Diagnostics", "Diagnostics");
 
 } // namespace KiloScope

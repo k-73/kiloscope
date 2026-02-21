@@ -11,7 +11,6 @@ namespace KiloScope {
 struct PanelEntry {
     std::string typeId;
     std::string displayName;
-    PanelFlags  defaultFlags;
     std::function<std::unique_ptr<Panel>()> factory;
 };
 
@@ -28,17 +27,13 @@ private:
     std::vector<PanelEntry> entries_;
 };
 
-// Helper for auto-registration
-struct PanelRegistrar {
-    PanelRegistrar(PanelEntry entry) { PanelRegistry::Instance().Register(std::move(entry)); }
-};
+template<typename T>
+bool RegisterPanel(std::string typeId, std::string displayName) {
+    PanelRegistry::Instance().Register({
+        std::move(typeId), std::move(displayName),
+        []() -> std::unique_ptr<Panel> { return std::make_unique<T>(); }
+    });
+    return true;
+}
 
 } // namespace KiloScope
-
-#define REGISTER_PANEL(Class, typeId, displayName, flags)                        \
-    static ::KiloScope::PanelRegistrar sReg_##Class({                           \
-        typeId, displayName, flags,                                              \
-        []() -> std::unique_ptr<::KiloScope::Panel> {                           \
-            return std::make_unique<Class>();                                     \
-        }                                                                        \
-    });

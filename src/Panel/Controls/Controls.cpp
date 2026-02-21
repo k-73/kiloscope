@@ -29,7 +29,6 @@ void Controls::OnDraw() {
     if (ImGui::Button("Clear Data")) store_->Clear();
 }
 
-REGISTER_PANEL(Controls, "Controls", "Controls",
-    KiloScope::PanelFlags::Singleton | KiloScope::PanelFlags::NoSettings)
+static const bool reg_ = RegisterPanel<Controls>("Controls", "Controls");
 
 } // namespace KiloScope

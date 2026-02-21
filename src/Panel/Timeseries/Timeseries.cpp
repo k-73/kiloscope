@@ -57,6 +57,6 @@ void Timeseries::LoadSettings(const json& j) {
     historySec_ = j.value("historySec", historySec_);
 }
 
-REGISTER_PANEL(Timeseries, "Timeseries", "Time Series", KiloScope::PanelFlags::None)
+static const bool reg_ = RegisterPanel<Timeseries>("Timeseries", "Time Series");
 
 } // namespace KiloScope

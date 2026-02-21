@@ -59,7 +59,6 @@ void Viewport3d::OnDraw() {
     DrawViewport();
 }
 
-REGISTER_PANEL(Viewport3d, "Viewport3d", "3D Viewport",
-    KiloScope::PanelFlags::Singleton | KiloScope::PanelFlags::NeedsScene)
+static const bool reg_ = RegisterPanel<Viewport3d>("Viewport3d", "3D Viewport");
 
 } // namespace KiloScope

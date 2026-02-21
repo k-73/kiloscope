@@ -47,6 +47,6 @@ void Histogram::LoadSettings(const json& j) {
     bins_ = j.value("bins", bins_);
 }
 
-REGISTER_PANEL(Histogram, "Histogram", "Histogram", KiloScope::PanelFlags::None)
+static const bool reg_ = RegisterPanel<Histogram>("Histogram", "Histogram");
 
 } // namespace KiloScope

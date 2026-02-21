@@ -56,6 +56,6 @@ void Scatter::LoadSettings(const json& j) {
     chY_ = j.value("chY", chY_);
 }
 
-REGISTER_PANEL(Scatter, "Scatter", "Scatter Plot", KiloScope::PanelFlags::None)
+static const bool reg_ = RegisterPanel<Scatter>("Scatter", "Scatter Plot");
 
 } // namespace KiloScope

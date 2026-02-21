@@ -48,7 +48,7 @@ Panel* PanelManager::Add(std::string_view typeId) {
     return ptr;
 }
 
-void PanelManager::Remove(const std::string& id) {
+void PanelManager::Remove(std::string_view id) {
     auto it = std::find_if(panels_.begin(), panels_.end(),
         [&](auto& p) { return p->Id() == id; });
     if (it != panels_.end()) {
