@@ -25,7 +25,7 @@ App::App()
     Log::SetLevel(config_.logLevel);
 
     ui_ = std::make_unique<UI::UiContext>(config_);
-    panels_ = std::make_unique<PanelManager>(store_);
+    panels_ = std::make_unique<PanelManager>(store_, std::string(ASSETS_DIR) + "/shaders");
 
     panels_->LoadFromFile(config_.panelConfigPath);
     if (panels_->Empty())

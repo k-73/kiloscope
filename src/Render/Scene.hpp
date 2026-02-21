@@ -3,9 +3,6 @@
 #include "Camera.hpp"
 #include "Grid.hpp"
 #include "Primitives.hpp"
-#include "GeometryRenderer.hpp"
-#include "Data/DataStore.hpp"
-#include <memory>
 #include <string>
 
 namespace KiloScope::Render {
@@ -14,15 +11,19 @@ class Scene {
 public:
     void Init(const std::string& shaderDir);
     void Resize(int w, int h) { fbo_.Resize(w, h, 8); }
-    GLuint Render(std::shared_ptr<Data::DataStore> store);
-    Camera& GetCamera() { return cam_; }
+
+    void BeginRender();
+    void EndRender();
+    GLuint Texture() const { return fbo_.Texture(); }
+
+    Camera&     GetCamera() { return cam_; }
+    Primitives& Prims()     { return prims_; }
 
 private:
     Fbo fbo_;
     Camera cam_;
     Grid grid_;
     Primitives prims_;
-    GeometryRenderer geom_;
 };
 
 } // namespace KiloScope::Render

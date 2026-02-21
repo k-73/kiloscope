@@ -11,7 +11,7 @@ namespace KiloScope {
 
 class PanelManager {
 public:
-    explicit PanelManager(std::shared_ptr<Data::DataStore> store);
+    PanelManager(std::shared_ptr<Data::DataStore> store, std::string shaderDir);
     ~PanelManager();
 
     Panel* Add(std::string_view typeId);
@@ -29,6 +29,7 @@ private:
     void WorkerLoop(std::stop_token st);
 
     std::shared_ptr<Data::DataStore> store_;
+    std::string shaderDir_;
     std::vector<std::unique_ptr<Panel>> panels_;
     std::jthread worker_;
 };

@@ -1,5 +1,6 @@
 #include "Core/Panel/PanelManager.hpp"
 #include "Core/Log.hpp"
+#include "Render/Scene.hpp"
 #include <imgui.h>
 #include <algorithm>
 #include <chrono>
@@ -7,8 +8,9 @@
 
 namespace KiloScope {
 
-PanelManager::PanelManager(std::shared_ptr<Data::DataStore> store)
+PanelManager::PanelManager(std::shared_ptr<Data::DataStore> store, std::string shaderDir)
     : store_(std::move(store))
+    , shaderDir_(std::move(shaderDir))
     , worker_([this](std::stop_token st) { WorkerLoop(st); })
 {}
 
@@ -29,6 +31,13 @@ Panel* PanelManager::Add(std::string_view typeId) {
     auto panel = PanelRegistry::Instance().Create(typeId);
     if (!panel) return nullptr;
     panel->BindStore(store_);
+
+    if (panel->Flags() & PanelFlags::NeedsScene) {
+        auto scene = std::make_unique<Render::Scene>();
+        scene->Init(shaderDir_);
+        panel->BindScene(std::move(scene));
+    }
+
     panel->OnAttach();
     auto* ptr = panel.get();
     panels_.push_back(std::move(panel));

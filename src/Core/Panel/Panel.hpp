@@ -8,6 +8,8 @@
 #include <string_view>
 #include <cstdint>
 
+namespace KiloScope::Render { class Scene; }
+
 namespace KiloScope {
 
 using json = nlohmann::json;
@@ -32,9 +34,10 @@ class Panel {
 public:
     Panel(std::string_view typeId, std::string title,
           PanelFlags flags = PanelFlags::None);
-    virtual ~Panel() = default;
+    virtual ~Panel();
 
     void BindStore(std::shared_ptr<Data::DataStore> store) { store_ = std::move(store); }
+    void BindScene(std::unique_ptr<Render::Scene> scene);
 
     virtual void OnAttach() {}
     virtual void OnDetach() {}
@@ -55,6 +58,9 @@ public:
     void Draw();  // acquires mutex_, wraps ImGui::Begin/End + calls OnDraw()
 
 protected:
+    virtual void OnRender(Render::Scene& scene) {}
+    void DrawViewport();
+
     std::string typeId_;
     std::string id_;
     std::string title_;
@@ -64,6 +70,7 @@ protected:
 
 private:
     friend class PanelManager;
+    std::unique_ptr<Render::Scene> scene_;
     std::mutex mutex_;
     std::atomic<bool> dirty_{false};
 
