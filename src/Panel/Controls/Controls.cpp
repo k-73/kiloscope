@@ -5,23 +5,25 @@
 
 namespace KiloScope {
 
+void Controls::OnData() {
+    packets_ = store_->TotalPackets();
+    samples_ = store_->TotalSamples();
+    channels_.clear();
+    for (auto id : store_->ChannelIds()) {
+        if (auto* ch = store_->GetChannel(id))
+            channels_.push_back({ch->Name(), ch->Size(), ch->MinValue(), ch->MaxValue()});
+    }
+}
+
 void Controls::OnDraw() {
     ImGui::SeparatorText("Statistics");
-    ImGui::Text("Packets: %" PRIu64, store_->TotalPackets());
-    ImGui::Text("Samples: %" PRIu64, store_->TotalSamples());
-
-    auto ids = store_->ChannelIds();
-    ImGui::Text("Channels: %zu", ids.size());
+    ImGui::Text("Packets: %" PRIu64, packets_);
+    ImGui::Text("Samples: %" PRIu64, samples_);
+    ImGui::Text("Channels: %zu", channels_.size());
 
     ImGui::SeparatorText("Channels");
-    {
-        std::shared_lock lk(store_->Mutex());
-        for (auto id : ids) {
-            if (auto* ch = store_->GetChannel(id))
-                ImGui::BulletText("%s: %zu [%.2f, %.2f]",
-                    ch->Name().c_str(), ch->Size(), ch->MinValue(), ch->MaxValue());
-        }
-    }
+    for (auto& ch : channels_)
+        ImGui::BulletText("%s: %zu [%.2f, %.2f]", ch.name.c_str(), ch.size, ch.min, ch.max);
 
     ImGui::Separator();
     if (ImGui::Button("Clear Data")) store_->Clear();

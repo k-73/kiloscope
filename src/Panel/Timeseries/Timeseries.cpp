@@ -10,7 +10,6 @@ void Timeseries::OnData() {
     offsets_.clear();
     size_t totalUsed = 0;
 
-    std::shared_lock lk(store_->Mutex());
     for (auto id : store_->ChannelIds()) {
         auto* ch = store_->GetChannel(id);
         if (!ch) continue;

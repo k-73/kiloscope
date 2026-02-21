@@ -73,11 +73,14 @@ void PanelManager::DrawMenuBar() {
 void PanelManager::WorkerLoop(std::stop_token st) {
     using namespace std::chrono_literals;
     while (!st.stop_requested()) {
-        for (auto& p : panels_) {
-            std::lock_guard g(p->mutex_);
-            if (p->dirty_.exchange(false, std::memory_order_relaxed))
-                p->OnData();
-            p->OnLoop();
+        {
+            std::shared_lock lk(store_->Mutex());
+            for (auto& p : panels_) {
+                std::lock_guard g(p->mutex_);
+                if (p->dirty_.exchange(false, std::memory_order_relaxed))
+                    p->OnData();
+                p->OnLoop();
+            }
         }
         std::this_thread::sleep_for(1ms);
     }
