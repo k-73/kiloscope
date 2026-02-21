@@ -8,9 +8,7 @@ namespace KiloScope {
 
 class Viewport3d : public Panel {
 public:
-    Viewport3d()
-        : Panel("Viewport3d", "3D Viewport",
-                PanelFlags::Singleton | PanelFlags::NeedsScene) {}
+    Viewport3d();
 
     void OnData(Data::DataStore& store) override;
     void OnDraw() override;
@@ -21,13 +19,10 @@ protected:
 private:
     static constexpr size_t MaxPts = 4096;
 
-    struct PointCache {
-        std::vector<glm::vec3> path;
-        glm::vec3 endpoint{0.f};
-        bool empty = true;
-    };
-
-    PointCache cache_;
+    std::vector<Data::Sample> sampleBufs_[3];
+    std::vector<glm::vec3> path_;
+    glm::vec3 endpoint_{0.f};
+    bool hasData_ = false;
 };
 
 } // namespace KiloScope
