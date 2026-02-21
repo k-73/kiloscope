@@ -1,13 +1,21 @@
-#include "PanelManager.hpp"
+#include "Core/Panel/PanelManager.hpp"
 #include "Core/Log.hpp"
 #include <imgui.h>
 #include <algorithm>
+#include <chrono>
 #include <fstream>
 
-namespace KiloScope::UI {
+namespace KiloScope {
 
 PanelManager::PanelManager(std::shared_ptr<Data::DataStore> store)
-    : store_(std::move(store)) {}
+    : store_(std::move(store))
+    , worker_([this](std::stop_token st) { WorkerLoop(st); })
+{}
+
+PanelManager::~PanelManager() {
+    worker_.request_stop();
+    if (worker_.joinable()) worker_.join();
+}
 
 Panel* PanelManager::Add(std::string_view typeId) {
     // One instance per type — return existing if present
@@ -18,8 +26,9 @@ Panel* PanelManager::Add(std::string_view typeId) {
         }
     }
 
-    auto panel = PanelRegistry::Instance().Create(typeId, store_);
+    auto panel = PanelRegistry::Instance().Create(typeId);
     if (!panel) return nullptr;
+    panel->BindStore(store_);
     panel->OnAttach();
     auto* ptr = panel.get();
     panels_.push_back(std::move(panel));
@@ -60,6 +69,16 @@ void PanelManager::DrawMenuBar() {
             ImGui::EndMenu();
         }
         ImGui::EndMainMenuBar();
+    }
+}
+
+void PanelManager::WorkerLoop(std::stop_token st) {
+    using namespace std::chrono_literals;
+    while (!st.stop_requested()) {
+        for (auto& p : panels_) {
+            p->OnLoop();
+        }
+        std::this_thread::sleep_for(1ms);
     }
 }
 
@@ -108,4 +127,4 @@ void PanelManager::LoadFromFile(const std::string& path) {
     }
 }
 
-} // namespace KiloScope::UI
+} // namespace KiloScope

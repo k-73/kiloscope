@@ -4,7 +4,7 @@
 #include "Net/UdpReceiver.hpp"
 #include "Data/DataStore.hpp"
 #include "Ui/UiContext.hpp"
-#include "Ui/PanelManager.hpp"
+#include "Core/Panel/PanelManager.hpp"
 #include <memory>
 
 namespace KiloScope::App {
@@ -22,7 +22,7 @@ private:
     entt::dispatcher dispatcher_;
     std::shared_ptr<Data::DataStore> store_;
     std::unique_ptr<UI::UiContext> ui_;
-    std::unique_ptr<UI::PanelManager> panels_;
+    std::unique_ptr<PanelManager> panels_;
     std::unique_ptr<Net::UdpReceiver> receiver_;
 };
 

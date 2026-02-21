@@ -1,13 +1,13 @@
 #pragma once
-#include "../Panel.hpp"
+#include "Core/Panel/Panel.hpp"
 #include <vector>
 
-namespace KiloScope::UI {
+namespace KiloScope {
 
 class Scatter : public Panel {
 public:
-    explicit Scatter(std::shared_ptr<Data::DataStore> s)
-        : Panel("Scatter", "Scatter Plot", std::move(s)) {}
+    Scatter()
+        : Panel("Scatter", "Scatter Plot") {}
 
     void OnUpdate() override;
     void OnDraw() override;
@@ -24,4 +24,4 @@ private:
     size_t plotCount_ = 0;
 };
 
-} // namespace KiloScope::UI
+} // namespace KiloScope

@@ -1,14 +1,14 @@
 #pragma once
-#include "../Panel.hpp"
+#include "Core/Panel/Panel.hpp"
 #include "Render/Scene.hpp"
 #include <memory>
 
-namespace KiloScope::UI {
+namespace KiloScope {
 
 class Viewport3d : public Panel {
 public:
-    explicit Viewport3d(std::shared_ptr<Data::DataStore> s)
-        : Panel("Viewport3d", "3D Viewport", std::move(s),
+    Viewport3d()
+        : Panel("Viewport3d", "3D Viewport",
                 PanelFlags::Singleton | PanelFlags::NeedsScene)
         , scene_(std::make_unique<Render::Scene>()) {}
 
@@ -19,4 +19,4 @@ private:
     bool init_ = false;
 };
 
-} // namespace KiloScope::UI
+} // namespace KiloScope

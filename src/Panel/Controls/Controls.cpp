@@ -1,9 +1,9 @@
 #include "Controls.hpp"
-#include "Ui/Panel/PanelRegistry.hpp"
+#include "Core/Panel/PanelRegistry.hpp"
 #include <imgui.h>
 #include <cinttypes>
 
-namespace KiloScope::UI {
+namespace KiloScope {
 
 void Controls::OnDraw() {
     ImGui::SeparatorText("Statistics");
@@ -27,6 +27,7 @@ void Controls::OnDraw() {
     if (ImGui::Button("Clear Data")) store_->Clear();
 }
 
-REGISTER_PANEL(Controls, "Controls", "Controls", KiloScope::UI::PanelFlags::Singleton | KiloScope::UI::PanelFlags::NoSettings)
+REGISTER_PANEL(Controls, "Controls", "Controls",
+    KiloScope::PanelFlags::Singleton | KiloScope::PanelFlags::NoSettings)
 
-} // namespace KiloScope::UI
+} // namespace KiloScope

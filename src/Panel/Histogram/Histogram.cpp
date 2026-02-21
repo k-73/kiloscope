@@ -1,9 +1,9 @@
 #include "Histogram.hpp"
-#include "Ui/Panel/PanelRegistry.hpp"
+#include "Core/Panel/PanelRegistry.hpp"
 #include <imgui.h>
 #include <implot.h>
 
-namespace KiloScope::UI {
+namespace KiloScope {
 
 void Histogram::OnUpdate() {
     histData_.clear();
@@ -48,6 +48,6 @@ void Histogram::LoadSettings(const json& j) {
     if (j.contains("bins")) bins_ = j["bins"].get<int>();
 }
 
-REGISTER_PANEL(Histogram, "Histogram", "Histogram", KiloScope::UI::PanelFlags::None)
+REGISTER_PANEL(Histogram, "Histogram", "Histogram", KiloScope::PanelFlags::None)
 
-} // namespace KiloScope::UI
+} // namespace KiloScope

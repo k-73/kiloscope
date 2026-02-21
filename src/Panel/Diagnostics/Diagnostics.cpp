@@ -1,10 +1,10 @@
 #include "Diagnostics.hpp"
-#include "Ui/Panel/PanelRegistry.hpp"
+#include "Core/Panel/PanelRegistry.hpp"
 #include <imgui.h>
 #include <implot.h>
 #include <cinttypes>
 
-namespace KiloScope::UI {
+namespace KiloScope {
 
 void Diagnostics::OnDraw() {
     auto& io = ImGui::GetIO();
@@ -34,6 +34,6 @@ void Diagnostics::OnDraw() {
 }
 
 REGISTER_PANEL(Diagnostics, "Diagnostics", "Diagnostics",
-    KiloScope::UI::PanelFlags::Singleton | KiloScope::UI::PanelFlags::NoSettings)
+    KiloScope::PanelFlags::Singleton | KiloScope::PanelFlags::NoSettings)
 
-} // namespace KiloScope::UI
+} // namespace KiloScope

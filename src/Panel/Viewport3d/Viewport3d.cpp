@@ -1,12 +1,12 @@
 #include "Viewport3d.hpp"
-#include "Ui/Panel/PanelRegistry.hpp"
+#include "Core/Panel/PanelRegistry.hpp"
 #include <imgui.h>
 
 #ifndef ASSETS_DIR
 #define ASSETS_DIR "assets"
 #endif
 
-namespace KiloScope::UI {
+namespace KiloScope {
 
 void Viewport3d::OnDraw() {
     if (!init_) {
@@ -35,6 +35,7 @@ void Viewport3d::OnDraw() {
     ImGui::Image((ImTextureID)(uintptr_t)tex, avail, {0, 1}, {1, 0});
 }
 
-REGISTER_PANEL(Viewport3d, "Viewport3d", "3D Viewport", KiloScope::UI::PanelFlags::Singleton | KiloScope::UI::PanelFlags::NeedsScene)
+REGISTER_PANEL(Viewport3d, "Viewport3d", "3D Viewport",
+    KiloScope::PanelFlags::Singleton | KiloScope::PanelFlags::NeedsScene)
 
-} // namespace KiloScope::UI
+} // namespace KiloScope

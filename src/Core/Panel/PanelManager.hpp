@@ -1,16 +1,18 @@
 #pragma once
-#include "Panel/Panel.hpp"
-#include "Panel/PanelRegistry.hpp"
+#include "Panel.hpp"
+#include "PanelRegistry.hpp"
 #include <memory>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <vector>
 
-namespace KiloScope::UI {
+namespace KiloScope {
 
 class PanelManager {
 public:
     explicit PanelManager(std::shared_ptr<Data::DataStore> store);
+    ~PanelManager();
 
     Panel* Add(std::string_view typeId);
     void   Remove(const std::string& id);
@@ -24,8 +26,11 @@ public:
     void LoadFromFile(const std::string& path);
 
 private:
+    void WorkerLoop(std::stop_token st);
+
     std::shared_ptr<Data::DataStore> store_;
     std::vector<std::unique_ptr<Panel>> panels_;
+    std::jthread worker_;
 };
 
-} // namespace KiloScope::UI
+} // namespace KiloScope

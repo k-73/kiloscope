@@ -1,12 +1,12 @@
 #pragma once
-#include "../Panel.hpp"
+#include "Core/Panel/Panel.hpp"
 
-namespace KiloScope::UI {
+namespace KiloScope {
 
 class Diagnostics : public Panel {
 public:
-    explicit Diagnostics(std::shared_ptr<Data::DataStore> s)
-        : Panel("Diagnostics", "Diagnostics", std::move(s),
+    Diagnostics()
+        : Panel("Diagnostics", "Diagnostics",
                 PanelFlags::Singleton | PanelFlags::NoSettings) {}
     void OnDraw() override;
 
@@ -17,4 +17,4 @@ private:
     int frameIdx_ = 0;
 };
 
-} // namespace KiloScope::UI
+} // namespace KiloScope

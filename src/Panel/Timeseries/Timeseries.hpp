@@ -1,13 +1,13 @@
 #pragma once
-#include "../Panel.hpp"
+#include "Core/Panel/Panel.hpp"
 #include <vector>
 
-namespace KiloScope::UI {
+namespace KiloScope {
 
 class Timeseries : public Panel {
 public:
-    explicit Timeseries(std::shared_ptr<Data::DataStore> s)
-        : Panel("Timeseries", "Time Series", std::move(s)) {}
+    Timeseries()
+        : Panel("Timeseries", "Time Series") {}
 
     void OnUpdate() override;
     void OnDraw() override;
@@ -29,4 +29,4 @@ private:
     std::vector<size_t> offsets_;  // per-channel offset into xs_/ys_
 };
 
-} // namespace KiloScope::UI
+} // namespace KiloScope

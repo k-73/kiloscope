@@ -1,10 +1,10 @@
 #include "Scatter.hpp"
-#include "Ui/Panel/PanelRegistry.hpp"
+#include "Core/Panel/PanelRegistry.hpp"
 #include <imgui.h>
 #include <implot.h>
 #include <algorithm>
 
-namespace KiloScope::UI {
+namespace KiloScope {
 
 void Scatter::OnUpdate() {
     plotCount_ = 0;
@@ -60,6 +60,6 @@ void Scatter::LoadSettings(const json& j) {
     if (j.contains("chY")) chY_ = j["chY"].get<int>();
 }
 
-REGISTER_PANEL(Scatter, "Scatter", "Scatter Plot", KiloScope::UI::PanelFlags::None)
+REGISTER_PANEL(Scatter, "Scatter", "Scatter Plot", KiloScope::PanelFlags::None)
 
-} // namespace KiloScope::UI
+} // namespace KiloScope

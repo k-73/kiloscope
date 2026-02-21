@@ -1,14 +1,12 @@
-#include "Panel.hpp"
+#include "Core/Panel/Panel.hpp"
 #include <imgui.h>
 #include <unordered_map>
 
-namespace KiloScope::UI {
+namespace KiloScope {
 
-Panel::Panel(std::string_view typeId, std::string title,
-             std::shared_ptr<Data::DataStore> store, PanelFlags flags)
+Panel::Panel(std::string_view typeId, std::string title, PanelFlags flags)
     : typeId_(typeId)
     , title_(std::move(title))
-    , store_(std::move(store))
     , flags_(flags)
 {
     int inst = NextInstanceId(typeId_);
@@ -29,4 +27,4 @@ int Panel::NextInstanceId(const std::string& typeId) {
     return counters[typeId]++;
 }
 
-} // namespace KiloScope::UI
+} // namespace KiloScope

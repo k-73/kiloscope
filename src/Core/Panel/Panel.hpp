@@ -6,7 +6,7 @@
 #include <string_view>
 #include <cstdint>
 
-namespace KiloScope::UI {
+namespace KiloScope {
 
 using json = nlohmann::json;
 
@@ -27,13 +27,17 @@ inline bool operator&(PanelFlags a, PanelFlags b) {
 class Panel {
 public:
     Panel(std::string_view typeId, std::string title,
-          std::shared_ptr<Data::DataStore> store, PanelFlags flags = PanelFlags::None);
+          PanelFlags flags = PanelFlags::None);
     virtual ~Panel() = default;
+
+    void BindStore(std::shared_ptr<Data::DataStore> store) { store_ = std::move(store); }
 
     virtual void OnAttach() {}
     virtual void OnDetach() {}
     virtual void OnUpdate() {}
     virtual void OnDraw() = 0;
+    virtual void OnData(Data::DataStore& store) {}
+    virtual void OnLoop() {}
 
     virtual json SaveSettings() const { return {}; }
     virtual void LoadSettings(const json&) {}
@@ -59,4 +63,4 @@ private:
     static int NextInstanceId(const std::string& typeId);
 };
 
-} // namespace KiloScope::UI
+} // namespace KiloScope

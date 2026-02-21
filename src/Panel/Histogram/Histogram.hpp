@@ -1,13 +1,13 @@
 #pragma once
-#include "../Panel.hpp"
+#include "Core/Panel/Panel.hpp"
 #include <vector>
 
-namespace KiloScope::UI {
+namespace KiloScope {
 
 class Histogram : public Panel {
 public:
-    explicit Histogram(std::shared_ptr<Data::DataStore> s)
-        : Panel("Histogram", "Histogram", std::move(s)) {}
+    Histogram()
+        : Panel("Histogram", "Histogram") {}
 
     void OnUpdate() override;
     void OnDraw() override;
@@ -28,4 +28,4 @@ private:
     std::vector<double> vals_;  // preallocated
 };
 
-} // namespace KiloScope::UI
+} // namespace KiloScope

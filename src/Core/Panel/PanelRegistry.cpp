@@ -1,7 +1,7 @@
-#include "PanelRegistry.hpp"
+#include "Core/Panel/PanelRegistry.hpp"
 #include "Core/Log.hpp"
 
-namespace KiloScope::UI {
+namespace KiloScope {
 
 PanelRegistry& PanelRegistry::Instance() {
     static PanelRegistry inst;
@@ -12,13 +12,12 @@ void PanelRegistry::Register(PanelEntry entry) {
     entries_.push_back(std::move(entry));
 }
 
-std::unique_ptr<Panel> PanelRegistry::Create(std::string_view typeId,
-                                              std::shared_ptr<Data::DataStore> store) const {
+std::unique_ptr<Panel> PanelRegistry::Create(std::string_view typeId) const {
     for (auto& e : entries_) {
-        if (e.typeId == typeId) return e.factory(std::move(store));
+        if (e.typeId == typeId) return e.factory();
     }
     Log::UI().error("Unknown panel type: {}", typeId);
     return nullptr;
 }
 
-} // namespace KiloScope::UI
+} // namespace KiloScope

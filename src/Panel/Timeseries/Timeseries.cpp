@@ -1,9 +1,9 @@
 #include "Timeseries.hpp"
-#include "Ui/Panel/PanelRegistry.hpp"
+#include "Core/Panel/PanelRegistry.hpp"
 #include <imgui.h>
 #include <implot.h>
 
-namespace KiloScope::UI {
+namespace KiloScope {
 
 void Timeseries::OnUpdate() {
     plotData_.clear();
@@ -62,6 +62,6 @@ void Timeseries::LoadSettings(const json& j) {
     if (j.contains("historySec")) historySec_ = j["historySec"].get<float>();
 }
 
-REGISTER_PANEL(Timeseries, "Timeseries", "Time Series", KiloScope::UI::PanelFlags::None)
+REGISTER_PANEL(Timeseries, "Timeseries", "Time Series", KiloScope::PanelFlags::None)
 
-} // namespace KiloScope::UI
+} // namespace KiloScope
