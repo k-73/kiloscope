@@ -19,10 +19,16 @@ protected:
 private:
     static constexpr size_t MaxPts = 4096;
 
+    struct Snapshot {
+        std::vector<glm::vec3> path;
+        glm::vec3 endpoint{0.f};
+        bool valid = false;
+    };
+
     std::vector<Data::Sample> sampleBufs_[3];
-    std::vector<glm::vec3> path_;
-    glm::vec3 endpoint_{0.f};
-    bool hasData_ = false;
+    Snapshot pending_;   // written by OnData
+    Snapshot active_;    // read by OnRender
+    bool newData_ = false;
 };
 
 } // namespace KiloScope

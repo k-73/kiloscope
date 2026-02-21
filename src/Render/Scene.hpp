@@ -3,6 +3,7 @@
 #include "Camera.hpp"
 #include "Grid.hpp"
 #include "Primitives.hpp"
+#include <glm/glm.hpp>
 #include <string>
 
 namespace KiloScope::Render {
@@ -24,6 +25,10 @@ private:
     Camera cam_;
     Grid grid_;
     Primitives prims_;
+
+    // Cached per-frame, set in BeginRender, used in EndRender
+    glm::mat4 view_{1.f}, proj_{1.f};
+    glm::vec3 camPos_{0.f};
 };
 
 } // namespace KiloScope::Render

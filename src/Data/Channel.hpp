@@ -24,6 +24,8 @@ public:
     }
 
     size_t ReadLast(Sample* out, size_t n) const { return buf_.ReadLast(out, n); }
+    size_t WritePos() const { return buf_.WritePos(); }
+    size_t ReadAt(Sample* out, size_t n, size_t endPos) const { return buf_.ReadAt(out, n, endPos); }
     size_t Size() const { return buf_.Size(); }
 
     void Clear() {

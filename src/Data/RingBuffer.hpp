@@ -40,6 +40,26 @@ public:
         return n;
     }
 
+    /// Current write position (monotonic counter). Use with ReadAt() for
+    /// cross-buffer aligned reads: snapshot positions of all buffers first,
+    /// then read each up to the common minimum.
+    size_t WritePos() const noexcept {
+        return write_.load(std::memory_order_acquire);
+    }
+
+    /// Read up to `count` most-recent items ending at `endPos`.
+    /// Returns the number of items actually copied (may be less if the
+    /// buffer has fewer items or the requested range was partially evicted).
+    size_t ReadAt(T* out, size_t count, size_t endPos) const noexcept {
+        auto r = read_.load(std::memory_order_relaxed);
+        if (endPos <= r) return 0;
+        auto avail = endPos - r;
+        auto n = std::min(count, avail);
+        auto start = endPos - n;
+        for (size_t i = 0; i < n; ++i) out[i] = buf_[(start + i) & Mask];
+        return n;
+    }
+
     size_t Size() const noexcept {
         return write_.load(std::memory_order_acquire) - read_.load(std::memory_order_acquire);
     }

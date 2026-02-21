@@ -9,45 +9,64 @@ Viewport3d::Viewport3d()
             PanelFlags::Singleton | PanelFlags::NeedsScene)
 {
     for (auto& b : sampleBufs_) b.resize(MaxPts);
-    path_.reserve(MaxPts);
+    pending_.path.reserve(MaxPts);
+    active_.path.reserve(MaxPts);
 }
 
 void Viewport3d::OnData(Data::DataStore& store) {
-    size_t counts[3]{};
+    // Snapshot write positions first (3 atomic loads, near-instantaneous).
+    // This ensures all channels are read up to the same logical time,
+    // eliminating cross-channel misalignment from concurrent Ingest.
+    Data::Channel* chs[3]{};
+    size_t wpos[3]{};
     for (int i = 0; i < 3; ++i)
-        if (auto* ch = store.GetChannel(i))
-            counts[i] = ch->ReadLast(sampleBufs_[i].data(), MaxPts);
+        if ((chs[i] = store.GetChannel(i)))
+            wpos[i] = chs[i]->WritePos();
 
-    auto n = std::max({counts[0], counts[1], counts[2]});
-    if (!n) { hasData_ = false; return; }
+    size_t endPos = SIZE_MAX;
+    for (int i = 0; i < 3; ++i)
+        if (chs[i]) endPos = std::min(endPos, wpos[i]);
 
-    auto val = [&](int ch, size_t idx) {
-        return idx < counts[ch] ? static_cast<float>(sampleBufs_[ch][idx].value) : 0.f;
-    };
+    if (endPos == 0 || endPos == SIZE_MAX) {
+        pending_.valid = false; newData_ = true; return;
+    }
 
-    path_.resize(n);
+    size_t n = 0;
+    for (int i = 0; i < 3; ++i)
+        if (chs[i]) n = chs[i]->ReadAt(sampleBufs_[i].data(), MaxPts, endPos);
+
+    if (!n) { pending_.valid = false; newData_ = true; return; }
+
+    pending_.path.resize(n);
     for (size_t i = 0; i < n; ++i)
-        path_[i] = {val(0, i), val(1, i), val(2, i)};
+        pending_.path[i] = {
+            static_cast<float>(sampleBufs_[0][i].value),
+            static_cast<float>(sampleBufs_[1][i].value),
+            static_cast<float>(sampleBufs_[2][i].value)};
 
-    size_t last[3]{};
-    for (int i = 0; i < 3; ++i) last[i] = counts[i] ? counts[i] - 1 : 0;
-    endpoint_ = {val(0, last[0]), val(1, last[1]), val(2, last[2])};
-    hasData_ = true;
+    pending_.endpoint = pending_.path[n - 1];
+    pending_.valid = true;
+    newData_ = true;
 }
 
 void Viewport3d::OnRender(Render::Scene& scene) {
+    if (newData_) {
+        std::swap(active_, pending_);
+        newData_ = false;
+    }
+
     auto& p = scene.Prims();
     p.DrawAxes({0, 0, 0}, 1.f);
 
-    if (!hasData_) return;
+    if (!active_.valid) return;
 
-    for (size_t i = 1; i < path_.size(); ++i) {
-        float t = static_cast<float>(i) / static_cast<float>(path_.size());
-        p.DrawLine(path_[i - 1], path_[i],
+    for (size_t i = 1; i < active_.path.size(); ++i) {
+        float t = static_cast<float>(i) / static_cast<float>(active_.path.size());
+        p.DrawLine(active_.path[i - 1], active_.path[i],
                    {.2f + .8f * t, .4f, 1.f - .6f * t, 1.f}, 2.5f);
     }
 
-    p.DrawSphere(endpoint_, 0.1f, {1.f, .8f, .2f, 1.f}, 32);
+    p.DrawSphere(active_.endpoint, 0.1f, {1.f, .8f, .2f, 1.f}, 32);
 }
 
 void Viewport3d::OnDraw() {
