@@ -38,7 +38,7 @@ public:
 
     virtual void OnAttach() {}
     virtual void OnDetach() {}
-    virtual void OnData() {}
+    virtual void OnData(Data::DataStore& store) {}
     virtual void OnLoop() {}
     virtual void OnDraw() = 0;
 

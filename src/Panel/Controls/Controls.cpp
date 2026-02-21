@@ -5,12 +5,12 @@
 
 namespace KiloScope {
 
-void Controls::OnData() {
-    packets_ = store_->TotalPackets();
-    samples_ = store_->TotalSamples();
+void Controls::OnData(Data::DataStore& store) {
+    packets_ = store.TotalPackets();
+    samples_ = store.TotalSamples();
     channels_.clear();
-    for (auto id : store_->ChannelIds()) {
-        if (auto* ch = store_->GetChannel(id))
+    for (auto id : store.ChannelIds()) {
+        if (auto* ch = store.GetChannel(id))
             channels_.push_back({ch->Name(), ch->Size(), ch->MinValue(), ch->MaxValue()});
     }
 }

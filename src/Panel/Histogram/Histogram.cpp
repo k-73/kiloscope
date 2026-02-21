@@ -5,12 +5,12 @@
 
 namespace KiloScope {
 
-void Histogram::OnData() {
+void Histogram::OnData(Data::DataStore& store) {
     histData_.clear();
     size_t totalUsed = 0;
 
-    for (auto id : store_->ChannelIds()) {
-        auto* ch = store_->GetChannel(id);
+    for (auto id : store.ChannelIds()) {
+        auto* ch = store.GetChannel(id);
         if (!ch) continue;
         auto count = ch->ReadLast(buf_.data(), MaxDisplay);
         if (!count) continue;

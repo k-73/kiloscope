@@ -6,10 +6,10 @@
 
 namespace KiloScope {
 
-void Scatter::OnData() {
+void Scatter::OnData(Data::DataStore& store) {
     plotCount_ = 0;
-    auto* cx = store_->GetChannel((uint16_t)chX_);
-    auto* cy = store_->GetChannel((uint16_t)chY_);
+    auto* cx = store.GetChannel((uint16_t)chX_);
+    auto* cy = store.GetChannel((uint16_t)chY_);
     if (!cx || !cy) return;
 
     auto n = std::min(cx->ReadLast(bufX_.data(), MaxDisplay),

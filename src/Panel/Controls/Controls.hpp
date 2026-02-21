@@ -9,7 +9,7 @@ public:
     Controls()
         : Panel("Controls", "Controls", PanelFlags::Singleton | PanelFlags::NoSettings) {}
 
-    void OnData() override;
+    void OnData(Data::DataStore& store) override;
     void OnDraw() override;
 
 private:

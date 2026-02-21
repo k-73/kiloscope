@@ -9,7 +9,7 @@ public:
     Histogram()
         : Panel("Histogram", "Histogram") {}
 
-    void OnData() override;
+    void OnData(Data::DataStore& store) override;
     void OnDraw() override;
     json SaveSettings() const override;
     void LoadSettings(const json& j) override;

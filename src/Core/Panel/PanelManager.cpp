@@ -78,7 +78,7 @@ void PanelManager::WorkerLoop(std::stop_token st) {
             for (auto& p : panels_) {
                 std::lock_guard g(p->mutex_);
                 if (p->dirty_.exchange(false, std::memory_order_relaxed))
-                    p->OnData();
+                    p->OnData(*store_);
                 p->OnLoop();
             }
         }
