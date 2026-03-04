@@ -16,10 +16,6 @@ Panel::Panel(std::string_view typeId, std::string title, PanelFlags flags)
 
 Panel::~Panel() = default;
 
-void Panel::BindScene(std::unique_ptr<Render::Scene> scene) {
-    scene_ = std::move(scene);
-}
-
 void Panel::Draw() {
     if (!visible_) return;
     std::lock_guard g(mutex_);
@@ -30,20 +26,26 @@ void Panel::Draw() {
     ImGui::End();
 }
 
-void Panel::DrawViewport() {
-    if (!scene_) return;
+void Panel::Draw3D(const char* name, const ViewportConfig& cfg,
+                   std::function<void(Render::Primitives&)> fn) {
+    auto& scene = scenes_[name];
+    if (!scene) {
+        scene = std::make_unique<Render::Scene>();
+        scene->Init(shaderDir_);
+    }
 
     auto avail = ImGui::GetContentRegionAvail();
-    int w = std::max(1, static_cast<int>(avail.x));
-    int h = std::max(1, static_cast<int>(avail.y));
-    scene_->Resize(w, h);
+    int w = std::max(1, static_cast<int>(cfg.width  > 0 ? cfg.width  : avail.x));
+    int h = std::max(1, static_cast<int>(cfg.height > 0 ? cfg.height : avail.y));
+    scene->Resize(w, h);
 
+    ImVec2 size{static_cast<float>(w), static_cast<float>(h)};
     auto cursor = ImGui::GetCursorScreenPos();
-    ImGui::InvisibleButton("##vp", avail,
+    ImGui::InvisibleButton(name, size,
         ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonMiddle);
 
     auto& io  = ImGui::GetIO();
-    auto& cam = scene_->GetCamera();
+    auto& cam = scene->GetCamera();
 
     if (ImGui::IsItemHovered() && io.MouseWheel != 0)
         cam.Zoom(io.MouseWheel);
@@ -52,13 +54,13 @@ void Panel::DrawViewport() {
     if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Middle))
         cam.Pan(io.MouseDelta.x, io.MouseDelta.y);
 
-    scene_->BeginRender();
-    OnRender(*scene_);
-    scene_->EndRender();
+    scene->BeginRender();
+    fn(scene->Prims());
+    scene->EndRender();
 
     ImGui::SetCursorScreenPos(cursor);
-    ImGui::Image(static_cast<ImTextureID>(static_cast<uintptr_t>(scene_->Texture())),
-                 avail, {0, 1}, {1, 0});
+    ImGui::Image(static_cast<ImTextureID>(static_cast<uintptr_t>(scene->Texture())),
+                 size, {0, 1}, {1, 0});
 }
 
 int Panel::NextInstanceId(const std::string& typeId) {

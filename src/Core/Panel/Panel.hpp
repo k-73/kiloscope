@@ -1,22 +1,23 @@
 #pragma once
 #include <nlohmann/json.hpp>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <cstdint>
 
-namespace KiloScope::Render { class Scene; }
+namespace KiloScope::Render { class Scene; class Primitives; }
 
 namespace KiloScope {
 
 using json = nlohmann::json;
 
 enum class PanelFlags : uint8_t {
-    None      = 0,
+    None       = 0,
     NoSettings = 1 << 0,
     Singleton  = 1 << 1,
-    NeedsScene = 1 << 2,
 };
 
 inline PanelFlags operator|(PanelFlags a, PanelFlags b) {
@@ -26,6 +27,11 @@ inline bool operator&(PanelFlags a, PanelFlags b) {
     return (static_cast<uint8_t>(a) & static_cast<uint8_t>(b)) != 0;
 }
 
+struct ViewportConfig {
+    float width  = -1;  // -1 = fill available
+    float height = -1;
+};
+
 class PanelManager;
 
 class Panel {
@@ -33,8 +39,6 @@ public:
     Panel(std::string_view typeId, std::string title,
           PanelFlags flags = PanelFlags::None);
     virtual ~Panel();
-
-    void BindScene(std::unique_ptr<Render::Scene> scene);
 
     virtual void OnAttach() {}
     virtual void OnDetach() {}
@@ -54,8 +58,8 @@ public:
     void Draw();
 
 protected:
-    virtual void OnRender(Render::Scene& scene) {}
-    void DrawViewport();
+    void Draw3D(const char* name, const ViewportConfig& cfg,
+                std::function<void(Render::Primitives&)> fn);
 
 private:
     friend class PanelManager;
@@ -66,7 +70,8 @@ private:
     PanelFlags flags_;
     bool visible_ = true;
 
-    std::unique_ptr<Render::Scene> scene_;
+    std::string shaderDir_;
+    std::unordered_map<std::string, std::unique_ptr<Render::Scene>> scenes_;
     std::mutex mutex_;
 
     static int NextInstanceId(const std::string& typeId);

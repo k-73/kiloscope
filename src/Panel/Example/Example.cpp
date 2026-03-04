@@ -1,6 +1,6 @@
 #include "Example.hpp"
 #include "Core/Panel/PanelRegistry.hpp"
-#include "Render/Scene.hpp"
+#include "Render/Primitives.hpp"
 #include <imgui.h>
 #include <implot.h>
 #include <cmath>
@@ -8,7 +8,7 @@
 namespace KiloScope {
 
 Example::Example()
-    : Panel("Example", "Example", PanelFlags::NeedsScene)
+    : Panel("Example", "Example")
     , spiralPath_(kPathPoints)
     , plotX_(kPlotPoints)
     , plotSin_(kPlotPoints)
@@ -31,30 +31,25 @@ void Example::OnLoop() {
     // Animated sin/cos signals
     constexpr float xRange = 4.f * kPi;
     for (int i = 0; i < kPlotPoints; ++i) {
-        float x    = static_cast<float>(i) / kPlotPoints * xRange;
+        float x     = static_cast<float>(i) / kPlotPoints * xRange;
         plotX_[i]   = x;
         plotSin_[i] = std::sin(x + elapsedTime_);
         plotCos_[i] = std::cos(x + elapsedTime_ * 0.7f) * 0.8f;
     }
 }
 
-void Example::OnRender(Render::Scene& scene) {
-    auto& prims = scene.Prims();
-    prims.DrawAxes({0, 0, 0}, 1.f);
-
-    // Gradient-colored path
-    for (int i = 1; i < kPathPoints; ++i) {
-        float norm = static_cast<float>(i) / kPathPoints;
-        prims.DrawLine(spiralPath_[i - 1], spiralPath_[i],
-                       {.2f + .8f * norm, .4f, 1.f - .6f * norm, 1.f}, 2.f);
-    }
-
-    // Marker at the tip
-    prims.DrawSphere(spiralPath_.back(), 0.12f, {1.f, .8f, .2f, 1.f}, 24);
-}
-
 void Example::OnDraw() {
-    DrawViewport();
+    Draw3D("spiral", {100, 100}, [&](Render::Primitives& prims) {
+        prims.DrawAxes({0, 0, 0}, 1.f);
+
+        for (int i = 1; i < kPathPoints; ++i) {
+            float norm = static_cast<float>(i) / kPathPoints;
+            prims.DrawLine(spiralPath_[i - 1], spiralPath_[i],
+                           {.2f + .8f * norm, .4f, 1.f - .6f * norm, 1.f}, 2.f);
+        }
+
+        prims.DrawSphere(spiralPath_.back(), 0.12f, {1.f, .8f, .2f, 1.f}, 24);
+    });
 
     ImGui::Begin("Example Chart", nullptr);
     if (ImPlot::BeginPlot("##signals", {-1, -1})) {

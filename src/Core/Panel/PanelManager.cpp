@@ -1,6 +1,5 @@
 #include "Core/Panel/PanelManager.hpp"
 #include "Core/Log.hpp"
-#include "Render/Scene.hpp"
 #include <imgui.h>
 #include <algorithm>
 #include <chrono>
@@ -32,12 +31,7 @@ Panel* PanelManager::Add(std::string_view typeId) {
     auto panel = PanelRegistry::Instance().Create(typeId);
     if (!panel) return nullptr;
 
-    if (panel->Flags() & PanelFlags::NeedsScene) {
-        auto scene = std::make_unique<Render::Scene>();
-        scene->Init(shaderDir_);
-        panel->BindScene(std::move(scene));
-    }
-
+    panel->shaderDir_ = shaderDir_;
     panel->OnAttach();
     auto* ptr = panel.get();
     panels_.push_back(std::move(panel));

@@ -13,9 +13,6 @@ public:
     void OnLoop() override;
     void OnDraw() override;
 
-protected:
-    void OnRender(Render::Scene& scene) override;
-
 private:
     static constexpr int kPathPoints = 512;
     static constexpr int kPlotPoints = 256;
