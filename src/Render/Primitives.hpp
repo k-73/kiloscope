@@ -88,6 +88,8 @@ private:
     glm::vec3 XformPoint(const glm::vec3& p) const;
     glm::vec3 XformDir(const glm::vec3& d) const;
 
+    void BatchLine(const glm::vec3& a, const glm::vec3& b,
+                   const glm::vec4& color, float width);
     void UploadMesh(const std::vector<MeshVert>& v);
     void SetMeshUniforms(const glm::vec4& color, bool unlit = false);
 

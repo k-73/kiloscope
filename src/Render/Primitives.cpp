@@ -93,7 +93,7 @@ void Primitives::AppendMesh(std::vector<MeshVert>& out, const MeshT& mesh,
 
 static glm::mat4 AxisRotation(const glm::vec3& dir) {
     auto n = glm::normalize(dir);
-    float dot = glm::dot(glm::vec3(0, 0, 1), n);
+    float dot = glm::clamp(glm::dot(glm::vec3(0, 0, 1), n), -1.f, 1.f);
     if (dot < -0.999f)
         return glm::rotate(glm::mat4(1.f), glm::pi<float>(), glm::vec3(1, 0, 0));
     if (dot > 0.999f)
@@ -149,16 +149,22 @@ void Primitives::Scale(float s) { Scale({s, s, s}); }
 
 // ── lines ────────────────────────────────────────────────────────────
 
+void Primitives::BatchLine(const glm::vec3& a, const glm::vec3& b,
+                            const glm::vec4& color, float width) {
+    if (!lineBatch_.empty() && width != lineWidth_)
+        FlushLines();
+    lineWidth_ = width;
+    lineBatch_.push_back({a, b, {-1, 0}, color});
+    lineBatch_.push_back({a, b, { 1, 0}, color});
+    lineBatch_.push_back({a, b, { 1, 1}, color});
+    lineBatch_.push_back({a, b, {-1, 0}, color});
+    lineBatch_.push_back({a, b, { 1, 1}, color});
+    lineBatch_.push_back({a, b, {-1, 1}, color});
+}
+
 void Primitives::DrawLine(const glm::vec3& a, const glm::vec3& b,
                            const glm::vec4& color, float width) {
-    auto ta = XformPoint(a), tb = XformPoint(b);
-    lineWidth_ = width;
-    lineBatch_.push_back({ta, tb, {-1, 0}, color});
-    lineBatch_.push_back({ta, tb, { 1, 0}, color});
-    lineBatch_.push_back({ta, tb, { 1, 1}, color});
-    lineBatch_.push_back({ta, tb, {-1, 0}, color});
-    lineBatch_.push_back({ta, tb, { 1, 1}, color});
-    lineBatch_.push_back({ta, tb, {-1, 1}, color});
+    BatchLine(XformPoint(a), XformPoint(b), color, width);
 }
 
 void Primitives::FlushLines() {
@@ -192,13 +198,8 @@ void Primitives::DrawArc(const glm::vec3& center, const glm::vec3& axis,
     for (int i = 0; i < seg; ++i) {
         auto r0 = glm::rotate(glm::mat4(1), step * i,       ta);
         auto r1 = glm::rotate(glm::mat4(1), step * (i + 1), ta);
-        // DrawLine will re-apply Mat(), so pass transformed points directly
-        // Use base DrawLine by temporarily resetting matrix
-        auto saved = matStack_.back();
-        matStack_.back() = glm::mat4(1.f);
-        DrawLine(tc + glm::vec3(r0 * glm::vec4(ts * radius, 0)),
-                 tc + glm::vec3(r1 * glm::vec4(ts * radius, 0)), color, 2.f);
-        matStack_.back() = saved;
+        BatchLine(tc + glm::vec3(r0 * glm::vec4(ts * radius, 0)),
+                  tc + glm::vec3(r1 * glm::vec4(ts * radius, 0)), color, 2.f);
     }
 }
 
