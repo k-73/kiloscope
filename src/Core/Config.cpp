@@ -5,7 +5,7 @@
 namespace KiloScope {
 
 void to_json(nlohmann::json& j, const AppConfig& c) {
-    j = {{"udpPort", c.udpPort}, {"panelConfigPath", c.panelConfigPath},
+    j = {{"panelConfigPath", c.panelConfigPath},
          {"windowWidth", c.windowWidth}, {"windowHeight", c.windowHeight},
          {"windowPosX", c.windowPosX}, {"windowPosY", c.windowPosY},
          {"maximized", c.maximized}, {"decorated", c.decorated},
@@ -13,7 +13,6 @@ void to_json(nlohmann::json& j, const AppConfig& c) {
 }
 
 void from_json(const nlohmann::json& j, AppConfig& c) {
-    c.udpPort         = j.value("udpPort", c.udpPort);
     c.panelConfigPath = j.value("panelConfigPath", c.panelConfigPath);
     c.windowWidth     = j.value("windowWidth", c.windowWidth);
     c.windowHeight    = j.value("windowHeight", c.windowHeight);

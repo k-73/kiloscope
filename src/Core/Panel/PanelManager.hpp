@@ -11,13 +11,12 @@ namespace KiloScope {
 
 class PanelManager {
 public:
-    PanelManager(std::shared_ptr<Data::DataStore> store, std::string shaderDir);
+    explicit PanelManager(std::string shaderDir);
     ~PanelManager();
 
-    void   Start();  // starts worker thread — call after initial panels are added
+    void   Start();
     Panel* Add(std::string_view typeId);
     void   Remove(std::string_view id);
-    void   NotifyData();
     void   Draw();
     void   DrawMenuBar();
 
@@ -29,7 +28,6 @@ public:
 private:
     void WorkerLoop(std::stop_token st);
 
-    std::shared_ptr<Data::DataStore> store_;
     std::string shaderDir_;
     std::vector<std::unique_ptr<Panel>> panels_;
     std::jthread worker_;

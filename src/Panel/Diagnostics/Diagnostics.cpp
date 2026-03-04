@@ -2,7 +2,6 @@
 #include "Core/Panel/PanelRegistry.hpp"
 #include <imgui.h>
 #include <implot.h>
-#include <cinttypes>
 
 namespace KiloScope {
 
@@ -17,12 +16,6 @@ void Diagnostics::OnDraw() {
     ImGui::PlotLines("##ft", frameTimes_, 128, frameIdx_, nullptr, 0.f, 33.f, {-1, 40});
     ImGui::Text("Windows: %d  Vtx: %d  Idx: %d",
         io.MetricsRenderWindows, io.MetricsRenderVertices, io.MetricsRenderIndices);
-
-    ImGui::SeparatorText("Data");
-    ImGui::Text("Packets: %" PRIu64 "  Samples: %" PRIu64,
-        store_->TotalPackets(), store_->TotalSamples());
-    auto ids = store_->ChannelIds();
-    ImGui::Text("Channels: %zu  Buffer cap: %zu", ids.size(), Data::RingBuffer<Data::Sample>::Capacity());
 
     ImGui::SeparatorText("Demos");
     ImGui::Checkbox("ImGui Demo", &showImGuiDemo_);

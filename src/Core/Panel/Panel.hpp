@@ -1,7 +1,5 @@
 #pragma once
-#include "Data/DataStore.hpp"
 #include <nlohmann/json.hpp>
-#include <atomic>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -36,12 +34,10 @@ public:
           PanelFlags flags = PanelFlags::None);
     virtual ~Panel();
 
-    void BindStore(std::shared_ptr<Data::DataStore> store) { store_ = std::move(store); }
     void BindScene(std::unique_ptr<Render::Scene> scene);
 
     virtual void OnAttach() {}
     virtual void OnDetach() {}
-    virtual void OnData(Data::DataStore& store) {}
     virtual void OnLoop() {}
     virtual void OnDraw() = 0;
 
@@ -55,13 +51,11 @@ public:
     bool IsVisible()            const { return visible_; }
     void SetVisible(bool v)           { visible_ = v; }
 
-    void Draw();  // acquires mutex_, wraps ImGui::Begin/End + calls OnDraw()
+    void Draw();
 
 protected:
     virtual void OnRender(Render::Scene& scene) {}
     void DrawViewport();
-
-    std::shared_ptr<Data::DataStore> store_;
 
 private:
     friend class PanelManager;
@@ -74,9 +68,7 @@ private:
 
     std::unique_ptr<Render::Scene> scene_;
     std::mutex mutex_;
-    std::atomic<bool> dirty_{false};
 
-    void MarkDirty() { dirty_.store(true, std::memory_order_relaxed); }
     static int NextInstanceId(const std::string& typeId);
 };
 

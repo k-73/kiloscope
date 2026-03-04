@@ -1,6 +1,5 @@
 #include "App.hpp"
 #include "Core/Log.hpp"
-#include "Net/Packet.hpp"
 #include <GLFW/glfw3.h>
 #include <atomic>
 #include <csignal>
@@ -17,28 +16,18 @@ void OnSignal(int sig) {
 
 namespace KiloScope::App {
 
-App::App()
-    : store_(std::make_shared<Data::DataStore>())
-{
+App::App() {
     SetBus(dispatcher_);
     config_.LoadFromFile("kiloscope.json");
     Log::SetLevel(config_.logLevel);
 
     ui_ = std::make_unique<UI::UiContext>(config_);
-    panels_ = std::make_unique<PanelManager>(store_, std::string(ASSETS_DIR) + "/shaders");
+    panels_ = std::make_unique<PanelManager>(std::string(ASSETS_DIR) + "/shaders");
 
     panels_->LoadFromFile(config_.panelConfigPath);
     if (panels_->Empty())
         CreateDefaultPanels();
     panels_->Start();
-
-    receiver_ = std::make_unique<Net::UdpReceiver>(config_.udpPort,
-        [this](std::span<const uint8_t> raw) {
-            if (auto pkt = Net::ParsePacket(raw)) {
-                store_->Ingest(*pkt);
-                panels_->NotifyData();
-            }
-        });
 
     Log::App().info("KiloScope initialized");
 }
@@ -71,11 +60,7 @@ void App::Run() {
 }
 
 void App::CreateDefaultPanels() {
-    panels_->Add("Controls");
-    panels_->Add("Timeseries");
-    panels_->Add("Scatter");
-    panels_->Add("Histogram");
-    panels_->Add("Viewport3d");
+    panels_->Add("Example");
     panels_->Add("Diagnostics");
     Log::App().info("Created default panel layout");
 }

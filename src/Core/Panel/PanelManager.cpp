@@ -8,9 +8,8 @@
 
 namespace KiloScope {
 
-PanelManager::PanelManager(std::shared_ptr<Data::DataStore> store, std::string shaderDir)
-    : store_(std::move(store))
-    , shaderDir_(std::move(shaderDir))
+PanelManager::PanelManager(std::string shaderDir)
+    : shaderDir_(std::move(shaderDir))
 {}
 
 void PanelManager::Start() {
@@ -23,7 +22,6 @@ PanelManager::~PanelManager() {
 }
 
 Panel* PanelManager::Add(std::string_view typeId) {
-    // One instance per type — return existing if present
     for (auto& p : panels_) {
         if (p->TypeId() == typeId) {
             p->SetVisible(true);
@@ -33,7 +31,6 @@ Panel* PanelManager::Add(std::string_view typeId) {
 
     auto panel = PanelRegistry::Instance().Create(typeId);
     if (!panel) return nullptr;
-    panel->BindStore(store_);
 
     if (panel->Flags() & PanelFlags::NeedsScene) {
         auto scene = std::make_unique<Render::Scene>();
@@ -56,10 +53,6 @@ void PanelManager::Remove(std::string_view id) {
         Log::UI().info("Panel removed: {}", id);
         panels_.erase(it);
     }
-}
-
-void PanelManager::NotifyData() {
-    for (auto& p : panels_) p->MarkDirty();
 }
 
 void PanelManager::Draw() {
@@ -85,14 +78,9 @@ void PanelManager::DrawMenuBar() {
 void PanelManager::WorkerLoop(std::stop_token st) {
     using namespace std::chrono_literals;
     while (!st.stop_requested()) {
-        {
-            std::shared_lock lk(store_->Mutex());
-            for (auto& p : panels_) {
-                std::lock_guard g(p->mutex_);
-                if (p->dirty_.exchange(false, std::memory_order_relaxed))
-                    p->OnData(*store_);
-                p->OnLoop();
-            }
+        for (auto& p : panels_) {
+            std::lock_guard g(p->mutex_);
+            p->OnLoop();
         }
         std::this_thread::sleep_for(1ms);
     }
