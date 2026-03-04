@@ -103,3 +103,21 @@ FetchContent_Declare(entt
     GIT_SHALLOW    ON
 )
 FetchContent_MakeAvailable(entt)
+
+# ── generator (procedural geometry) ─────────────────────────────────
+FetchContent_Declare(generator
+    GIT_REPOSITORY https://github.com/ilmola/generator.git
+    GIT_TAG        master
+    GIT_SHALLOW    ON
+)
+FetchContent_GetProperties(generator)
+if(NOT generator_POPULATED)
+    FetchContent_Populate(generator)
+endif()
+
+file(GLOB GENERATOR_SRC ${generator_SOURCE_DIR}/src/*.cpp)
+add_library(generator STATIC ${GENERATOR_SRC})
+target_include_directories(generator SYSTEM PUBLIC ${generator_SOURCE_DIR}/include)
+target_compile_definitions(generator PUBLIC GENERATOR_USE_GLM GLM_ENABLE_EXPERIMENTAL)
+target_compile_options(generator PRIVATE -w)
+target_link_libraries(generator PUBLIC glm::glm)

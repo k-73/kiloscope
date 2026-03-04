@@ -33,6 +33,7 @@ target_link_libraries(kiloscope PRIVATE
     spdlog::spdlog
     nlohmann_json::nlohmann_json
     EnTT::EnTT
+    generator
     OpenGL::GL
     glfw
     GLEW::GLEW

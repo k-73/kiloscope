@@ -1,8 +1,17 @@
 #include "Primitives.hpp"
 #include <glm/gtc/matrix_transform.hpp>
+#include <generator/SphereMesh.hpp>
+#include <generator/BoxMesh.hpp>
+#include <generator/CappedCylinderMesh.hpp>
+#include <generator/CappedConeMesh.hpp>
+#include <generator/CapsuleMesh.hpp>
+#include <generator/TorusMesh.hpp>
+#include <generator/DiskMesh.hpp>
 #include <cmath>
 
 namespace KiloScope::Render {
+
+// ── lifecycle ────────────────────────────────────────────────────────
 
 Primitives::~Primitives() {
     if (meshVao_) glDeleteVertexArrays(1, &meshVao_);
@@ -55,8 +64,68 @@ void Primitives::SetMeshUniforms(const glm::vec4& color, bool unlit) {
 void Primitives::UploadMesh(const std::vector<MeshVert>& v) {
     glNamedBufferData(meshVbo_, v.size() * sizeof(MeshVert), v.data(), GL_DYNAMIC_DRAW);
     glBindVertexArray(meshVao_);
-    glDrawArrays(GL_TRIANGLES, 0, (GLsizei)v.size());
+    glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(v.size()));
     glBindVertexArray(0);
+}
+
+// ── helpers ──────────────────────────────────────────────────────────
+
+template <typename MeshT>
+void Primitives::AppendMesh(std::vector<MeshVert>& out, const MeshT& mesh,
+                            const glm::mat4& xform) {
+    auto nmat = glm::mat3(xform);
+    std::vector<MeshVert> indexed;
+    for (auto it = mesh.vertices(); !it.done(); it.next()) {
+        auto v = it.generate();
+        indexed.push_back({
+            glm::vec3(xform * glm::vec4(glm::vec3(v.position), 1.f)),
+            glm::normalize(nmat * glm::vec3(v.normal))
+        });
+    }
+    for (auto it = mesh.triangles(); !it.done(); it.next()) {
+        auto t = it.generate();
+        out.push_back(indexed[t.vertices[0]]);
+        out.push_back(indexed[t.vertices[1]]);
+        out.push_back(indexed[t.vertices[2]]);
+    }
+}
+
+static glm::mat4 AxisRotation(const glm::vec3& dir) {
+    auto n = glm::normalize(dir);
+    float dot = glm::dot(glm::vec3(0, 0, 1), n);
+    if (dot < -0.999f)
+        return glm::rotate(glm::mat4(1.f), glm::pi<float>(), glm::vec3(1, 0, 0));
+    if (dot > 0.999f)
+        return glm::mat4(1.f);
+    return glm::rotate(glm::mat4(1.f), std::acos(dot),
+                       glm::normalize(glm::cross(glm::vec3(0, 0, 1), n)));
+}
+
+static glm::mat4 ZAlign(const glm::vec3& a, const glm::vec3& b) {
+    return glm::translate(glm::mat4(1.f), (a + b) * 0.5f) * AxisRotation(b - a);
+}
+
+static glm::mat4 AxisTransform(const glm::vec3& center, const glm::vec3& axis) {
+    return glm::translate(glm::mat4(1.f), center) * AxisRotation(axis);
+}
+
+static glm::vec3 Perpendicular(const glm::vec3& v) {
+    auto n = glm::normalize(v);
+    return glm::normalize(glm::cross(n, std::abs(n.y) < 0.99f
+                                        ? glm::vec3(0, 1, 0) : glm::vec3(1, 0, 0)));
+}
+
+// ── lines ────────────────────────────────────────────────────────────
+
+void Primitives::DrawLine(const glm::vec3& a, const glm::vec3& b,
+                           const glm::vec4& color, float width) {
+    lineWidth_ = width;
+    lineBatch_.push_back({a, b, {-1, 0}, color});
+    lineBatch_.push_back({a, b, { 1, 0}, color});
+    lineBatch_.push_back({a, b, { 1, 1}, color});
+    lineBatch_.push_back({a, b, {-1, 0}, color});
+    lineBatch_.push_back({a, b, { 1, 1}, color});
+    lineBatch_.push_back({a, b, {-1, 1}, color});
 }
 
 void Primitives::FlushLines() {
@@ -72,7 +141,7 @@ void Primitives::FlushLines() {
 
     glNamedBufferData(lineVbo_, lineBatch_.size() * sizeof(LineVert), lineBatch_.data(), GL_DYNAMIC_DRAW);
     glBindVertexArray(lineVao_);
-    glDrawArrays(GL_TRIANGLES, 0, (GLsizei)lineBatch_.size());
+    glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(lineBatch_.size()));
     glBindVertexArray(0);
 
     glDisable(GL_BLEND);
@@ -80,16 +149,140 @@ void Primitives::FlushLines() {
     lineBatch_.clear();
 }
 
-void Primitives::DrawLine(const glm::vec3& a, const glm::vec3& b,
-                           const glm::vec4& color, float width) {
-    lineWidth_ = width;
-    lineBatch_.push_back({a, b, {-1, 0}, color});
-    lineBatch_.push_back({a, b, { 1, 0}, color});
-    lineBatch_.push_back({a, b, { 1, 1}, color});
-    lineBatch_.push_back({a, b, {-1, 0}, color});
-    lineBatch_.push_back({a, b, { 1, 1}, color});
-    lineBatch_.push_back({a, b, {-1, 1}, color});
+void Primitives::DrawArc(const glm::vec3& center, const glm::vec3& axis,
+                          const glm::vec3& startDir, float radius,
+                          float angleDeg, const glm::vec4& color, int seg) {
+    auto nAxis = glm::normalize(axis);
+    auto nStart = glm::normalize(startDir);
+    float step = glm::radians(angleDeg) / static_cast<float>(seg);
+    for (int i = 0; i < seg; ++i) {
+        auto r0 = glm::rotate(glm::mat4(1), step * i,       nAxis);
+        auto r1 = glm::rotate(glm::mat4(1), step * (i + 1), nAxis);
+        DrawLine(center + glm::vec3(r0 * glm::vec4(nStart * radius, 0)),
+                 center + glm::vec3(r1 * glm::vec4(nStart * radius, 0)), color, 2.f);
+    }
 }
+
+void Primitives::DrawCircle(const glm::vec3& center, const glm::vec3& axis,
+                              float radius, const glm::vec4& color, int seg) {
+    DrawArc(center, axis, Perpendicular(axis) * radius, radius, 360.f, color, seg);
+}
+
+// ── basic geometry ───────────────────────────────────────────────────
+
+void Primitives::DrawTriangle(const glm::vec3& a, const glm::vec3& b,
+                                const glm::vec3& c, const glm::vec4& color) {
+    auto normal = glm::normalize(glm::cross(b - a, c - a));
+    SetMeshUniforms(color);
+    UploadMesh({{a, normal}, {b, normal}, {c, normal}});
+}
+
+void Primitives::DrawQuad(const glm::vec3& a, const glm::vec3& b,
+                            const glm::vec3& c, const glm::vec3& d, const glm::vec4& color) {
+    auto normal = glm::normalize(glm::cross(b - a, d - a));
+    SetMeshUniforms(color);
+    UploadMesh({{a, normal}, {b, normal}, {c, normal},
+                {a, normal}, {c, normal}, {d, normal}});
+}
+
+void Primitives::DrawPlane(const glm::vec3& center, const glm::vec3& normal,
+                             const glm::vec2& size, const glm::vec4& color) {
+    auto n = glm::normalize(normal);
+    auto u = Perpendicular(n);
+    auto v = glm::cross(n, u);
+    auto a = center + (-u * size.x - v * size.y);
+    auto b = center + ( u * size.x - v * size.y);
+    auto c = center + ( u * size.x + v * size.y);
+    auto d = center + (-u * size.x + v * size.y);
+    DrawQuad(a, b, c, d, color);
+}
+
+// ── mesh primitives ──────────────────────────────────────────────────
+
+void Primitives::DrawSphere(const glm::vec3& center, float radius,
+                              const glm::vec4& color, int seg) {
+    SetMeshUniforms(color);
+    std::vector<MeshVert> v;
+    AppendMesh(v, generator::SphereMesh(radius, seg, seg / 2),
+               glm::translate(glm::mat4(1.f), center));
+    UploadMesh(v);
+}
+
+void Primitives::DrawBox(const glm::vec3& center, const glm::vec3& size,
+                           const glm::vec4& color) {
+    SetMeshUniforms(color);
+    std::vector<MeshVert> v;
+    AppendMesh(v, generator::BoxMesh({size.x, size.y, size.z}, {1, 1, 1}),
+               glm::translate(glm::mat4(1.f), center));
+    UploadMesh(v);
+}
+
+void Primitives::DrawCube(const glm::vec3& center, float size,
+                            const glm::vec4& color) {
+    DrawBox(center, glm::vec3(size), color);
+}
+
+void Primitives::DrawCylinder(const glm::vec3& a, const glm::vec3& b,
+                                float radius, const glm::vec4& color, int seg) {
+    float halfLen = glm::length(b - a) * 0.5f;
+    if (halfLen < 1e-6f) return;
+    SetMeshUniforms(color);
+    std::vector<MeshVert> v;
+    AppendMesh(v, generator::CappedCylinderMesh(radius, halfLen, seg, 1, 1),
+               ZAlign(a, b));
+    UploadMesh(v);
+}
+
+void Primitives::DrawCone(const glm::vec3& base, const glm::vec3& tip,
+                            float radius, const glm::vec4& color, int seg) {
+    float halfLen = glm::length(tip - base) * 0.5f;
+    if (halfLen < 1e-6f) return;
+    SetMeshUniforms(color);
+    std::vector<MeshVert> v;
+    AppendMesh(v, generator::CappedConeMesh(radius, halfLen, seg, 1, 1),
+               ZAlign(base, tip));
+    UploadMesh(v);
+}
+
+void Primitives::DrawCapsule(const glm::vec3& a, const glm::vec3& b,
+                               float radius, const glm::vec4& color, int seg) {
+    float halfLen = glm::length(b - a) * 0.5f;
+    if (halfLen < 1e-6f) { DrawSphere((a + b) * 0.5f, radius, color, seg); return; }
+    SetMeshUniforms(color);
+    std::vector<MeshVert> v;
+    AppendMesh(v, generator::CapsuleMesh(radius, halfLen, seg, 1, seg / 2),
+               ZAlign(a, b));
+    UploadMesh(v);
+}
+
+void Primitives::DrawTorus(const glm::vec3& center, const glm::vec3& axis,
+                             float majorR, float minorR, const glm::vec4& color, int seg) {
+    SetMeshUniforms(color);
+    std::vector<MeshVert> v;
+    AppendMesh(v, generator::TorusMesh(minorR, majorR, seg / 2, seg),
+               AxisTransform(center, axis));
+    UploadMesh(v);
+}
+
+void Primitives::DrawDisk(const glm::vec3& center, const glm::vec3& normal,
+                            float radius, const glm::vec4& color, int seg) {
+    SetMeshUniforms(color);
+    std::vector<MeshVert> v;
+    AppendMesh(v, generator::DiskMesh(radius, 0.0, seg, 1),
+               AxisTransform(center, normal));
+    UploadMesh(v);
+}
+
+void Primitives::DrawRing(const glm::vec3& center, const glm::vec3& normal,
+                            float innerR, float outerR, const glm::vec4& color, int seg) {
+    SetMeshUniforms(color);
+    std::vector<MeshVert> v;
+    AppendMesh(v, generator::DiskMesh(outerR, innerR, seg, 1),
+               AxisTransform(center, normal));
+    UploadMesh(v);
+}
+
+// ── composite primitives ─────────────────────────────────────────────
 
 void Primitives::DrawArrow(const glm::vec3& from, const glm::vec3& to,
                              const glm::vec4& color, float shaftR, float headR) {
@@ -102,124 +295,25 @@ void Primitives::DrawArrow(const glm::vec3& from, const glm::vec3& to,
 
     SetMeshUniforms(color);
     std::vector<MeshVert> v;
-    v.reserve(24 * 6 * 2);
-    BuildCylinder(v, from, shaftEnd, shaftR, 24);
-    BuildCone(v, shaftEnd, to, headR, 24);
+    float halfShaft = glm::length(shaftEnd - from) * 0.5f;
+    float halfHead  = headLen * 0.5f;
+    AppendMesh(v, generator::CappedCylinderMesh(shaftR, halfShaft, 24, 1, 1),
+               ZAlign(from, shaftEnd));
+    AppendMesh(v, generator::CappedConeMesh(headR, halfHead, 24, 1, 1),
+               ZAlign(shaftEnd, to));
     UploadMesh(v);
-}
-
-void Primitives::DrawSphere(const glm::vec3& center, float radius,
-                              const glm::vec4& color, int seg) {
-    SetMeshUniforms(color);
-    std::vector<MeshVert> v;
-    BuildSphere(v, center, radius, seg);
-    UploadMesh(v);
-}
-
-void Primitives::DrawCylinder(const glm::vec3& a, const glm::vec3& b,
-                                float radius, const glm::vec4& color, int seg) {
-    SetMeshUniforms(color);
-    std::vector<MeshVert> v;
-    BuildCylinder(v, a, b, radius, seg);
-    UploadMesh(v);
-}
-
-void Primitives::DrawArc(const glm::vec3& center, const glm::vec3& axis,
-                           const glm::vec3& startDir, float radius,
-                           float angleDeg, const glm::vec4& color, int seg) {
-    auto nAxis = glm::normalize(axis);
-    auto nStart = glm::normalize(startDir);
-    float step = glm::radians(angleDeg) / (float)seg;
-    for (int i = 0; i < seg; ++i) {
-        auto r0 = glm::rotate(glm::mat4(1), step * i,       nAxis);
-        auto r1 = glm::rotate(glm::mat4(1), step * (i + 1), nAxis);
-        DrawLine(center + glm::vec3(r0 * glm::vec4(nStart * radius, 0)),
-                 center + glm::vec3(r1 * glm::vec4(nStart * radius, 0)), color, 2.f);
-    }
 }
 
 void Primitives::DrawAxes(const glm::vec3& o, float len) {
-    float s = len * 0.025f;   // shaft radius proportional to length
-    float h = len * 0.07f;    // head radius
+    float s = len * 0.025f;
+    float h = len * 0.07f;
     DrawArrow(o, o + glm::vec3(len, 0, 0), {.95f, .25f, .25f, 1}, s, h);
     DrawArrow(o, o + glm::vec3(0, len, 0), {.35f, .85f, .35f, 1}, s, h);
     DrawArrow(o, o + glm::vec3(0, 0, len), {.35f, .50f, .95f, 1}, s, h);
 }
 
-// ── mesh builders ───────────────────────────────────────────────────
-
-static void Basis(const glm::vec3& ax, glm::vec3& u, glm::vec3& v) {
-    u = glm::normalize(glm::cross(ax, std::abs(ax.y) < .99f ? glm::vec3(0,1,0) : glm::vec3(1,0,0)));
-    v = glm::cross(ax, u);
-}
-
-static glm::vec3 Circle(const glm::vec3& u, const glm::vec3& v, int i, int seg) {
-    float a = 2.f * glm::pi<float>() * (float)i / (float)seg;
-    return u * std::cos(a) + v * std::sin(a);
-}
-
-void Primitives::BuildSphere(std::vector<MeshVert>& out, const glm::vec3& c, float r, int seg) {
-    for (int i = 0; i < seg; ++i) {
-        float lat0 = glm::pi<float>() * (-.5f + (float)i / seg);
-        float lat1 = glm::pi<float>() * (-.5f + (float)(i+1) / seg);
-        for (int j = 0; j < seg * 2; ++j) {
-            float lon0 = 2.f * glm::pi<float>() * (float)j / (seg*2);
-            float lon1 = 2.f * glm::pi<float>() * (float)(j+1) / (seg*2);
-            auto pt = [&](float la, float lo) -> MeshVert {
-                glm::vec3 n(std::cos(la)*std::cos(lo), std::sin(la), std::cos(la)*std::sin(lo));
-                return {c + n*r, n};
-            };
-            auto a = pt(lat0,lon0), b = pt(lat1,lon0), d = pt(lat1,lon1), e = pt(lat0,lon1);
-            // CCW winding when viewed from outside
-            out.insert(out.end(), {a, b, d, a, d, e});
-        }
-    }
-}
-
-void Primitives::BuildCylinder(std::vector<MeshVert>& out, const glm::vec3& a,
-                                const glm::vec3& b, float r, int seg) {
-    auto dir = b - a; float len = glm::length(dir);
-    if (len < 1e-6f) return;
-    auto ax = dir / len;
-    glm::vec3 u, v; Basis(ax, u, v);
-
-    for (int i = 0; i < seg; ++i) {
-        auto n0 = Circle(u, v, i,   seg);
-        auto n1 = Circle(u, v, i+1, seg);
-        auto pa0 = a+n0*r, pa1 = a+n1*r, pb0 = b+n0*r, pb1 = b+n1*r;
-        // Side quads — CCW from outside (normal points outward)
-        out.insert(out.end(), {{pa0,n0},{pa1,n1},{pb1,n1}, {pa0,n0},{pb1,n1},{pb0,n0}});
-        // End caps — CCW from cap face direction
-        out.insert(out.end(), {{a,-ax},{pa1,-ax},{pa0,-ax}});  // bottom cap
-        out.insert(out.end(), {{b, ax},{pb0, ax},{pb1, ax}});  // top cap
-    }
-}
-
-void Primitives::BuildCone(std::vector<MeshVert>& out, const glm::vec3& base,
-                             const glm::vec3& tip, float r, int seg) {
-    auto dir = tip - base; float len = glm::length(dir);
-    if (len < 1e-6f) return;
-    auto ax = dir / len;
-    glm::vec3 u, v; Basis(ax, u, v);
-
-    // Correct cone normal: for cone with radius r and height len,
-    // the surface normal has radial component `len` and axial component `r`
-    float nRatio = r / std::sqrt(r*r + len*len);
-    float aRatio = len / std::sqrt(r*r + len*len);
-
-    for (int i = 0; i < seg; ++i) {
-        auto n0 = Circle(u, v, i,   seg);
-        auto n1 = Circle(u, v, i+1, seg);
-        // Cone surface normals — perpendicular to the slant surface
-        auto cn0 = glm::normalize(n0 * aRatio + ax * nRatio);
-        auto cn1 = glm::normalize(n1 * aRatio + ax * nRatio);
-        auto cnt = glm::normalize(cn0 + cn1);
-        auto q0 = base+n0*r, q1 = base+n1*r;
-        // Side — CCW from outside
-        out.insert(out.end(), {{q0,cn0},{q1,cn1},{tip,cnt}});
-        // Base cap — CCW from -ax
-        out.insert(out.end(), {{base,-ax},{q1,-ax},{q0,-ax}});
-    }
+void Primitives::DrawPoint(const glm::vec3& pos, const glm::vec4& color, float size) {
+    DrawSphere(pos, size, color, 8);
 }
 
 } // namespace KiloScope::Render
