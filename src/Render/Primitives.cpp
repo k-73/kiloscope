@@ -50,6 +50,7 @@ void Primitives::Begin(const glm::mat4& view, const glm::mat4& proj,
     lightDir_ = glm::normalize(lightDir);
     vpW_ = vpW; vpH_ = vpH;
     lineBatch_.clear();
+    matStack_ = {glm::mat4(1.f)};
 }
 
 void Primitives::SetMeshUniforms(const glm::vec4& color, bool unlit) {
@@ -73,7 +74,7 @@ void Primitives::UploadMesh(const std::vector<MeshVert>& v) {
 template <typename MeshT>
 void Primitives::AppendMesh(std::vector<MeshVert>& out, const MeshT& mesh,
                             const glm::mat4& xform) {
-    auto nmat = glm::mat3(xform);
+    auto nmat = glm::transpose(glm::inverse(glm::mat3(xform)));
     std::vector<MeshVert> indexed;
     for (auto it = mesh.vertices(); !it.done(); it.next()) {
         auto v = it.generate();
@@ -115,17 +116,49 @@ static glm::vec3 Perpendicular(const glm::vec3& v) {
                                         ? glm::vec3(0, 1, 0) : glm::vec3(1, 0, 0)));
 }
 
+glm::vec3 Primitives::XformPoint(const glm::vec3& p) const {
+    return glm::vec3(Mat() * glm::vec4(p, 1.f));
+}
+
+glm::vec3 Primitives::XformDir(const glm::vec3& d) const {
+    return glm::mat3(Mat()) * d;
+}
+
+// ── transform stack ──────────────────────────────────────────────────
+
+void Primitives::PushMatrix()  { matStack_.push_back(Mat()); }
+void Primitives::PopMatrix()   { if (matStack_.size() > 1) matStack_.pop_back(); }
+void Primitives::ResetMatrix() { matStack_.back() = glm::mat4(1.f); }
+
+void Primitives::Translate(const glm::vec3& offset) {
+    matStack_.back() = matStack_.back() * glm::translate(glm::mat4(1.f), offset);
+}
+void Primitives::Translate(float x, float y, float z) { Translate({x, y, z}); }
+
+void Primitives::Rotate(float angleDeg, const glm::vec3& axis) {
+    matStack_.back() = matStack_.back() * glm::rotate(glm::mat4(1.f), glm::radians(angleDeg), axis);
+}
+void Primitives::RotateX(float deg) { Rotate(deg, {1, 0, 0}); }
+void Primitives::RotateY(float deg) { Rotate(deg, {0, 1, 0}); }
+void Primitives::RotateZ(float deg) { Rotate(deg, {0, 0, 1}); }
+
+void Primitives::Scale(const glm::vec3& s) {
+    matStack_.back() = matStack_.back() * glm::scale(glm::mat4(1.f), s);
+}
+void Primitives::Scale(float s) { Scale({s, s, s}); }
+
 // ── lines ────────────────────────────────────────────────────────────
 
 void Primitives::DrawLine(const glm::vec3& a, const glm::vec3& b,
                            const glm::vec4& color, float width) {
+    auto ta = XformPoint(a), tb = XformPoint(b);
     lineWidth_ = width;
-    lineBatch_.push_back({a, b, {-1, 0}, color});
-    lineBatch_.push_back({a, b, { 1, 0}, color});
-    lineBatch_.push_back({a, b, { 1, 1}, color});
-    lineBatch_.push_back({a, b, {-1, 0}, color});
-    lineBatch_.push_back({a, b, { 1, 1}, color});
-    lineBatch_.push_back({a, b, {-1, 1}, color});
+    lineBatch_.push_back({ta, tb, {-1, 0}, color});
+    lineBatch_.push_back({ta, tb, { 1, 0}, color});
+    lineBatch_.push_back({ta, tb, { 1, 1}, color});
+    lineBatch_.push_back({ta, tb, {-1, 0}, color});
+    lineBatch_.push_back({ta, tb, { 1, 1}, color});
+    lineBatch_.push_back({ta, tb, {-1, 1}, color});
 }
 
 void Primitives::FlushLines() {
@@ -152,37 +185,45 @@ void Primitives::FlushLines() {
 void Primitives::DrawArc(const glm::vec3& center, const glm::vec3& axis,
                           const glm::vec3& startDir, float radius,
                           float angleDeg, const glm::vec4& color, int seg) {
-    auto nAxis = glm::normalize(axis);
-    auto nStart = glm::normalize(startDir);
+    auto tc = XformPoint(center);
+    auto ta = glm::normalize(XformDir(axis));
+    auto ts = glm::normalize(XformDir(startDir));
     float step = glm::radians(angleDeg) / static_cast<float>(seg);
     for (int i = 0; i < seg; ++i) {
-        auto r0 = glm::rotate(glm::mat4(1), step * i,       nAxis);
-        auto r1 = glm::rotate(glm::mat4(1), step * (i + 1), nAxis);
-        DrawLine(center + glm::vec3(r0 * glm::vec4(nStart * radius, 0)),
-                 center + glm::vec3(r1 * glm::vec4(nStart * radius, 0)), color, 2.f);
+        auto r0 = glm::rotate(glm::mat4(1), step * i,       ta);
+        auto r1 = glm::rotate(glm::mat4(1), step * (i + 1), ta);
+        // DrawLine will re-apply Mat(), so pass transformed points directly
+        // Use base DrawLine by temporarily resetting matrix
+        auto saved = matStack_.back();
+        matStack_.back() = glm::mat4(1.f);
+        DrawLine(tc + glm::vec3(r0 * glm::vec4(ts * radius, 0)),
+                 tc + glm::vec3(r1 * glm::vec4(ts * radius, 0)), color, 2.f);
+        matStack_.back() = saved;
     }
 }
 
 void Primitives::DrawCircle(const glm::vec3& center, const glm::vec3& axis,
                               float radius, const glm::vec4& color, int seg) {
-    DrawArc(center, axis, Perpendicular(axis) * radius, radius, 360.f, color, seg);
+    DrawArc(center, axis, Perpendicular(axis), radius, 360.f, color, seg);
 }
 
 // ── basic geometry ───────────────────────────────────────────────────
 
 void Primitives::DrawTriangle(const glm::vec3& a, const glm::vec3& b,
                                 const glm::vec3& c, const glm::vec4& color) {
-    auto normal = glm::normalize(glm::cross(b - a, c - a));
+    auto ta = XformPoint(a), tb = XformPoint(b), tc = XformPoint(c);
+    auto normal = glm::normalize(glm::cross(tb - ta, tc - ta));
     SetMeshUniforms(color);
-    UploadMesh({{a, normal}, {b, normal}, {c, normal}});
+    UploadMesh({{ta, normal}, {tb, normal}, {tc, normal}});
 }
 
 void Primitives::DrawQuad(const glm::vec3& a, const glm::vec3& b,
                             const glm::vec3& c, const glm::vec3& d, const glm::vec4& color) {
-    auto normal = glm::normalize(glm::cross(b - a, d - a));
+    auto ta = XformPoint(a), tb = XformPoint(b), tc = XformPoint(c), td = XformPoint(d);
+    auto normal = glm::normalize(glm::cross(tb - ta, td - ta));
     SetMeshUniforms(color);
-    UploadMesh({{a, normal}, {b, normal}, {c, normal},
-                {a, normal}, {c, normal}, {d, normal}});
+    UploadMesh({{ta, normal}, {tb, normal}, {tc, normal},
+                {ta, normal}, {tc, normal}, {td, normal}});
 }
 
 void Primitives::DrawPlane(const glm::vec3& center, const glm::vec3& normal,
@@ -204,7 +245,7 @@ void Primitives::DrawSphere(const glm::vec3& center, float radius,
     SetMeshUniforms(color);
     std::vector<MeshVert> v;
     AppendMesh(v, generator::SphereMesh(radius, seg, seg / 2),
-               glm::translate(glm::mat4(1.f), center));
+               Mat() * glm::translate(glm::mat4(1.f), center));
     UploadMesh(v);
 }
 
@@ -213,7 +254,7 @@ void Primitives::DrawBox(const glm::vec3& center, const glm::vec3& size,
     SetMeshUniforms(color);
     std::vector<MeshVert> v;
     AppendMesh(v, generator::BoxMesh({size.x, size.y, size.z}, {1, 1, 1}),
-               glm::translate(glm::mat4(1.f), center));
+               Mat() * glm::translate(glm::mat4(1.f), center));
     UploadMesh(v);
 }
 
@@ -229,7 +270,7 @@ void Primitives::DrawCylinder(const glm::vec3& a, const glm::vec3& b,
     SetMeshUniforms(color);
     std::vector<MeshVert> v;
     AppendMesh(v, generator::CappedCylinderMesh(radius, halfLen, seg, 1, 1),
-               ZAlign(a, b));
+               Mat() * ZAlign(a, b));
     UploadMesh(v);
 }
 
@@ -240,7 +281,7 @@ void Primitives::DrawCone(const glm::vec3& base, const glm::vec3& tip,
     SetMeshUniforms(color);
     std::vector<MeshVert> v;
     AppendMesh(v, generator::CappedConeMesh(radius, halfLen, seg, 1, 1),
-               ZAlign(base, tip));
+               Mat() * ZAlign(base, tip));
     UploadMesh(v);
 }
 
@@ -251,7 +292,7 @@ void Primitives::DrawCapsule(const glm::vec3& a, const glm::vec3& b,
     SetMeshUniforms(color);
     std::vector<MeshVert> v;
     AppendMesh(v, generator::CapsuleMesh(radius, halfLen, seg, 1, seg / 2),
-               ZAlign(a, b));
+               Mat() * ZAlign(a, b));
     UploadMesh(v);
 }
 
@@ -260,7 +301,7 @@ void Primitives::DrawTorus(const glm::vec3& center, const glm::vec3& axis,
     SetMeshUniforms(color);
     std::vector<MeshVert> v;
     AppendMesh(v, generator::TorusMesh(minorR, majorR, seg / 2, seg),
-               AxisTransform(center, axis));
+               Mat() * AxisTransform(center, axis));
     UploadMesh(v);
 }
 
@@ -269,7 +310,7 @@ void Primitives::DrawDisk(const glm::vec3& center, const glm::vec3& normal,
     SetMeshUniforms(color);
     std::vector<MeshVert> v;
     AppendMesh(v, generator::DiskMesh(radius, 0.0, seg, 1),
-               AxisTransform(center, normal));
+               Mat() * AxisTransform(center, normal));
     UploadMesh(v);
 }
 
@@ -278,7 +319,7 @@ void Primitives::DrawRing(const glm::vec3& center, const glm::vec3& normal,
     SetMeshUniforms(color);
     std::vector<MeshVert> v;
     AppendMesh(v, generator::DiskMesh(outerR, innerR, seg, 1),
-               AxisTransform(center, normal));
+               Mat() * AxisTransform(center, normal));
     UploadMesh(v);
 }
 
@@ -298,9 +339,9 @@ void Primitives::DrawArrow(const glm::vec3& from, const glm::vec3& to,
     float halfShaft = glm::length(shaftEnd - from) * 0.5f;
     float halfHead  = headLen * 0.5f;
     AppendMesh(v, generator::CappedCylinderMesh(shaftR, halfShaft, 24, 1, 1),
-               ZAlign(from, shaftEnd));
+               Mat() * ZAlign(from, shaftEnd));
     AppendMesh(v, generator::CappedConeMesh(headR, halfHead, 24, 1, 1),
-               ZAlign(shaftEnd, to));
+               Mat() * ZAlign(shaftEnd, to));
     UploadMesh(v);
 }
 

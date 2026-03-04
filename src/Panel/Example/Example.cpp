@@ -39,30 +39,61 @@ void Example::OnLoop() {
 }
 
 void Example::OnDraw() {
-    Draw3D("scene", {}, [&](Render::Primitives& prims) {
-        prims.DrawAxes({0, 0, 0}, 1.f);
+    Draw3D("scene", {}, [&](Render::Primitives& p) {
+        p.DrawAxes({0, 0, 0}, 1.f);
 
         // Animated spiral path
         for (int i = 1; i < kPathPoints; ++i) {
             float norm = static_cast<float>(i) / kPathPoints;
-            prims.DrawLine(spiralPath_[i - 1], spiralPath_[i],
-                           {.2f + .8f * norm, .4f, 1.f - .6f * norm, 1.f}, 2.f);
+            p.DrawLine(spiralPath_[i - 1], spiralPath_[i],
+                       {.2f + .8f * norm, .4f, 1.f - .6f * norm, 1.f}, 2.f);
         }
+        p.DrawSphere(spiralPath_.back(), 0.12f, {1.f, .8f, .2f, 1.f}, 24);
 
         float t = elapsedTime_;
 
-        // Primitives showcase
-        prims.DrawSphere(spiralPath_.back(), 0.12f, {1.f, .8f, .2f, 1.f}, 24);
-        prims.DrawBox({-2.f, 0.f, 0.f}, {0.3f, 0.3f, 0.3f}, {.4f, .7f, .9f, 1.f});
-        prims.DrawCone({2.f, -0.5f, 0.f}, {2.f, 0.5f, 0.f}, 0.25f, {.9f, .5f, .3f, 1.f});
-        prims.DrawCapsule({0.f, -2.f, -1.f}, {0.f, -2.f, 1.f}, 0.15f, {.6f, .9f, .5f, 1.f});
-        prims.DrawTorus({0.f, 2.f, 0.f}, {0.f, 1.f, 0.f}, 0.6f, 0.15f, {.8f, .4f, .8f, 1.f});
-        prims.DrawDisk({-2.f, 1.5f, 0.f}, {0.f, 1.f, 0.f}, 0.4f, {.3f, .8f, .7f, 1.f});
-        prims.DrawRing({2.f, 1.5f, 0.f}, {0.f, 1.f, 0.f}, 0.2f, 0.4f, {.9f, .7f, .3f, 1.f});
-        prims.DrawPlane({0.f, -2.5f, 0.f}, {0.f, 1.f, 0.f}, {2.f, 2.f}, {.5f, .5f, .5f, .6f});
+        // Box
+        p.PushMatrix();
+            p.Translate(-2, 0, 0);
+            p.DrawCube({0, 0, 0}, 0.3f, {.4f, .7f, .9f, 1});
+        p.PopMatrix();
 
-        // Animated circle
-        prims.DrawCircle({0.f, 2.f, 0.f}, {0.f, 1.f, 0.f}, 1.0f + 0.2f * std::sin(t), {1.f, 1.f, 1.f, .5f});
+        // Cone
+        p.PushMatrix();
+            p.Translate(2, 0, 0);
+            p.DrawCone({0, -0.5f, 0}, {0, 0.5f, 0}, 0.25f, {.9f, .5f, .3f, 1});
+        p.PopMatrix();
+
+        // Capsule
+        p.PushMatrix();
+            p.Translate(0, -2, 0);
+            p.DrawCapsule({0, 0, -1}, {0, 0, 1}, 0.15f, {.6f, .9f, .5f, 1});
+        p.PopMatrix();
+
+        // Torus + animated circle
+        p.PushMatrix();
+            p.Translate(0, 2, 0);
+            p.DrawTorus({0, 0, 0}, {0, 1, 0}, 0.6f, 0.15f, {.8f, .4f, .8f, 1});
+            p.DrawCircle({0, 0, 0}, {0, 1, 0}, 1.0f + 0.2f * std::sin(t), {1, 1, 1, .5f});
+        p.PopMatrix();
+
+        // Disk
+        p.PushMatrix();
+            p.Translate(-2, 1.5f, 0);
+            p.DrawDisk({0, 0, 0}, {0, 1, 0}, 0.4f, {.3f, .8f, .7f, 1});
+        p.PopMatrix();
+
+        // Ring
+        p.PushMatrix();
+            p.Translate(2, 1.5f, 0);
+            p.DrawRing({0, 0, 0}, {0, 1, 0}, 0.2f, 0.4f, {.9f, .7f, .3f, 1});
+        p.PopMatrix();
+
+        // Ground plane
+        p.PushMatrix();
+            p.Translate(0, -2.5f, 0);
+            p.DrawPlane({0, 0, 0}, {0, 1, 0}, {2, 2}, {.5f, .5f, .5f, .6f});
+        p.PopMatrix();
     });
 
     ImGui::Begin("Example Chart", nullptr);

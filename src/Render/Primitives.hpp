@@ -15,6 +15,19 @@ public:
                const glm::vec3& camPos, const glm::vec3& lightDir, int vpW, int vpH);
     void FlushLines();
 
+    // ── transform stack ─────────────────────────────────────────────
+    void PushMatrix();
+    void PopMatrix();
+    void ResetMatrix();
+    void Translate(const glm::vec3& offset);
+    void Translate(float x, float y, float z);
+    void Rotate(float angleDeg, const glm::vec3& axis);
+    void RotateX(float angleDeg);
+    void RotateY(float angleDeg);
+    void RotateZ(float angleDeg);
+    void Scale(const glm::vec3& s);
+    void Scale(float s);
+
     // ── lines ───────────────────────────────────────────────────────
     void DrawLine(const glm::vec3& a, const glm::vec3& b,
                   const glm::vec4& color, float width = 2.5f);
@@ -69,6 +82,11 @@ private:
     int vpW_ = 1, vpH_ = 1;
     std::vector<LineVert> lineBatch_;
     float lineWidth_ = 2.5f;
+    std::vector<glm::mat4> matStack_ = {glm::mat4(1.f)};
+
+    const glm::mat4& Mat() const { return matStack_.back(); }
+    glm::vec3 XformPoint(const glm::vec3& p) const;
+    glm::vec3 XformDir(const glm::vec3& d) const;
 
     void UploadMesh(const std::vector<MeshVert>& v);
     void SetMeshUniforms(const glm::vec4& color, bool unlit = false);
