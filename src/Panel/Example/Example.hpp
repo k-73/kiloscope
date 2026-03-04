@@ -1,6 +1,7 @@
 #pragma once
 #include "Core/Panel/Panel.hpp"
 #include <glm/glm.hpp>
+#include <chrono>
 #include <vector>
 
 namespace KiloScope {
@@ -16,19 +17,18 @@ protected:
     void OnRender(Render::Scene& scene) override;
 
 private:
-    static constexpr size_t PathLen = 512;
-    static constexpr size_t ChartLen = 256;
+    static constexpr int kPathPoints = 512;
+    static constexpr int kPlotPoints = 256;
+    static constexpr float kPi = 3.14159265f;
 
-    double time_ = 0.0;
+    using Clock = std::chrono::steady_clock;
+    Clock::time_point startTime_ = Clock::now();
+    float elapsedTime_ = 0.f;
 
-    // 3D path data (written by OnLoop, read by OnRender)
-    std::vector<glm::vec3> path_;
-    glm::vec3 tip_{};
-
-    // Chart data (written by OnLoop, read by OnDraw)
-    std::vector<float> chartX_;
-    std::vector<float> chartSin_;
-    std::vector<float> chartCos_;
+    std::vector<glm::vec3> spiralPath_;
+    std::vector<float> plotX_;
+    std::vector<float> plotSin_;
+    std::vector<float> plotCos_;
 };
 
 } // namespace KiloScope

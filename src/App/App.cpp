@@ -17,7 +17,6 @@ void OnSignal(int sig) {
 namespace KiloScope::App {
 
 App::App() {
-    SetBus(dispatcher_);
     config_.LoadFromFile("kiloscope.json");
     Log::SetLevel(config_.logLevel);
 
@@ -50,7 +49,6 @@ void App::Run() {
             break;
         }
         glfwPollEvents();
-        dispatcher_.update();
         ui_->BeginFrame();
         panels_->DrawMenuBar();
         panels_->Draw();

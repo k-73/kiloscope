@@ -1,6 +1,5 @@
 #pragma once
 #include "Core/Config.hpp"
-#include "Core/Events.hpp"
 #include "Ui/UiContext.hpp"
 #include "Core/Panel/PanelManager.hpp"
 #include <memory>
@@ -17,7 +16,6 @@ private:
     void CreateDefaultPanels();
 
     AppConfig config_;
-    entt::dispatcher dispatcher_;
     std::unique_ptr<UI::UiContext> ui_;
     std::unique_ptr<PanelManager> panels_;
 };

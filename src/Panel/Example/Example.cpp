@@ -9,66 +9,60 @@ namespace KiloScope {
 
 Example::Example()
     : Panel("Example", "Example", PanelFlags::NeedsScene)
-{
-    path_.reserve(PathLen);
-    chartX_.resize(ChartLen);
-    chartSin_.resize(ChartLen);
-    chartCos_.resize(ChartLen);
-}
+    , spiralPath_(kPathPoints)
+    , plotX_(kPlotPoints)
+    , plotSin_(kPlotPoints)
+    , plotCos_(kPlotPoints)
+{}
 
 void Example::OnLoop() {
-    time_ += 0.016;
+    elapsedTime_ = std::chrono::duration<float>(Clock::now() - startTime_).count();
 
-    // Generate 3D spiral path
-    path_.resize(PathLen);
-    for (size_t i = 0; i < PathLen; ++i) {
-        float t = static_cast<float>(i) / PathLen;
-        float phase = static_cast<float>(time_) + t * 8.0f;
-        float r = 1.0f + t * 2.0f;
-        path_[i] = {
-            r * std::cos(phase),
-            t * 4.0f - 2.0f,
-            r * std::sin(phase)
-        };
+    // Animated 3D spiral
+    for (int i = 0; i < kPathPoints; ++i) {
+        float progress = static_cast<float>(i) / kPathPoints;
+        float angle    = elapsedTime_ + progress * 8.f;
+        float radius   = 1.f + progress * 2.f;
+        spiralPath_[i] = {radius * std::cos(angle),
+                          progress * 4.f - 2.f,
+                          radius * std::sin(angle)};
     }
-    tip_ = path_.back();
 
-    // Generate chart data
-    for (size_t i = 0; i < ChartLen; ++i) {
-        float x = static_cast<float>(i) / ChartLen * 4.0f * 3.14159f;
-        float phase = static_cast<float>(time_);
-        chartX_[i]   = x;
-        chartSin_[i] = std::sin(x + phase);
-        chartCos_[i] = std::cos(x + phase * 0.7f) * 0.8f;
+    // Animated sin/cos signals
+    constexpr float xRange = 4.f * kPi;
+    for (int i = 0; i < kPlotPoints; ++i) {
+        float x    = static_cast<float>(i) / kPlotPoints * xRange;
+        plotX_[i]   = x;
+        plotSin_[i] = std::sin(x + elapsedTime_);
+        plotCos_[i] = std::cos(x + elapsedTime_ * 0.7f) * 0.8f;
     }
 }
 
 void Example::OnRender(Render::Scene& scene) {
-    auto& p = scene.Prims();
-    p.DrawAxes({0, 0, 0}, 1.0f);
+    auto& prims = scene.Prims();
+    prims.DrawAxes({0, 0, 0}, 1.f);
 
-    for (size_t i = 1; i < path_.size(); ++i) {
-        float t = static_cast<float>(i) / static_cast<float>(path_.size());
-        p.DrawLine(path_[i - 1], path_[i],
-                   {0.2f + 0.8f * t, 0.4f, 1.0f - 0.6f * t, 1.0f}, 2.0f);
+    // Gradient-colored path
+    for (int i = 1; i < kPathPoints; ++i) {
+        float norm = static_cast<float>(i) / kPathPoints;
+        prims.DrawLine(spiralPath_[i - 1], spiralPath_[i],
+                       {.2f + .8f * norm, .4f, 1.f - .6f * norm, 1.f}, 2.f);
     }
 
-    if (!path_.empty())
-        p.DrawSphere(tip_, 0.12f, {1.0f, 0.8f, 0.2f, 1.0f}, 24);
+    // Marker at the tip
+    prims.DrawSphere(spiralPath_.back(), 0.12f, {1.f, .8f, .2f, 1.f}, 24);
 }
 
 void Example::OnDraw() {
     DrawViewport();
 
-    // Second window: chart
-    bool open = true;
-    ImGui::Begin("Example Chart", &open);
+    ImGui::Begin("Example Chart", nullptr);
     if (ImPlot::BeginPlot("##signals", {-1, -1})) {
         ImPlot::SetupAxes("x", "y");
-        ImPlot::SetupAxisLimits(ImAxis_X1, 0.0, 4.0 * 3.14159, ImPlotCond_Always);
+        ImPlot::SetupAxisLimits(ImAxis_X1, 0.0, 4.0 * kPi, ImPlotCond_Always);
         ImPlot::SetupAxisLimits(ImAxis_Y1, -1.2, 1.2, ImPlotCond_Always);
-        ImPlot::PlotLine("sin", chartX_.data(), chartSin_.data(), static_cast<int>(ChartLen));
-        ImPlot::PlotLine("cos", chartX_.data(), chartCos_.data(), static_cast<int>(ChartLen));
+        ImPlot::PlotLine("sin", plotX_.data(), plotSin_.data(), kPlotPoints);
+        ImPlot::PlotLine("cos", plotX_.data(), plotCos_.data(), kPlotPoints);
         ImPlot::EndPlot();
     }
     ImGui::End();
