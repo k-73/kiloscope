@@ -1,11 +1,11 @@
 #pragma once
 #include <nlohmann/json.hpp>
-#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <utility>
 #include <cstdint>
 
 namespace Kilo::Render { class Scene; class Primitives; class Camera; }
@@ -58,8 +58,12 @@ public:
     void Draw();
 
 protected:
-    void Draw3D(const char* name, const ViewportConfig& cfg,
-                std::function<void(Render::Primitives&, Render::Camera&)> fn);
+    template<typename F>
+    void Draw3D(const char* name, const ViewportConfig& cfg, F&& fn) {
+        auto [p, c] = Draw3DBegin(name, cfg);
+        fn(*p, *c);
+        Draw3DEnd();
+    }
 
 private:
     friend class PanelManager;
@@ -73,6 +77,15 @@ private:
     std::string shaderDir_;
     std::unordered_map<std::string, std::unique_ptr<Render::Scene>> scenes_;
     std::mutex mutex_;
+
+    struct Draw3DState {
+        Render::Scene* scene{};
+        float cursorX{}, cursorY{}, w{}, h{};
+    } d3d_;
+
+    std::pair<Render::Primitives*, Render::Camera*>
+    Draw3DBegin(const char* name, const ViewportConfig& cfg);
+    void Draw3DEnd();
 
     static int NextInstanceId(const std::string& typeId);
 };

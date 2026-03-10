@@ -26,8 +26,8 @@ void Panel::Draw() {
     ImGui::End();
 }
 
-void Panel::Draw3D(const char* name, const ViewportConfig& cfg,
-                   std::function<void(Render::Primitives&, Render::Camera&)> fn) {
+std::pair<Render::Primitives*, Render::Camera*>
+Panel::Draw3DBegin(const char* name, const ViewportConfig& cfg) {
     auto& scene = scenes_[name];
     if (!scene) {
         scene = std::make_unique<Render::Scene>();
@@ -54,13 +54,16 @@ void Panel::Draw3D(const char* name, const ViewportConfig& cfg,
     if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Middle))
         cam.Pan(io.MouseDelta.x, io.MouseDelta.y);
 
+    d3d_ = { scene.get(), cursor.x, cursor.y, size.x, size.y };
     scene->BeginRender();
-    fn(scene->Prims(), scene->GetCamera());
-    scene->EndRender();
+    return { &scene->Prims(), &cam };
+}
 
-    ImGui::SetCursorScreenPos(cursor);
-    ImGui::Image(static_cast<ImTextureID>(static_cast<uintptr_t>(scene->Texture())),
-                 size, {0, 1}, {1, 0});
+void Panel::Draw3DEnd() {
+    d3d_.scene->EndRender();
+    ImGui::SetCursorScreenPos({d3d_.cursorX, d3d_.cursorY});
+    ImGui::Image(static_cast<ImTextureID>(static_cast<uintptr_t>(d3d_.scene->Texture())),
+                 {d3d_.w, d3d_.h}, {0, 1}, {1, 0});
 }
 
 int Panel::NextInstanceId(const std::string& typeId) {
