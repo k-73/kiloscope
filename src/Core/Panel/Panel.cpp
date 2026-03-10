@@ -27,7 +27,7 @@ void Panel::Draw() {
 }
 
 void Panel::Draw3D(const char* name, const ViewportConfig& cfg,
-                   std::function<void(Render::Primitives&)> fn) {
+                   std::function<void(Render::Primitives&, Render::Camera&)> fn) {
     auto& scene = scenes_[name];
     if (!scene) {
         scene = std::make_unique<Render::Scene>();
@@ -55,7 +55,7 @@ void Panel::Draw3D(const char* name, const ViewportConfig& cfg,
         cam.Pan(io.MouseDelta.x, io.MouseDelta.y);
 
     scene->BeginRender();
-    fn(scene->Prims());
+    fn(scene->Prims(), scene->GetCamera());
     scene->EndRender();
 
     ImGui::SetCursorScreenPos(cursor);

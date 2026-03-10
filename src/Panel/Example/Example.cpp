@@ -39,7 +39,7 @@ void Example::OnLoop() {
 }
 
 void Example::OnDraw() {
-    Draw3D("scene", {}, [&](Render::Primitives& p) {
+    Draw3D("scene", {}, [&](Render::Primitives& p, Render::Camera& cam) {
         p.DrawAxes({0, 0, 0}, 1.f);
 
         // Animated spiral path

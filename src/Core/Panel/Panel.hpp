@@ -8,7 +8,7 @@
 #include <unordered_map>
 #include <cstdint>
 
-namespace Kilo::Render { class Scene; class Primitives; }
+namespace Kilo::Render { class Scene; class Primitives; class Camera; }
 
 namespace Kilo {
 
@@ -59,7 +59,7 @@ public:
 
 protected:
     void Draw3D(const char* name, const ViewportConfig& cfg,
-                std::function<void(Render::Primitives&)> fn);
+                std::function<void(Render::Primitives&, Render::Camera&)> fn);
 
 private:
     friend class PanelManager;
