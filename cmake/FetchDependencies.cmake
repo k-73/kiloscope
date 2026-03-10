@@ -104,6 +104,30 @@ FetchContent_Declare(entt
 )
 FetchContent_MakeAvailable(entt)
 
+# ── magic_enum ─────────────────────────────────────────────────────
+FetchContent_Declare(magic_enum
+    GIT_REPOSITORY https://github.com/Neargye/magic_enum.git
+    GIT_TAG        v0.9.7
+    GIT_SHALLOW    ON
+)
+FetchContent_MakeAvailable(magic_enum)
+
+# ── glaze ──────────────────────────────────────────────────────────
+FetchContent_Declare(glaze
+    GIT_REPOSITORY https://github.com/stephenberry/glaze.git
+    GIT_TAG        v4.2.2
+    GIT_SHALLOW    ON
+)
+FetchContent_MakeAvailable(glaze)
+
+# ── toml++ ─────────────────────────────────────────────────────────
+FetchContent_Declare(tomlplusplus
+    GIT_REPOSITORY https://github.com/marzer/tomlplusplus.git
+    GIT_TAG        v3.4.0
+    GIT_SHALLOW    ON
+)
+FetchContent_MakeAvailable(tomlplusplus)
+
 # ── generator (procedural geometry) ─────────────────────────────────
 FetchContent_Declare(generator
     GIT_REPOSITORY https://github.com/ilmola/generator.git

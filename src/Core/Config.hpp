@@ -1,5 +1,4 @@
 #pragma once
-#include <nlohmann/json.hpp>
 #include <string>
 
 namespace Kilo {
@@ -20,8 +19,5 @@ struct AppConfig {
     void LoadFromFile(const std::string& path);
     void SaveToFile(const std::string& path) const;
 };
-
-void to_json(nlohmann::json& j, const AppConfig& c);
-void from_json(const nlohmann::json& j, AppConfig& c);
 
 } // namespace Kilo

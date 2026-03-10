@@ -34,6 +34,9 @@ target_link_libraries(kiloscope PRIVATE
     nlohmann_json::nlohmann_json
     EnTT::EnTT
     generator
+    magic_enum::magic_enum
+    glaze::glaze
+    tomlplusplus::tomlplusplus
     OpenGL::GL
     glfw
     GLEW::GLEW
