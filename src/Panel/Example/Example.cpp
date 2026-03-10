@@ -88,9 +88,8 @@ void Example::OnDraw() {
         Render::PopMatrix();
     });
 
-    // Camera controls
-    auto& cam = Render::GetCamera();
-    if (ImGui::TreeNode("Camera")) {
+    ImGui::Begin("Camera Controls", nullptr);
+        auto& cam = Render::GetCamera();
         ImGui::DragFloat3("Target",   &cam.Target().x, 0.05f);
         ImGui::DragFloat("Distance",  &cam.Distance(), 0.1f, 0.5f, 200.f);
         ImGui::SliderFloat("Yaw",     &cam.Yaw(), -180.f, 180.f, "%.1f\xc2\xb0");
@@ -103,8 +102,7 @@ void Example::OnDraw() {
             cam.Yaw()      = 45.f;
             cam.Pitch()    = 30.f;
         }
-        ImGui::TreePop();
-    }
+    ImGui::End();
 
     ImGui::Begin("Example Chart", nullptr);
     if (ImPlot::BeginPlot("##signals", {-1, -1})) {
