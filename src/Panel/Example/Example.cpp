@@ -1,6 +1,7 @@
 #include "Example.hpp"
 #include "Core/Panel/PanelRegistry.hpp"
-#include "Render/Primitives.hpp"
+#include "Render/Draw.hpp"
+#include "Render/Camera.hpp"
 #include <imgui.h>
 #include <implot.h>
 #include <cmath>
@@ -39,62 +40,71 @@ void Example::OnLoop() {
 }
 
 void Example::OnDraw() {
-    Draw3D("scene", {}, [&](Render::Primitives& p, Render::Camera& cam) {
-        p.DrawAxes({0, 0, 0}, 1.f);
+    Draw3D("scene", [&] {
+        Render::Axes({0, 0, 0}, 1.f);
 
         // Animated spiral path
         for (int i = 1; i < kPathPoints; ++i) {
             float norm = static_cast<float>(i) / kPathPoints;
-            p.DrawLine(spiralPath_[i - 1], spiralPath_[i],
-                       {.2f + .8f * norm, .4f, 1.f - .6f * norm, 1.f}, 2.f);
+            Render::Line(spiralPath_[i - 1], spiralPath_[i],
+                         {.2f + .8f * norm, .4f, 1.f - .6f * norm, 1.f}, 2.f);
         }
-        p.DrawSphere(spiralPath_.back(), 0.12f, {1.f, .8f, .2f, 1.f}, 24);
+        Render::Sphere(spiralPath_.back(), 0.12f, {1.f, .8f, .2f, 1.f}, 24);
 
-        float t = elapsedTime_;
+        Render::PushMatrix();
+            Render::Translate(-2, 0, 0);
+            Render::Cube({0, 0, 0}, 0.3f, {.4f, .7f, .9f, 1});
+        Render::PopMatrix();
 
-        // Box
-        p.PushMatrix();
-            p.Translate(-2, 0, 0);
-            p.DrawCube({0, 0, 0}, 0.3f, {.4f, .7f, .9f, 1});
-        p.PopMatrix();
+        Render::PushMatrix();
+            Render::Translate(2, 0, 0);
+            Render::Cone({0, -0.5f, 0}, {0, 0.5f, 0}, 0.25f, {.9f, .5f, .3f, 1});
+        Render::PopMatrix();
 
-        // Cone
-        p.PushMatrix();
-            p.Translate(2, 0, 0);
-            p.DrawCone({0, -0.5f, 0}, {0, 0.5f, 0}, 0.25f, {.9f, .5f, .3f, 1});
-        p.PopMatrix();
+        Render::PushMatrix();
+            Render::Translate(0, -2, 0);
+            Render::Capsule({0, 0, -1}, {0, 0, 1}, 0.15f, {.6f, .9f, .5f, 1});
+        Render::PopMatrix();
 
-        // Capsule
-        p.PushMatrix();
-            p.Translate(0, -2, 0);
-            p.DrawCapsule({0, 0, -1}, {0, 0, 1}, 0.15f, {.6f, .9f, .5f, 1});
-        p.PopMatrix();
+        Render::PushMatrix();
+            Render::Translate(0, 2, 0);
+            Render::Torus({0, 0, 0}, {0, 1, 0}, 0.6f, 0.15f, {.8f, .4f, .8f, 1});
+            Render::Circle({0, 0, 0}, {0, 1, 0}, 1.0f + 0.2f * std::sin(elapsedTime_), {1, 1, 1, .5f});
+        Render::PopMatrix();
 
-        // Torus + animated circle
-        p.PushMatrix();
-            p.Translate(0, 2, 0);
-            p.DrawTorus({0, 0, 0}, {0, 1, 0}, 0.6f, 0.15f, {.8f, .4f, .8f, 1});
-            p.DrawCircle({0, 0, 0}, {0, 1, 0}, 1.0f + 0.2f * std::sin(t), {1, 1, 1, .5f});
-        p.PopMatrix();
+        Render::PushMatrix();
+            Render::Translate(-2, 1.5f, 0);
+            Render::Disk({0, 0, 0}, {0, 1, 0}, 0.4f, {.3f, .8f, .7f, 1});
+        Render::PopMatrix();
 
-        // Disk
-        p.PushMatrix();
-            p.Translate(-2, 1.5f, 0);
-            p.DrawDisk({0, 0, 0}, {0, 1, 0}, 0.4f, {.3f, .8f, .7f, 1});
-        p.PopMatrix();
+        Render::PushMatrix();
+            Render::Translate(2, 1.5f, 0);
+            Render::Ring({0, 0, 0}, {0, 1, 0}, 0.2f, 0.4f, {.9f, .7f, .3f, 1});
+        Render::PopMatrix();
 
-        // Ring
-        p.PushMatrix();
-            p.Translate(2, 1.5f, 0);
-            p.DrawRing({0, 0, 0}, {0, 1, 0}, 0.2f, 0.4f, {.9f, .7f, .3f, 1});
-        p.PopMatrix();
-
-        // Ground plane
-        p.PushMatrix();
-            p.Translate(0, -2.5f, 0);
-            p.DrawPlane({0, 0, 0}, {0, 1, 0}, {2, 2}, {.5f, .5f, .5f, .6f});
-        p.PopMatrix();
+        Render::PushMatrix();
+            Render::Translate(0, -2.5f, 0);
+            Render::Plane({0, 0, 0}, {0, 1, 0}, {2, 2}, {.5f, .5f, .5f, .6f});
+        Render::PopMatrix();
     });
+
+    // Camera controls
+    auto& cam = Render::GetCamera();
+    if (ImGui::TreeNode("Camera")) {
+        ImGui::DragFloat3("Target",   &cam.Target().x, 0.05f);
+        ImGui::DragFloat("Distance",  &cam.Distance(), 0.1f, 0.5f, 200.f);
+        ImGui::SliderFloat("Yaw",     &cam.Yaw(), -180.f, 180.f, "%.1f\xc2\xb0");
+        ImGui::SliderFloat("Pitch",   &cam.Pitch(), -89.f, 89.f, "%.1f\xc2\xb0");
+        auto pos = cam.Position();
+        ImGui::Text("Position: %.1f, %.1f, %.1f", pos.x, pos.y, pos.z);
+        if (ImGui::Button("Reset")) {
+            cam.Target()   = {0.f, 0.f, 0.f};
+            cam.Distance() = 8.f;
+            cam.Yaw()      = 45.f;
+            cam.Pitch()    = 30.f;
+        }
+        ImGui::TreePop();
+    }
 
     ImGui::Begin("Example Chart", nullptr);
     if (ImPlot::BeginPlot("##signals", {-1, -1})) {

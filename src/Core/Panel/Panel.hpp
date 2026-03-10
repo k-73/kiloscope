@@ -5,10 +5,9 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
-#include <utility>
 #include <cstdint>
 
-namespace Kilo::Render { class Scene; class Primitives; class Camera; }
+namespace Kilo::Render { class Scene; }
 
 namespace Kilo {
 
@@ -59,10 +58,17 @@ public:
 
 protected:
     template<typename F>
+    void Draw3D(const char* name, F&& fn) {
+        SceneBegin(name, {});
+        fn();
+        SceneEnd();
+    }
+
+    template<typename F>
     void Draw3D(const char* name, const ViewportConfig& cfg, F&& fn) {
-        auto [p, c] = Draw3DBegin(name, cfg);
-        fn(*p, *c);
-        Draw3DEnd();
+        SceneBegin(name, cfg);
+        fn();
+        SceneEnd();
     }
 
 private:
@@ -78,14 +84,13 @@ private:
     std::unordered_map<std::string, std::unique_ptr<Render::Scene>> scenes_;
     std::mutex mutex_;
 
-    struct Draw3DState {
+    struct SceneFrame {
         Render::Scene* scene{};
         float cursorX{}, cursorY{}, w{}, h{};
-    } d3d_;
+    } sf_;
 
-    std::pair<Render::Primitives*, Render::Camera*>
-    Draw3DBegin(const char* name, const ViewportConfig& cfg);
-    void Draw3DEnd();
+    void SceneBegin(const char* name, const ViewportConfig& cfg);
+    void SceneEnd();
 
     static int NextInstanceId(const std::string& typeId);
 };

@@ -40,8 +40,15 @@ public:
         return glm::perspective(glm::radians(45.f), aspect, nr, fr);
     }
 
-    float Distance() const { return dist_; }
-    glm::vec3 Target() const { return target_; }
+    float            Distance() const { return dist_; }
+    const glm::vec3& Target()   const { return target_; }
+    float     Yaw()      const { return yaw_; }
+    float     Pitch()    const { return pitch_; }
+
+    float&     Distance()      { return dist_; }
+    glm::vec3& Target()        { return target_; }
+    float&     Yaw()           { return yaw_; }
+    float&     Pitch()         { return pitch_; }
 
 private:
     glm::vec3 target_{0.f};
