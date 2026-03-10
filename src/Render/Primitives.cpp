@@ -9,7 +9,7 @@
 #include <generator/DiskMesh.hpp>
 #include <cmath>
 
-namespace KiloScope::Render {
+namespace Kilo::Render {
 
 // ── lifecycle ────────────────────────────────────────────────────────
 
@@ -358,4 +358,4 @@ void Primitives::DrawPoint(const glm::vec3& pos, const glm::vec4& color, float s
     DrawSphere(pos, size, color, 8);
 }
 
-} // namespace KiloScope::Render
+} // namespace Kilo::Render

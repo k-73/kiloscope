@@ -9,7 +9,7 @@
 #include <imgui_freetype.h>
 #include <stdexcept>
 
-namespace KiloScope::UI {
+namespace Kilo::UI {
 
 UiContext::UiContext(const AppConfig& config)  { InitGlfw(config); InitImGui(); ApplyStyle(); }
 
@@ -30,7 +30,7 @@ void UiContext::InitGlfw(const AppConfig& config) {
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_MAXIMIZED, config.maximized ? GLFW_TRUE : GLFW_FALSE);
     glfwWindowHint(GLFW_DECORATED, config.decorated ? GLFW_TRUE : GLFW_FALSE);
-    win_ = glfwCreateWindow(config.windowWidth, config.windowHeight, "KiloScope", nullptr, nullptr);
+    win_ = glfwCreateWindow(config.windowWidth, config.windowHeight, "Kilo", nullptr, nullptr);
     if (!win_) throw std::runtime_error("Window creation failed");
     if (!config.maximized && config.windowPosX != -1)
         glfwSetWindowPos(win_, config.windowPosX, config.windowPosY);
@@ -115,4 +115,4 @@ void UiContext::SaveWindowState(AppConfig& cfg) const {
     }
 }
 
-} // namespace KiloScope::UI
+} // namespace Kilo::UI

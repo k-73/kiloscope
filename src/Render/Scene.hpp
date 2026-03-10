@@ -6,7 +6,7 @@
 #include <glm/glm.hpp>
 #include <string>
 
-namespace KiloScope::Render {
+namespace Kilo::Render {
 
 class Scene {
 public:
@@ -31,4 +31,4 @@ private:
     glm::vec3 camPos_{0.f};
 };
 
-} // namespace KiloScope::Render
+} // namespace Kilo::Render

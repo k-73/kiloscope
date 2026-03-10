@@ -2,7 +2,7 @@
 #include "Log.hpp"
 #include <fstream>
 
-namespace KiloScope {
+namespace Kilo {
 
 void to_json(nlohmann::json& j, const AppConfig& c) {
     j = {{"panelConfigPath", c.panelConfigPath},
@@ -42,4 +42,4 @@ void AppConfig::SaveToFile(const std::string& path) const {
     Log::App().info("Config saved to {}", path);
 }
 
-} // namespace KiloScope
+} // namespace Kilo

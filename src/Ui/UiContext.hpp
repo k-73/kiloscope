@@ -3,7 +3,7 @@
 
 struct GLFWwindow;
 
-namespace KiloScope::UI {
+namespace Kilo::UI {
 
 class UiContext {
 public:
@@ -24,4 +24,4 @@ private:
     void ApplyStyle();
 };
 
-} // namespace KiloScope::UI
+} // namespace Kilo::UI

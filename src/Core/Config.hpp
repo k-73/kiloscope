@@ -2,7 +2,7 @@
 #include <nlohmann/json.hpp>
 #include <string>
 
-namespace KiloScope {
+namespace Kilo {
 
 struct AppConfig {
     std::string panelConfigPath = "panels.json";
@@ -24,4 +24,4 @@ struct AppConfig {
 void to_json(nlohmann::json& j, const AppConfig& c);
 void from_json(const nlohmann::json& j, AppConfig& c);
 
-} // namespace KiloScope
+} // namespace Kilo

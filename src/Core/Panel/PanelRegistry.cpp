@@ -1,7 +1,7 @@
 #include "Core/Panel/PanelRegistry.hpp"
 #include "Core/Log.hpp"
 
-namespace KiloScope {
+namespace Kilo {
 
 PanelRegistry& PanelRegistry::Instance() {
     static PanelRegistry inst;
@@ -20,4 +20,4 @@ std::unique_ptr<Panel> PanelRegistry::Create(std::string_view typeId) const {
     return nullptr;
 }
 
-} // namespace KiloScope
+} // namespace Kilo

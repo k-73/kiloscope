@@ -1,7 +1,7 @@
 #pragma once
 #include <GL/glew.h>
 
-namespace KiloScope::Render {
+namespace Kilo::Render {
 
 class Fbo {
 public:
@@ -28,4 +28,4 @@ private:
     GLuint resolveFbo_ = 0, resolvedTex_ = 0;
 };
 
-} // namespace KiloScope::Render
+} // namespace Kilo::Render

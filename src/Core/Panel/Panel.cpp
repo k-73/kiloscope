@@ -3,7 +3,7 @@
 #include <imgui.h>
 #include <unordered_map>
 
-namespace KiloScope {
+namespace Kilo {
 
 Panel::Panel(std::string_view typeId, std::string title, PanelFlags flags)
     : typeId_(typeId)
@@ -68,4 +68,4 @@ int Panel::NextInstanceId(const std::string& typeId) {
     return counters[typeId]++;
 }
 
-} // namespace KiloScope
+} // namespace Kilo

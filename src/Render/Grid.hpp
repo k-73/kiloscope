@@ -2,7 +2,7 @@
 #include "Shader.hpp"
 #include <glm/glm.hpp>
 
-namespace KiloScope::Render {
+namespace Kilo::Render {
 
 class Grid {
 public:
@@ -37,4 +37,4 @@ private:
     GLuint vao_ = 0;
 };
 
-} // namespace KiloScope::Render
+} // namespace Kilo::Render

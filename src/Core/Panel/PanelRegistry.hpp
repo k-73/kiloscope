@@ -6,7 +6,7 @@
 #include <string_view>
 #include <vector>
 
-namespace KiloScope {
+namespace Kilo {
 
 struct PanelEntry {
     std::string typeId;
@@ -36,4 +36,4 @@ bool RegisterPanel(std::string typeId, std::string displayName) {
     return true;
 }
 
-} // namespace KiloScope
+} // namespace Kilo

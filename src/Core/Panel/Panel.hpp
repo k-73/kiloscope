@@ -8,9 +8,9 @@
 #include <unordered_map>
 #include <cstdint>
 
-namespace KiloScope::Render { class Scene; class Primitives; }
+namespace Kilo::Render { class Scene; class Primitives; }
 
-namespace KiloScope {
+namespace Kilo {
 
 using json = nlohmann::json;
 
@@ -77,4 +77,4 @@ private:
     static int NextInstanceId(const std::string& typeId);
 };
 
-} // namespace KiloScope
+} // namespace Kilo

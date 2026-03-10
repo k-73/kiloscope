@@ -2,7 +2,7 @@
 #include <algorithm>
 #include <utility>
 
-namespace KiloScope::Render {
+namespace Kilo::Render {
 
 Fbo::~Fbo() { Destroy(); }
 
@@ -86,4 +86,4 @@ void Fbo::Resolve() {
     glDisable(GL_DEPTH_TEST);
 }
 
-} // namespace KiloScope::Render
+} // namespace Kilo::Render

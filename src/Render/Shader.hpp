@@ -5,7 +5,7 @@
 #include <unordered_map>
 #include <utility>
 
-namespace KiloScope::Render {
+namespace Kilo::Render {
 
 class Shader {
 public:
@@ -37,4 +37,4 @@ private:
     static std::string ReadFile(const std::string& path);
 };
 
-} // namespace KiloScope::Render
+} // namespace Kilo::Render

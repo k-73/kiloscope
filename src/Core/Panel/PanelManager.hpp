@@ -7,7 +7,7 @@
 #include <thread>
 #include <vector>
 
-namespace KiloScope {
+namespace Kilo {
 
 class PanelManager {
 public:
@@ -33,4 +33,4 @@ private:
     std::jthread worker_;
 };
 
-} // namespace KiloScope
+} // namespace Kilo

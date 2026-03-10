@@ -5,7 +5,7 @@
 #include <chrono>
 #include <fstream>
 
-namespace KiloScope {
+namespace Kilo {
 
 PanelManager::PanelManager(std::string shaderDir)
     : shaderDir_(std::move(shaderDir))
@@ -123,4 +123,4 @@ void PanelManager::LoadFromFile(const std::string& path) {
     }
 }
 
-} // namespace KiloScope
+} // namespace Kilo

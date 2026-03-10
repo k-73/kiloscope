@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-KiloScope — example UDP data generator.
+Kilo — example UDP data generator.
 
 Sends KSCP packets to localhost:9000 with 3 channels:
   ch0 (X): smooth Lissajous-like oscillation

@@ -2,7 +2,7 @@
 #include <spdlog/spdlog.h>
 #include <memory>
 
-namespace KiloScope {
+namespace Kilo {
 
 class Log {
 public:
@@ -19,4 +19,4 @@ private:
     static std::shared_ptr<spdlog::logger> sUI_;
 };
 
-} // namespace KiloScope
+} // namespace Kilo

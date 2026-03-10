@@ -3,7 +3,7 @@
 #include <imgui.h>
 #include <implot.h>
 
-namespace KiloScope {
+namespace Kilo {
 
 void Diagnostics::OnDraw() {
     auto& io = ImGui::GetIO();
@@ -28,4 +28,4 @@ void Diagnostics::OnDraw() {
 
 static const bool reg_ = RegisterPanel<Diagnostics>("Diagnostics", "Diagnostics");
 
-} // namespace KiloScope
+} // namespace Kilo

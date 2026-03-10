@@ -1,7 +1,7 @@
 #include "Log.hpp"
 #include <spdlog/sinks/stdout_color_sinks.h>
 
-namespace KiloScope {
+namespace Kilo {
 
 std::shared_ptr<spdlog::logger> Log::sApp_;
 std::shared_ptr<spdlog::logger> Log::sRender_;
@@ -21,4 +21,4 @@ void Log::SetLevel(const std::string& level) {
     spdlog::set_level(spdlog::level::from_str(level));
 }
 
-} // namespace KiloScope
+} // namespace Kilo

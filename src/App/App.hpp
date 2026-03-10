@@ -4,7 +4,7 @@
 #include "Core/Panel/PanelManager.hpp"
 #include <memory>
 
-namespace KiloScope::App {
+namespace Kilo::App {
 
 class App {
 public:
@@ -20,4 +20,4 @@ private:
     std::unique_ptr<PanelManager> panels_;
 };
 
-} // namespace KiloScope::App
+} // namespace Kilo::App

@@ -14,7 +14,7 @@ void OnSignal(int sig) {
 }
 }
 
-namespace KiloScope::App {
+namespace Kilo::App {
 
 App::App() {
     config_.LoadFromFile("kiloscope.json");
@@ -28,7 +28,7 @@ App::App() {
         CreateDefaultPanels();
     panels_->Start();
 
-    Log::App().info("KiloScope initialized");
+    Log::App().info("Kilo initialized");
 }
 
 App::~App() {
@@ -63,4 +63,4 @@ void App::CreateDefaultPanels() {
     Log::App().info("Created default panel layout");
 }
 
-} // namespace KiloScope::App
+} // namespace Kilo::App

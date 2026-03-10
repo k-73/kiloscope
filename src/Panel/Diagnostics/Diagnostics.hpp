@@ -1,7 +1,7 @@
 #pragma once
 #include "Core/Panel/Panel.hpp"
 
-namespace KiloScope {
+namespace Kilo {
 
 class Diagnostics : public Panel {
 public:
@@ -17,4 +17,4 @@ private:
     int frameIdx_ = 0;
 };
 
-} // namespace KiloScope
+} // namespace Kilo

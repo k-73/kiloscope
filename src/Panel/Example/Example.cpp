@@ -5,7 +5,7 @@
 #include <implot.h>
 #include <cmath>
 
-namespace KiloScope {
+namespace Kilo {
 
 Example::Example()
     : Panel("Example", "Example")
@@ -110,4 +110,4 @@ void Example::OnDraw() {
 
 static const bool reg_ = RegisterPanel<Example>("Example", "Example");
 
-} // namespace KiloScope
+} // namespace Kilo

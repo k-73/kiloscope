@@ -4,7 +4,7 @@
 #include <chrono>
 #include <vector>
 
-namespace KiloScope {
+namespace Kilo {
 
 class Example : public Panel {
 public:
@@ -28,4 +28,4 @@ private:
     std::vector<float> plotCos_;
 };
 
-} // namespace KiloScope
+} // namespace Kilo

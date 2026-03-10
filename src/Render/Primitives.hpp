@@ -4,7 +4,7 @@
 #include <glm/glm.hpp>
 #include <vector>
 
-namespace KiloScope::Render {
+namespace Kilo::Render {
 
 class Primitives {
 public:
@@ -97,4 +97,4 @@ private:
     void AppendMesh(std::vector<MeshVert>& out, const MeshT& mesh, const glm::mat4& xform);
 };
 
-} // namespace KiloScope::Render
+} // namespace Kilo::Render

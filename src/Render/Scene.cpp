@@ -1,6 +1,6 @@
 #include "Scene.hpp"
 
-namespace KiloScope::Render {
+namespace Kilo::Render {
 
 void Scene::Init(const std::string& dir) {
     grid_.Init(dir);
@@ -25,4 +25,4 @@ void Scene::EndRender() {
     fbo_.Resolve();
 }
 
-} // namespace KiloScope::Render
+} // namespace Kilo::Render

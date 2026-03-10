@@ -4,7 +4,7 @@
 #include <stdexcept>
 #include <glm/gtc/type_ptr.hpp>
 
-namespace KiloScope::Render {
+namespace Kilo::Render {
 
 Shader::Shader(const std::string& vertPath, const std::string& fragPath) {
     auto vs = Compile(GL_VERTEX_SHADER, ReadFile(vertPath));
@@ -78,4 +78,4 @@ std::string Shader::ReadFile(const std::string& path) {
     return {std::istreambuf_iterator<char>(f), {}};
 }
 
-} // namespace KiloScope::Render
+} // namespace Kilo::Render
