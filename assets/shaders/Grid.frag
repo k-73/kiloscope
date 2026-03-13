@@ -20,10 +20,10 @@ float SoftLine(vec2 coord, float scale) {
     vec2 d = fwidth(c);
     vec2 a = abs(fract(c - 0.5) - 0.5) / d;
 
-    float core = max(exp2(-a.x * a.x * 2.0), exp2(-a.y * a.y * 2.0));
-    float glow = max(exp2(-a.x * a.x * 0.25), exp2(-a.y * a.y * 0.25));
+    float core = max(exp2(-a.x * a.x * 4.0), exp2(-a.y * a.y * 4.0));
+    float glow = max(exp2(-a.x * a.x * 0.5), exp2(-a.y * a.y * 0.5));
 
-    return core * 0.7 + glow * 0.3;
+    return core * 0.8 + glow * 0.2;
 }
 
 float SoftAxis(float dist, float thickness) {

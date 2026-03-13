@@ -10,7 +10,6 @@ namespace Kilo {
 
 Example::Example()
     : Panel("Example", "Example")
-    , spiralPath_(kPathPoints)
     , plotX_(kPlotPoints)
     , plotSin_(kPlotPoints)
     , plotCos_(kPlotPoints)
@@ -19,17 +18,6 @@ Example::Example()
 void Example::OnLoop() {
     elapsedTime_ = std::chrono::duration<float>(Clock::now() - startTime_).count();
 
-    // Animated 3D spiral
-    for (int i = 0; i < kPathPoints; ++i) {
-        float progress = static_cast<float>(i) / kPathPoints;
-        float angle    = elapsedTime_ + progress * 8.f;
-        float radius   = 1.f + progress * 2.f;
-        spiralPath_[i] = {radius * std::cos(angle),
-                          progress * 4.f - 2.f,
-                          radius * std::sin(angle)};
-    }
-
-    // Animated sin/cos signals
     constexpr float xRange = 4.f * kPi;
     for (int i = 0; i < kPlotPoints; ++i) {
         float x     = static_cast<float>(i) / kPlotPoints * xRange;
@@ -40,96 +28,73 @@ void Example::OnLoop() {
 }
 
 void Example::OnDraw() {
+    float t = elapsedTime_;
+
     Render::Begin("scene", {.width = 600, .height = 600});
-        Render::Axes({0, 0, 0}, 1.f);
         Render::Grid();
 
-        // Animated spiral path
-        for (int i = 1; i < kPathPoints; ++i) {
-            float norm = static_cast<float>(i) / kPathPoints;
-            Render::Line(spiralPath_[i - 1], spiralPath_[i],
-                        {.2f + .8f * norm, .4f, 1.f - .6f * norm, 1.f}, 2.f);
-        }
-        Render::Sphere(spiralPath_.back(), 0.12f, {1.f, .8f, .2f, 1.f}, 24);
+        // Central body
+        Render::Sphere({0, 0, 0}, 0.4f, {1.f, .85f, .4f, 1.f});
 
+        // Orbit 1 — equatorial
+        float r1 = 2.2f, a1 = t * 0.8f;
+        Render::Circle({0, 0, 0}, {0, 0, 1}, r1, {.4f, .65f, 1.f, .25f}, 64, 1.f);
+        Render::Sphere({r1 * std::cos(a1), r1 * std::sin(a1), 0}, 0.18f, {.4f, .65f, 1.f, 1.f});
+
+        // Orbit 2 — tilted 65°
         Render::PushMatrix();
-            Render::Translate(-2, 0, 0);
-            Render::Cube({0, 0, 0}, 0.3f, {.4f, .7f, .9f, 1});
+        Render::RotateX(65.f);
+            float r2 = 3.f, a2 = t * 0.5f;
+            Render::Circle({0, 0, 0}, {0, 0, 1}, r2, {.95f, .45f, .5f, .25f}, 64, 1.f);
+            Render::Sphere({r2 * std::cos(a2), r2 * std::sin(a2), 0}, 0.14f, {.95f, .5f, .55f, 1.f});
         Render::PopMatrix();
 
+        // Orbit 3 — opposite tilt
         Render::PushMatrix();
-            Render::Translate(2, 0, 0);
-            Render::Cone({0, -0.5f, 0}, {0, 0.5f, 0}, 0.25f, {.9f, .5f, .3f, 1});
-        Render::PopMatrix();
-
-        Render::PushMatrix();
-            Render::Translate(0, -2, 0);
-            Render::Capsule({0, 0, -1}, {0, 0, 1}, 0.15f, {.6f, .9f, .5f, 1});
-        Render::PopMatrix();
-
-        Render::PushMatrix();
-            Render::Translate(0, 2, 0);
-            Render::Torus({0, 0, 0}, {0, 1, 0}, 0.6f, 0.15f, {.8f, .4f, .8f, 1});
-            Render::Circle({0, 0, 0}, {0, 1, 0}, 1.0f + 0.2f * std::sin(elapsedTime_), {1, 1, 1, .5f});
-        Render::PopMatrix();
-
-        Render::PushMatrix();
-            Render::Translate(-2, 1.5f, 0);
-            Render::Disk({0, 0, 0}, {0, 1, 0}, 0.4f, {.3f, .8f, .7f, 1});
-        Render::PopMatrix();
-
-        Render::PushMatrix();
-            Render::Translate(2, 1.5f, 0);
-            Render::Ring({0, 0, 0}, {0, 1, 0}, 0.2f, 0.4f, {.9f, .7f, .3f, 1});
-        Render::PopMatrix();
-
-        Render::PushMatrix();
-            Render::Translate(0, -2.5f, 0);
-            Render::Plane({0, 0, 0}, {0, 1, 0}, {2, 2}, {.5f, .5f, .5f, .6f});
+        Render::RotateY(55.f);
+            float r3 = 1.6f, a3 = t * 1.2f;
+            Render::Circle({0, 0, 0}, {0, 0, 1}, r3, {.3f, .85f, .65f, .25f}, 64, 1.f);
+            Render::Sphere({r3 * std::cos(a3), r3 * std::sin(a3), 0}, 0.11f, {.3f, .85f, .7f, 1.f});
         Render::PopMatrix();
     Render::End();
 
     ImGui::Begin("Environment", nullptr);
-    auto& env = Render::GetEnvironment("scene");
-    ImGui::DragFloat3("Light Dir", &env.lightDir.x, 0.05f);
-    ImGui::ColorEdit3("BG Color", &env.bgColor.x);
-    ImGui::DragFloat("Ambient", &env.ambient, 0.01f, 0.f, 1.f);
-    ImGui::DragFloat("Diffuse", &env.diffuse, 0.01f, 0.f, 1.f);
-    ImGui::DragFloat("Roughness", &env.roughness, 0.01f, 0.f, 1.f);
-    ImGui::DragFloat("Specular", &env.specular, 0.01f, 0.f, 1.f);
-    ImGui::DragFloat("Fresnel", &env.fresnel, 0.01f, 0.f, 1.f);
-    ImGui::DragFloat("Fog Density", &env.fogDensity, 0.00001f, 0.f, 0.01f);
-    ImGui::Checkbox("Show Sun", &env.showSun);
+        auto& env = Render::GetEnvironment("scene");
+        ImGui::DragFloat3("Light Dir", &env.lightDir.x, 0.05f);
+        ImGui::ColorEdit3("BG Color", &env.bgColor.x);
+        ImGui::DragFloat("Ambient",     &env.ambient,    0.01f, 0.f, 1.f);
+        ImGui::DragFloat("Diffuse",     &env.diffuse,    0.01f, 0.f, 1.f);
+        ImGui::DragFloat("Roughness",   &env.roughness,  0.01f, 0.f, 1.f);
+        ImGui::DragFloat("Specular",    &env.specular,   0.01f, 0.f, 1.f);
+        ImGui::DragFloat("Fresnel",     &env.fresnel,    0.01f, 0.f, 1.f);
+        ImGui::DragFloat("Fog Density", &env.fogDensity, 0.00001f, 0.f, 0.01f);
+        ImGui::Checkbox("Show Sun", &env.showSun);
     ImGui::End();
 
-    ImGui::Begin("Grid Config", nullptr);
-    auto &grid = Render::GetGrid("scene");
-    ImGui::Checkbox("Show Grid", &grid.enabled);
-    ImGui::DragFloat("Grid Scale Fine", &grid.scaleFine, 0.1f, 0.1f, 10.f);
-    ImGui::DragFloat("Grid Scale Medium", &grid.scaleMedium, 0.1f, 0.1f, 100.f);
-    ImGui::DragFloat("Grid Scale Coarse", &grid.scaleCoarse, 0.1f, 0.1f, 1000.f);
-    ImGui::ColorEdit3("Grid Color Fine", &grid.colorFine.x);
-    ImGui::ColorEdit3("Grid Color Medium", &grid.colorMedium.x);
-    ImGui::ColorEdit3("Grid Color Coarse", &grid.colorCoarse.x);
-    ImGui::DragFloat("Grid Alpha Fine", &grid.alphaFine, 0.01f, 0.f, 1.f);
-    ImGui::DragFloat("Grid Alpha Medium", &grid.alphaMedium, 0.01f, 0.f, 1.f);
-    ImGui::DragFloat("Grid Alpha Coarse", &grid.alphaCoarse, 0.01f, 0.f, 1.f);
-    ImGui::ColorEdit3("Axis X Color", &grid.axisXColor.x);
-    ImGui::ColorEdit3("Axis Y Color", &grid.axisYColor.x);
-    ImGui::DragFloat("Axis Thickness", &grid.axisThickness, 0.001f, 0.001f, 0.1f);
-    ImGui::DragFloat("Axis Alpha", &grid.axisAlpha, 0.01f, 0.f, 1.f);
-    ImGui::DragFloat("Grid Fade Start", &grid.fadeStart, 0.1f, 0.f, 20.f);
-    ImGui::DragFloat("Grid Fade End", &grid.fadeEnd, 0.1f, 0.f, 50.f);
+    ImGui::Begin("Grid", nullptr);
+        auto& grid = Render::GetGrid("scene");
+        ImGui::Checkbox("Enabled", &grid.enabled);
+        ImGui::DragFloat("Scale Fine",   &grid.scaleFine,   0.1f, 0.1f, 10.f);
+        ImGui::DragFloat("Scale Medium", &grid.scaleMedium, 1.f,  1.f,  100.f);
+        ImGui::DragFloat("Scale Coarse", &grid.scaleCoarse, 10.f, 10.f, 1000.f);
+        ImGui::ColorEdit3("Color Fine",   &grid.colorFine.x);
+        ImGui::ColorEdit3("Color Medium", &grid.colorMedium.x);
+        ImGui::ColorEdit3("Color Coarse", &grid.colorCoarse.x);
+        ImGui::ColorEdit3("Axis X", &grid.axisXColor.x);
+        ImGui::ColorEdit3("Axis Y", &grid.axisYColor.x);
+        ImGui::DragFloat("Axis Thickness", &grid.axisThickness, 0.001f, 0.001f, 0.1f);
+        ImGui::DragFloat("Fade Start", &grid.fadeStart, 0.1f, 0.1f, 20.f);
+        ImGui::DragFloat("Fade End",   &grid.fadeEnd,   0.1f, 1.f,  50.f);
     ImGui::End();
 
-    ImGui::Begin("Camera Controls", nullptr);
+    ImGui::Begin("Camera", nullptr);
         auto& cam = Render::GetCamera("scene");
         ImGui::DragFloat3("Target",   &cam.Target().x, 0.05f);
         ImGui::DragFloat("Distance",  &cam.Distance(), 0.1f, 0.5f, 200.f);
         ImGui::SliderFloat("Yaw",     &cam.Yaw(), -180.f, 180.f, "%.1f\xc2\xb0");
         ImGui::SliderFloat("Pitch",   &cam.Pitch(), -89.f, 89.f, "%.1f\xc2\xb0");
         auto pos = cam.Position();
-        ImGui::Text("Position: %.1f, %.1f, %.1f", pos.x, pos.y, pos.z);
+        ImGui::Text("Pos: %.1f, %.1f, %.1f", pos.x, pos.y, pos.z);
         if (ImGui::Button("Reset")) {
             cam.Target()   = {0.f, 0.f, 0.f};
             cam.Distance() = 8.f;
@@ -138,7 +103,7 @@ void Example::OnDraw() {
         }
     ImGui::End();
 
-    ImGui::Begin("Example Chart", nullptr);
+    ImGui::Begin("Signals", nullptr);
     if (ImPlot::BeginPlot("##signals", {-1, -1})) {
         ImPlot::SetupAxes("x", "y");
         ImPlot::SetupAxisLimits(ImAxis_X1, 0.0, 4.0 * kPi, ImPlotCond_Always);
