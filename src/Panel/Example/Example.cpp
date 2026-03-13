@@ -42,7 +42,8 @@ void Example::OnLoop() {
 void Example::OnDraw() {
     Render::Begin("scene", {.width = 600, .height = 600});
         Render::Axes({0, 0, 0}, 1.f);
-        
+        Render::GetGrid().enabled = true;
+
         // Animated spiral path
         for (int i = 1; i < kPathPoints; ++i) {
             float norm = static_cast<float>(i) / kPathPoints;

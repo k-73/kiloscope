@@ -210,32 +210,29 @@ void Init(const std::string& dir) {
     glCreateVertexArrays(1, &sGridVao);
 }
 
+static SceneData& GetScene(const char* name) {
+    auto& s = sScenes[name];
+    if (!s) s = std::make_unique<SceneData>();
+    return *s;
+}
+
 Camera& GetCamera() {
     assert(sFrame.scene && "GetCamera requires active scene");
     return sFrame.scene->cam;
 }
 
-Camera& GetCamera(const char* name) {
-    auto it = sScenes.find(name);
-    assert(it != sScenes.end() && "Scene not found");
-    return it->second->cam;
-}
+Camera& GetCamera(const char* name) { return GetScene(name).cam; }
 
 Environment& GetEnvironment() {
     assert(sFrame.scene && "GetEnvironment requires active scene");
     return sFrame.scene->env;
 }
 
-Environment& GetEnvironment(const char* name) {
-    auto it = sScenes.find(name);
-    assert(it != sScenes.end() && "Scene not found");
-    return it->second->env;
-}
+Environment& GetEnvironment(const char* name) { return GetScene(name).env; }
 
 void Begin(const char* name, const ViewportConfig& cfg) {
     auto& scene = sScenes[name];
-    if (!scene)
-        scene = std::make_unique<SceneData>();
+    if (!scene) scene = std::make_unique<SceneData>();
 
     // viewport size
     auto avail = ImGui::GetContentRegionAvail();
@@ -346,11 +343,7 @@ GridConfig& GetGrid() {
     return sFrame.scene->gridCfg;
 }
 
-GridConfig& GetGrid(const char* name) {
-    auto it = sScenes.find(name);
-    assert(it != sScenes.end() && "Scene not found");
-    return it->second->gridCfg;
-}
+GridConfig& GetGrid(const char* name) { return GetScene(name).gridCfg; }
 
 void End() {
     if (sEnv->showSun) DrawSun();
