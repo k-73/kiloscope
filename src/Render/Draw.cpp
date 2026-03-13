@@ -277,6 +277,20 @@ void Begin(const char* name, const ViewportConfig& cfg) {
 }
 
 void End() {
+    if (sEnv->showSun) {
+        glm::vec3 sunPos = glm::normalize(sEnv->lightDir) * sEnv->sunDistance;
+        PushMatrix();
+        ResetMatrix();
+        Sphere(sunPos, sEnv->sunRadius, {1.f, .95f, .7f, 1.f}, 16);
+        float r = sEnv->sunRadius * 2.5f;
+        glm::vec4 ray{1.f, .9f, .5f, .4f};
+        for (int i = 0; i < 6; ++i) {
+            float a = static_cast<float>(i) / 6.f * glm::pi<float>();
+            glm::vec3 d{std::cos(a), std::sin(a), 0.f};
+            Line(sunPos - d * r, sunPos + d * r, ray, 1.5f);
+        }
+        PopMatrix();
+    }
     FlushLines();
     auto& cam = sFrame.scene->cam;
     sFrame.scene->grid.Draw(sView, sProj, sCamPos, cam.Distance());

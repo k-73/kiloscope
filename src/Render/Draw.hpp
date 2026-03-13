@@ -29,6 +29,9 @@ struct Environment {
     float specular   = 0.15f;
     float fresnel    = 0.25f;
     float fogDensity = 0.00015f;
+    bool  showSun    = false;
+    float sunDistance = 20.f;
+    float sunRadius  = 0.4f;
 };
 
 Environment& GetEnvironment();

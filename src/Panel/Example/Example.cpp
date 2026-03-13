@@ -88,15 +88,6 @@ void Example::OnDraw() {
         Render::PopMatrix();
     Render::End();
 
-    Render::Begin("scene-box", {.width = 200, .height = 200});
-        static float angle = 0.f;
-        Render::PushMatrix();
-        Render::RotateY(angle);
-        Render::Box({0, 0, 0}, {1, 1, 1}, {.7f, .6f, .9f, 1});
-        Render::PopMatrix();
-        angle += 0.5f;
-    Render::End();
-
     auto& env = Render::GetEnvironment("scene");
     ImGui::DragFloat3("Light Dir", &env.lightDir.x, 0.05f);
     ImGui::ColorEdit3("BG Color", &env.bgColor.x);
@@ -106,6 +97,7 @@ void Example::OnDraw() {
     ImGui::DragFloat("Specular", &env.specular, 0.01f, 0.f, 1.f);
     ImGui::DragFloat("Fresnel", &env.fresnel, 0.01f, 0.f, 1.f);
     ImGui::DragFloat("Fog Density", &env.fogDensity, 0.00001f, 0.f, 0.01f);
+    ImGui::Checkbox("Show Sun", &env.showSun);
 
     ImGui::Begin("Camera Controls", nullptr);
         auto& cam = Render::GetCamera();
