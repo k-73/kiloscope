@@ -46,9 +46,15 @@ static std::vector<glm::mat4> sMatStack = {glm::mat4(1.f)};
 struct SceneData { Fbo fbo; Camera cam; Environment env; GridConfig gridCfg; };
 
 static std::string sShaderDir;
-static std::unordered_map<std::string, std::unique_ptr<SceneData>> sScenes;
+static std::unordered_map<uint32_t, std::unique_ptr<SceneData>> sScenes;
 static struct { SceneData* scene{}; float cx{}, cy{}, w{}, h{}; } sFrame;
 static Environment* sEnv = nullptr;
+
+static uint32_t HashName(const char* s) {
+    uint32_t h = 2166136261u;
+    for (; *s; ++s) h = (h ^ static_cast<uint8_t>(*s)) * 16777619u;
+    return h;
+}
 
 // ── transform helpers ────────────────────────────────────────────────
 
@@ -210,11 +216,13 @@ void Init(const std::string& dir) {
     glCreateVertexArrays(1, &sGridVao);
 }
 
-static SceneData& GetScene(const char* name) {
-    auto& s = sScenes[name];
+static SceneData& GetScene(uint32_t id) {
+    auto& s = sScenes[id];
     if (!s) s = std::make_unique<SceneData>();
     return *s;
 }
+
+static SceneData& GetScene(const char* name) { return GetScene(HashName(name)); }
 
 Camera& GetCamera() {
     assert(sFrame.scene && "GetCamera requires active scene");
@@ -231,7 +239,7 @@ Environment& GetEnvironment() {
 Environment& GetEnvironment(const char* name) { return GetScene(name).env; }
 
 void Begin(const char* name, const ViewportConfig& cfg) {
-    auto& scene = sScenes[name];
+    auto& scene = sScenes[HashName(name)];
     if (!scene) scene = std::make_unique<SceneData>();
 
     // viewport size
