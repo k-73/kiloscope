@@ -49,7 +49,7 @@ static std::string sShaderDir;
 static std::unordered_map<std::string, std::unique_ptr<SceneData>> sScenes;
 static struct { SceneData* scene{}; float cx{}, cy{}, w{}, h{}; } sFrame;
 
-// ── internal helpers ─────────────────────────────────────────────────
+// ── transform helpers ────────────────────────────────────────────────
 
 static const glm::mat4& Mat() { return sMatStack.back(); }
 
@@ -61,51 +61,7 @@ static glm::vec3 XformDir(const glm::vec3& d) {
     return glm::mat3(Mat()) * d;
 }
 
-static void SetupVao(GLuint vao, GLuint vbo, GLsizei stride,
-                     std::initializer_list<std::pair<GLuint, std::pair<GLint, GLuint>>> attrs) {
-    glVertexArrayVertexBuffer(vao, 0, vbo, 0, stride);
-    for (auto& [idx, spec] : attrs) {
-        glEnableVertexArrayAttrib(vao, idx);
-        glVertexArrayAttribFormat(vao, idx, spec.first, GL_FLOAT, GL_FALSE, spec.second);
-        glVertexArrayAttribBinding(vao, idx, 0);
-    }
-}
-
-static void SetMeshUniforms(const glm::vec4& color, bool unlit = false) {
-    sMeshShader.Use();
-    sMeshShader.Set("uModel", glm::mat4(1.f));
-    sMeshShader.Set("uView", sView); sMeshShader.Set("uProj", sProj);
-    sMeshShader.Set("uColor", color);
-    sMeshShader.Set("uLightDir", sLightDir); sMeshShader.Set("uCamPos", sCamPos);
-    sMeshShader.Set("uUnlit", unlit ? 1 : 0);
-}
-
-static void UploadMesh(const std::vector<MeshVert>& v) {
-    glNamedBufferData(sMeshVbo, v.size() * sizeof(MeshVert), v.data(), GL_DYNAMIC_DRAW);
-    glBindVertexArray(sMeshVao);
-    glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(v.size()));
-    glBindVertexArray(0);
-}
-
-template <typename MeshT>
-static void AppendMesh(std::vector<MeshVert>& out, const MeshT& mesh,
-                       const glm::mat4& xform) {
-    auto nmat = glm::transpose(glm::inverse(glm::mat3(xform)));
-    std::vector<MeshVert> indexed;
-    for (auto it = mesh.vertices(); !it.done(); it.next()) {
-        auto v = it.generate();
-        indexed.push_back({
-            glm::vec3(xform * glm::vec4(glm::vec3(v.position), 1.f)),
-            glm::normalize(nmat * glm::vec3(v.normal))
-        });
-    }
-    for (auto it = mesh.triangles(); !it.done(); it.next()) {
-        auto t = it.generate();
-        out.push_back(indexed[t.vertices[0]]);
-        out.push_back(indexed[t.vertices[1]]);
-        out.push_back(indexed[t.vertices[2]]);
-    }
-}
+// ── geometry helpers ─────────────────────────────────────────────────
 
 static glm::mat4 AxisRotation(const glm::vec3& dir) {
     auto n = glm::normalize(dir);
@@ -132,10 +88,64 @@ static glm::vec3 Perpendicular(const glm::vec3& v) {
                                         ? glm::vec3(0, 1, 0) : glm::vec3(1, 0, 0)));
 }
 
+// ── GPU helpers ──────────────────────────────────────────────────────
+
+static void SetupVao(GLuint vao, GLuint vbo, GLsizei stride,
+                     std::initializer_list<std::pair<GLuint, std::pair<GLint, GLuint>>> attrs) {
+    glVertexArrayVertexBuffer(vao, 0, vbo, 0, stride);
+    for (auto& [idx, spec] : attrs) {
+        glEnableVertexArrayAttrib(vao, idx);
+        glVertexArrayAttribFormat(vao, idx, spec.first, GL_FLOAT, GL_FALSE, spec.second);
+        glVertexArrayAttribBinding(vao, idx, 0);
+    }
+}
+
+static void SetMeshUniforms(const glm::vec4& color, bool unlit = false) {
+    sMeshShader.Use();
+    sMeshShader.Set("uModel", glm::mat4(1.f));
+    sMeshShader.Set("uView", sView);
+    sMeshShader.Set("uProj", sProj);
+    sMeshShader.Set("uColor", color);
+    sMeshShader.Set("uLightDir", sLightDir);
+    sMeshShader.Set("uCamPos", sCamPos);
+    sMeshShader.Set("uUnlit", unlit ? 1 : 0);
+}
+
+static void UploadMesh(const std::vector<MeshVert>& v) {
+    glNamedBufferData(sMeshVbo, GLsizeiptr(v.size() * sizeof(MeshVert)),
+                      v.data(), GL_DYNAMIC_DRAW);
+    glBindVertexArray(sMeshVao);
+    glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(v.size()));
+    glBindVertexArray(0);
+}
+
+template <typename MeshT>
+static void AppendMesh(std::vector<MeshVert>& out, const MeshT& mesh,
+                       const glm::mat4& xform) {
+    auto nmat = glm::transpose(glm::inverse(glm::mat3(xform)));
+    std::vector<MeshVert> indexed;
+    for (auto it = mesh.vertices(); !it.done(); it.next()) {
+        auto v = it.generate();
+        indexed.push_back({
+            glm::vec3(xform * glm::vec4(glm::vec3(v.position), 1.f)),
+            glm::normalize(nmat * glm::vec3(v.normal))
+        });
+    }
+    for (auto it = mesh.triangles(); !it.done(); it.next()) {
+        auto t = it.generate();
+        out.push_back(indexed[t.vertices[0]]);
+        out.push_back(indexed[t.vertices[1]]);
+        out.push_back(indexed[t.vertices[2]]);
+    }
+}
+
+// ── line batching ────────────────────────────────────────────────────
+
 static void FlushLines() {
     if (sLineBatch.empty()) return;
     sLineShader.Use();
-    sLineShader.Set("uView", sView); sLineShader.Set("uProj", sProj);
+    sLineShader.Set("uView", sView);
+    sLineShader.Set("uProj", sProj);
     sLineShader.Set("uViewportSize", glm::vec2(sVpW, sVpH));
     sLineShader.Set("uLineWidth", sLineWidth);
 
@@ -143,7 +153,8 @@ static void FlushLines() {
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glDisable(GL_CULL_FACE);
 
-    glNamedBufferData(sLineVbo, sLineBatch.size() * sizeof(LineVert), sLineBatch.data(), GL_DYNAMIC_DRAW);
+    glNamedBufferData(sLineVbo, GLsizeiptr(sLineBatch.size() * sizeof(LineVert)),
+                      sLineBatch.data(), GL_DYNAMIC_DRAW);
     glBindVertexArray(sLineVao);
     glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(sLineBatch.size()));
     glBindVertexArray(0);
@@ -173,19 +184,30 @@ void Init(const std::string& dir) {
     sMeshShader = Shader(dir + "/Basic.vert", dir + "/Basic.frag");
     sLineShader = Shader(dir + "/Line.vert",  dir + "/Line.frag");
 
-    glCreateVertexArrays(1, &sMeshVao); glCreateBuffers(1, &sMeshVbo);
+    glCreateVertexArrays(1, &sMeshVao);
+    glCreateBuffers(1, &sMeshVbo);
     SetupVao(sMeshVao, sMeshVbo, sizeof(MeshVert), {
-        {0, {3, offsetof(MeshVert, pos)}}, {1, {3, offsetof(MeshVert, normal)}}});
+        {0, {3, offsetof(MeshVert, pos)}},
+        {1, {3, offsetof(MeshVert, normal)}}});
 
-    glCreateVertexArrays(1, &sLineVao); glCreateBuffers(1, &sLineVbo);
+    glCreateVertexArrays(1, &sLineVao);
+    glCreateBuffers(1, &sLineVbo);
     SetupVao(sLineVao, sLineVbo, sizeof(LineVert), {
-        {0, {3, offsetof(LineVert, pos)}}, {1, {3, offsetof(LineVert, otherEnd)}},
-        {2, {2, offsetof(LineVert, expand)}}, {3, {4, offsetof(LineVert, color)}}});
+        {0, {3, offsetof(LineVert, pos)}},
+        {1, {3, offsetof(LineVert, otherEnd)}},
+        {2, {2, offsetof(LineVert, expand)}},
+        {3, {4, offsetof(LineVert, color)}}});
 }
 
 Camera& GetCamera() {
     assert(sFrame.scene && "GetCamera requires active scene");
     return sFrame.scene->cam;
+}
+
+Camera& GetCamera(const char* name) {
+    auto it = sScenes.find(name);
+    assert(it != sScenes.end() && "Scene not found");
+    return it->second->cam;
 }
 
 void Begin(const char* name, const ViewportConfig& cfg) {
@@ -195,11 +217,13 @@ void Begin(const char* name, const ViewportConfig& cfg) {
         scene->grid.Init(sShaderDir);
     }
 
+    // viewport size
     auto avail = ImGui::GetContentRegionAvail();
     int w = std::max(1, static_cast<int>(cfg.width  > 0 ? cfg.width  : avail.x));
     int h = std::max(1, static_cast<int>(cfg.height > 0 ? cfg.height : avail.y));
     scene->fbo.Resize(w, h, 8);
 
+    // input region
     ImVec2 size{static_cast<float>(w), static_cast<float>(h)};
     auto cursor = ImGui::GetCursorScreenPos();
     ImGui::InvisibleButton(name, size,
@@ -215,15 +239,17 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Middle))
         cam.Pan(io.MouseDelta.x, io.MouseDelta.y);
 
+    // begin render pass
     sFrame = { scene.get(), cursor.x, cursor.y, size.x, size.y };
-
     scene->fbo.Bind();
+
     float aspect = static_cast<float>(w) / std::max(1, h);
-    sView    = cam.View();
-    sProj    = cam.Projection(aspect);
-    sCamPos  = cam.Position();
+    sView     = cam.View();
+    sProj     = cam.Projection(aspect);
+    sCamPos   = cam.Position();
     sLightDir = glm::normalize(glm::vec3(.5f, .3f, 1.f));
-    sVpW = w; sVpH = h;
+    sVpW = w;
+    sVpH = h;
     sLineBatch.clear();
     sMatStack = {glm::mat4(1.f)};
 }
@@ -244,20 +270,24 @@ void PushMatrix()  { sMatStack.push_back(Mat()); }
 void PopMatrix()   { if (sMatStack.size() > 1) sMatStack.pop_back(); }
 void ResetMatrix() { sMatStack.back() = glm::mat4(1.f); }
 
+void SetMatrix(const glm::mat4& m)  { sMatStack.back() = m; }
+void Transform(const glm::mat4& m)  { sMatStack.back() *= m; }
+
 void Translate(const glm::vec3& offset) {
-    sMatStack.back() = sMatStack.back() * glm::translate(glm::mat4(1.f), offset);
+    sMatStack.back() = glm::translate(sMatStack.back(), offset);
 }
 void Translate(float x, float y, float z) { Translate({x, y, z}); }
 
 void Rotate(float angleDeg, const glm::vec3& axis) {
-    sMatStack.back() = sMatStack.back() * glm::rotate(glm::mat4(1.f), glm::radians(angleDeg), axis);
+    sMatStack.back() = glm::rotate(sMatStack.back(), glm::radians(angleDeg), axis);
 }
+void Rotate(const glm::quat& q) { sMatStack.back() *= glm::mat4_cast(q); }
 void RotateX(float deg) { Rotate(deg, {1, 0, 0}); }
 void RotateY(float deg) { Rotate(deg, {0, 1, 0}); }
 void RotateZ(float deg) { Rotate(deg, {0, 0, 1}); }
 
 void Scale(const glm::vec3& s) {
-    sMatStack.back() = sMatStack.back() * glm::scale(glm::mat4(1.f), s);
+    sMatStack.back() = glm::scale(sMatStack.back(), s);
 }
 void Scale(float s) { Scale({s, s, s}); }
 
@@ -268,9 +298,18 @@ void Line(const glm::vec3& a, const glm::vec3& b,
     BatchLine(XformPoint(a), XformPoint(b), color, width);
 }
 
+void Polyline(const glm::vec3* points, int count,
+              const glm::vec4& color, float width, bool closed) {
+    if (count < 2) return;
+    for (int i = 1; i < count; ++i)
+        Line(points[i - 1], points[i], color, width);
+    if (closed && count > 2)
+        Line(points[count - 1], points[0], color, width);
+}
+
 void Arc(const glm::vec3& center, const glm::vec3& axis,
          const glm::vec3& startDir, float radius,
-         float angleDeg, const glm::vec4& color, int seg) {
+         float angleDeg, const glm::vec4& color, int seg, float width) {
     auto tc = XformPoint(center);
     auto ta = glm::normalize(XformDir(axis));
     auto ts = glm::normalize(XformDir(startDir));
@@ -279,13 +318,13 @@ void Arc(const glm::vec3& center, const glm::vec3& axis,
         auto r0 = glm::rotate(glm::mat4(1), step * i,       ta);
         auto r1 = glm::rotate(glm::mat4(1), step * (i + 1), ta);
         BatchLine(tc + glm::vec3(r0 * glm::vec4(ts * radius, 0)),
-                  tc + glm::vec3(r1 * glm::vec4(ts * radius, 0)), color, 2.f);
+                  tc + glm::vec3(r1 * glm::vec4(ts * radius, 0)), color, width);
     }
 }
 
 void Circle(const glm::vec3& center, const glm::vec3& axis,
-            float radius, const glm::vec4& color, int seg) {
-    Arc(center, axis, Perpendicular(axis), radius, 360.f, color, seg);
+            float radius, const glm::vec4& color, int seg, float width) {
+    Arc(center, axis, Perpendicular(axis), radius, 360.f, color, seg, width);
 }
 
 // ── basic geometry ───────────────────────────────────────────────────
@@ -308,14 +347,14 @@ void Quad(const glm::vec3& a, const glm::vec3& b,
 }
 
 void Plane(const glm::vec3& center, const glm::vec3& normal,
-           const glm::vec2& size, const glm::vec4& color) {
+           const glm::vec2& halfSize, const glm::vec4& color) {
     auto n = glm::normalize(normal);
     auto u = Perpendicular(n);
     auto v = glm::cross(n, u);
-    Quad(center + (-u * size.x - v * size.y),
-         center + ( u * size.x - v * size.y),
-         center + ( u * size.x + v * size.y),
-         center + (-u * size.x + v * size.y), color);
+    Quad(center + (-u * halfSize.x - v * halfSize.y),
+         center + ( u * halfSize.x - v * halfSize.y),
+         center + ( u * halfSize.x + v * halfSize.y),
+         center + (-u * halfSize.x + v * halfSize.y), color);
 }
 
 // ── mesh primitives ──────────────────────────────────────────────────
@@ -402,6 +441,37 @@ void Ring(const glm::vec3& center, const glm::vec3& normal,
     UploadMesh(v);
 }
 
+// ── wireframe ────────────────────────────────────────────────────────
+
+void WireBox(const glm::vec3& center, const glm::vec3& size,
+             const glm::vec4& color, float width) {
+    auto hs = size * 0.5f;
+    glm::vec3 c[8] = {
+        center + glm::vec3(-hs.x, -hs.y, -hs.z),
+        center + glm::vec3( hs.x, -hs.y, -hs.z),
+        center + glm::vec3( hs.x,  hs.y, -hs.z),
+        center + glm::vec3(-hs.x,  hs.y, -hs.z),
+        center + glm::vec3(-hs.x, -hs.y,  hs.z),
+        center + glm::vec3( hs.x, -hs.y,  hs.z),
+        center + glm::vec3( hs.x,  hs.y,  hs.z),
+        center + glm::vec3(-hs.x,  hs.y,  hs.z),
+    };
+    // bottom, top, verticals
+    Line(c[0],c[1],color,width); Line(c[1],c[2],color,width);
+    Line(c[2],c[3],color,width); Line(c[3],c[0],color,width);
+    Line(c[4],c[5],color,width); Line(c[5],c[6],color,width);
+    Line(c[6],c[7],color,width); Line(c[7],c[4],color,width);
+    Line(c[0],c[4],color,width); Line(c[1],c[5],color,width);
+    Line(c[2],c[6],color,width); Line(c[3],c[7],color,width);
+}
+
+void WireSphere(const glm::vec3& center, float radius,
+                const glm::vec4& color, int seg, float width) {
+    Circle(center, {1, 0, 0}, radius, color, seg, width);
+    Circle(center, {0, 1, 0}, radius, color, seg, width);
+    Circle(center, {0, 0, 1}, radius, color, seg, width);
+}
+
 // ── composite ────────────────────────────────────────────────────────
 
 void Arrow(const glm::vec3& from, const glm::vec3& to,
@@ -425,8 +495,7 @@ void Arrow(const glm::vec3& from, const glm::vec3& to,
 }
 
 void Axes(const glm::vec3& origin, float len) {
-    float s = len * 0.025f;
-    float h = len * 0.07f;
+    float s = len * 0.025f, h = len * 0.07f;
     Arrow(origin, origin + glm::vec3(len, 0, 0), {.95f, .25f, .25f, 1}, s, h);
     Arrow(origin, origin + glm::vec3(0, len, 0), {.35f, .85f, .35f, 1}, s, h);
     Arrow(origin, origin + glm::vec3(0, 0, len), {.35f, .50f, .95f, 1}, s, h);
@@ -434,6 +503,56 @@ void Axes(const glm::vec3& origin, float len) {
 
 void Point(const glm::vec3& pos, const glm::vec4& color, float size) {
     Sphere(pos, size, color, 8);
+}
+
+void Cross(const glm::vec3& pos, float size,
+           const glm::vec4& color, float width) {
+    float hs = size * 0.5f;
+    Line(pos - glm::vec3(hs, 0, 0), pos + glm::vec3(hs, 0, 0), color, width);
+    Line(pos - glm::vec3(0, hs, 0), pos + glm::vec3(0, hs, 0), color, width);
+    Line(pos - glm::vec3(0, 0, hs), pos + glm::vec3(0, 0, hs), color, width);
+}
+
+void AABB(const glm::vec3& mn, const glm::vec3& mx,
+          const glm::vec4& color, float width) {
+    WireBox((mn + mx) * 0.5f, mx - mn, color, width);
+}
+
+void WireGrid(const glm::vec3& center, const glm::vec3& normal,
+              float size, int divisions, const glm::vec4& color, float width) {
+    auto n = glm::normalize(normal);
+    auto u = Perpendicular(n);
+    auto v = glm::cross(n, u);
+    float half = size * 0.5f;
+    float step = size / static_cast<float>(divisions);
+    for (int i = 0; i <= divisions; ++i) {
+        float t = -half + step * static_cast<float>(i);
+        Line(center + u * t - v * half, center + u * t + v * half, color, width);
+        Line(center - u * half + v * t, center + u * half + v * t, color, width);
+    }
+}
+
+void Frustum(const glm::mat4& viewProj,
+             const glm::vec4& color, float width) {
+    glm::mat4 inv = glm::inverse(viewProj);
+    auto unproject = [&](float x, float y, float z) -> glm::vec3 {
+        glm::vec4 p = inv * glm::vec4(x, y, z, 1.f);
+        return glm::vec3(p) / p.w;
+    };
+    glm::vec3 n[4] = {
+        unproject(-1,-1,-1), unproject(1,-1,-1),
+        unproject( 1, 1,-1), unproject(-1, 1,-1)
+    };
+    glm::vec3 f[4] = {
+        unproject(-1,-1, 1), unproject(1,-1, 1),
+        unproject( 1, 1, 1), unproject(-1, 1, 1)
+    };
+    // near + far faces
+    for (int i = 0; i < 4; ++i) {
+        Line(n[i], n[(i+1)%4], color, width);
+        Line(f[i], f[(i+1)%4], color, width);
+        Line(n[i], f[i], color, width);
+    }
 }
 
 } // namespace Kilo::Render

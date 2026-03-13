@@ -1,5 +1,6 @@
 #pragma once
 #include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
 #include <string>
 
 namespace Kilo::Render {
@@ -17,14 +18,18 @@ void Begin(const char* name, const ViewportConfig& cfg = {});
 void End();
 
 Camera& GetCamera();
+Camera& GetCamera(const char* name);
 
 // ── transform stack ──────────────────────────────────────────────
 void PushMatrix();
 void PopMatrix();
 void ResetMatrix();
+void SetMatrix(const glm::mat4& m);
+void Transform(const glm::mat4& m);
 void Translate(const glm::vec3& offset);
 void Translate(float x, float y, float z);
 void Rotate(float angleDeg, const glm::vec3& axis);
+void Rotate(const glm::quat& q);
 void RotateX(float angleDeg);
 void RotateY(float angleDeg);
 void RotateZ(float angleDeg);
@@ -34,11 +39,13 @@ void Scale(float s);
 // ── lines ────────────────────────────────────────────────────────
 void Line(const glm::vec3& a, const glm::vec3& b,
           const glm::vec4& color, float width = 2.5f);
+void Polyline(const glm::vec3* points, int count,
+              const glm::vec4& color, float width = 2.5f, bool closed = false);
 void Arc(const glm::vec3& center, const glm::vec3& axis,
          const glm::vec3& startDir, float radius,
-         float angleDeg, const glm::vec4& color, int seg = 32);
+         float angleDeg, const glm::vec4& color, int seg = 32, float width = 2.5f);
 void Circle(const glm::vec3& center, const glm::vec3& axis,
-            float radius, const glm::vec4& color, int seg = 32);
+            float radius, const glm::vec4& color, int seg = 32, float width = 2.5f);
 
 // ── basic geometry ───────────────────────────────────────────────
 void Triangle(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c,
@@ -46,7 +53,7 @@ void Triangle(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c,
 void Quad(const glm::vec3& a, const glm::vec3& b,
           const glm::vec3& c, const glm::vec3& d, const glm::vec4& color);
 void Plane(const glm::vec3& center, const glm::vec3& normal,
-           const glm::vec2& size, const glm::vec4& color);
+           const glm::vec2& halfSize, const glm::vec4& color);
 
 // ── mesh primitives ──────────────────────────────────────────────
 void Sphere(const glm::vec3& center, float radius,
@@ -67,10 +74,24 @@ void Disk(const glm::vec3& center, const glm::vec3& normal,
 void Ring(const glm::vec3& center, const glm::vec3& normal,
           float innerR, float outerR, const glm::vec4& color, int seg = 32);
 
+// ── wireframe ────────────────────────────────────────────────────
+void WireBox(const glm::vec3& center, const glm::vec3& size,
+             const glm::vec4& color, float width = 2.5f);
+void WireSphere(const glm::vec3& center, float radius,
+                const glm::vec4& color, int seg = 32, float width = 2.5f);
+
 // ── composite ────────────────────────────────────────────────────
 void Arrow(const glm::vec3& from, const glm::vec3& to,
            const glm::vec4& color, float shaftR = 0.02f, float headR = 0.06f);
 void Axes(const glm::vec3& origin, float len = 1.f);
 void Point(const glm::vec3& pos, const glm::vec4& color, float size = 0.05f);
+void Cross(const glm::vec3& pos, float size,
+           const glm::vec4& color, float width = 2.5f);
+void AABB(const glm::vec3& min, const glm::vec3& max,
+          const glm::vec4& color, float width = 2.5f);
+void WireGrid(const glm::vec3& center, const glm::vec3& normal,
+              float size, int divisions, const glm::vec4& color, float width = 1.f);
+void Frustum(const glm::mat4& viewProj,
+             const glm::vec4& color, float width = 2.5f);
 
 } // namespace Kilo::Render
