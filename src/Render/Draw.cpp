@@ -341,6 +341,11 @@ static void DrawGrid(const GridConfig& cfg, float camDist) {
     glEnable(GL_CULL_FACE);
 }
 
+void Grid() {
+    assert(sFrame.scene && "Grid requires active scene");
+    sFrame.scene->gridCfg.enabled = true;
+}
+
 void Grid(const GridConfig& cfg) {
     assert(sFrame.scene && "Grid requires active scene");
     sFrame.scene->gridCfg = cfg;

@@ -57,7 +57,8 @@ struct GridConfig {
     float     fadeEnd     = 10.f;
 };
 
-void Grid(const GridConfig& cfg = {});
+void Grid();
+void Grid(const GridConfig& cfg);
 GridConfig& GetGrid();
 GridConfig& GetGrid(const char* name);
 
