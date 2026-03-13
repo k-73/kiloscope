@@ -276,21 +276,34 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     sMatStack = {glm::mat4(1.f)};
 }
 
+static void DrawSun() {
+    float r = sEnv->sunRadius;
+    glm::vec3 sunPos = glm::normalize(sEnv->lightDir) * sEnv->sunDistance;
+    glm::vec3 facing = glm::normalize(sCamPos - sunPos);
+
+    PushMatrix();
+    ResetMatrix();
+
+    // unlit sphere core
+    SetMeshUniforms({1.f, .98f, .85f, 1.f}, true);
+    std::vector<MeshVert> sv;
+    AppendMesh(sv, generator::SphereMesh(r, 16, 8),
+               glm::translate(glm::mat4(1.f), sunPos));
+    UploadMesh(sv);
+
+    // glow rings (billboard — facing camera)
+    Circle(sunPos, facing, r * 1.8f, {1.f, .95f, .7f, .45f}, 32, 3.f);
+    Circle(sunPos, facing, r * 3.f,  {1.f, .9f,  .5f, .18f}, 32, 2.f);
+    Circle(sunPos, facing, r * 5.f,  {1.f, .85f, .4f, .07f}, 32, 1.5f);
+
+    // direction indicator
+    Line({0, 0, 0}, sunPos, {1.f, .95f, .7f, .12f}, 1.f);
+
+    PopMatrix();
+}
+
 void End() {
-    if (sEnv->showSun) {
-        glm::vec3 sunPos = glm::normalize(sEnv->lightDir) * sEnv->sunDistance;
-        PushMatrix();
-        ResetMatrix();
-        Sphere(sunPos, sEnv->sunRadius, {1.f, .95f, .7f, 1.f}, 16);
-        float r = sEnv->sunRadius * 2.5f;
-        glm::vec4 ray{1.f, .9f, .5f, .4f};
-        for (int i = 0; i < 6; ++i) {
-            float a = static_cast<float>(i) / 6.f * glm::pi<float>();
-            glm::vec3 d{std::cos(a), std::sin(a), 0.f};
-            Line(sunPos - d * r, sunPos + d * r, ray, 1.5f);
-        }
-        PopMatrix();
-    }
+    if (sEnv->showSun) DrawSun();
     FlushLines();
     auto& cam = sFrame.scene->cam;
     sFrame.scene->grid.Draw(sView, sProj, sCamPos, cam.Distance());
@@ -400,7 +413,7 @@ void Sphere(const glm::vec3& center, float radius,
     SetMeshUniforms(color);
     std::vector<MeshVert> v;
     AppendMesh(v, generator::SphereMesh(radius, seg, seg / 2),
-               Mat() * glm::translate(glm::mat4(1.f), center));
+               glm::translate(Mat(), center));
     UploadMesh(v);
 }
 
@@ -409,7 +422,7 @@ void Box(const glm::vec3& center, const glm::vec3& size,
     SetMeshUniforms(color);
     std::vector<MeshVert> v;
     AppendMesh(v, generator::BoxMesh({size.x, size.y, size.z}, {1, 1, 1}),
-               Mat() * glm::translate(glm::mat4(1.f), center));
+               glm::translate(Mat(), center));
     UploadMesh(v);
 }
 
