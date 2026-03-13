@@ -40,54 +40,52 @@ void Example::OnLoop() {
 }
 
 void Example::OnDraw() {
-    Render::Begin("scene");
+    Render::Begin("scene", {.width = 600, .height = 600});
+        Render::Axes({0, 0, 0}, 1.f);
 
-    Render::Axes({0, 0, 0}, 1.f);
+        // Animated spiral path
+        for (int i = 1; i < kPathPoints; ++i) {
+            float norm = static_cast<float>(i) / kPathPoints;
+            Render::Line(spiralPath_[i - 1], spiralPath_[i],
+                        {.2f + .8f * norm, .4f, 1.f - .6f * norm, 1.f}, 2.f);
+        }
+        Render::Sphere(spiralPath_.back(), 0.12f, {1.f, .8f, .2f, 1.f}, 24);
 
-    // Animated spiral path
-    for (int i = 1; i < kPathPoints; ++i) {
-        float norm = static_cast<float>(i) / kPathPoints;
-        Render::Line(spiralPath_[i - 1], spiralPath_[i],
-                     {.2f + .8f * norm, .4f, 1.f - .6f * norm, 1.f}, 2.f);
-    }
-    Render::Sphere(spiralPath_.back(), 0.12f, {1.f, .8f, .2f, 1.f}, 24);
+        Render::PushMatrix();
+            Render::Translate(-2, 0, 0);
+            Render::Cube({0, 0, 0}, 0.3f, {.4f, .7f, .9f, 1});
+        Render::PopMatrix();
 
-    Render::PushMatrix();
-        Render::Translate(-2, 0, 0);
-        Render::Cube({0, 0, 0}, 0.3f, {.4f, .7f, .9f, 1});
-    Render::PopMatrix();
+        Render::PushMatrix();
+            Render::Translate(2, 0, 0);
+            Render::Cone({0, -0.5f, 0}, {0, 0.5f, 0}, 0.25f, {.9f, .5f, .3f, 1});
+        Render::PopMatrix();
 
-    Render::PushMatrix();
-        Render::Translate(2, 0, 0);
-        Render::Cone({0, -0.5f, 0}, {0, 0.5f, 0}, 0.25f, {.9f, .5f, .3f, 1});
-    Render::PopMatrix();
+        Render::PushMatrix();
+            Render::Translate(0, -2, 0);
+            Render::Capsule({0, 0, -1}, {0, 0, 1}, 0.15f, {.6f, .9f, .5f, 1});
+        Render::PopMatrix();
 
-    Render::PushMatrix();
-        Render::Translate(0, -2, 0);
-        Render::Capsule({0, 0, -1}, {0, 0, 1}, 0.15f, {.6f, .9f, .5f, 1});
-    Render::PopMatrix();
+        Render::PushMatrix();
+            Render::Translate(0, 2, 0);
+            Render::Torus({0, 0, 0}, {0, 1, 0}, 0.6f, 0.15f, {.8f, .4f, .8f, 1});
+            Render::Circle({0, 0, 0}, {0, 1, 0}, 1.0f + 0.2f * std::sin(elapsedTime_), {1, 1, 1, .5f});
+        Render::PopMatrix();
 
-    Render::PushMatrix();
-        Render::Translate(0, 2, 0);
-        Render::Torus({0, 0, 0}, {0, 1, 0}, 0.6f, 0.15f, {.8f, .4f, .8f, 1});
-        Render::Circle({0, 0, 0}, {0, 1, 0}, 1.0f + 0.2f * std::sin(elapsedTime_), {1, 1, 1, .5f});
-    Render::PopMatrix();
+        Render::PushMatrix();
+            Render::Translate(-2, 1.5f, 0);
+            Render::Disk({0, 0, 0}, {0, 1, 0}, 0.4f, {.3f, .8f, .7f, 1});
+        Render::PopMatrix();
 
-    Render::PushMatrix();
-        Render::Translate(-2, 1.5f, 0);
-        Render::Disk({0, 0, 0}, {0, 1, 0}, 0.4f, {.3f, .8f, .7f, 1});
-    Render::PopMatrix();
+        Render::PushMatrix();
+            Render::Translate(2, 1.5f, 0);
+            Render::Ring({0, 0, 0}, {0, 1, 0}, 0.2f, 0.4f, {.9f, .7f, .3f, 1});
+        Render::PopMatrix();
 
-    Render::PushMatrix();
-        Render::Translate(2, 1.5f, 0);
-        Render::Ring({0, 0, 0}, {0, 1, 0}, 0.2f, 0.4f, {.9f, .7f, .3f, 1});
-    Render::PopMatrix();
-
-    Render::PushMatrix();
-        Render::Translate(0, -2.5f, 0);
-        Render::Plane({0, 0, 0}, {0, 1, 0}, {2, 2}, {.5f, .5f, .5f, .6f});
-    Render::PopMatrix();
-
+        Render::PushMatrix();
+            Render::Translate(0, -2.5f, 0);
+            Render::Plane({0, 0, 0}, {0, 1, 0}, {2, 2}, {.5f, .5f, .5f, .6f});
+        Render::PopMatrix();
     Render::End();
 
     ImGui::Begin("Camera Controls", nullptr);

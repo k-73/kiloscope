@@ -4,7 +4,6 @@
 
 namespace Kilo::Render {
 
-class Primitives;
 class Camera;
 
 // ── scene viewport ──────────────────────────────────────────────
@@ -17,8 +16,6 @@ void Init(const std::string& shaderDir);
 void Begin(const char* name, const ViewportConfig& cfg = {});
 void End();
 
-// Context — set internally by Begin/End
-void SetContext(Primitives* prims, Camera* cam);
 Camera& GetCamera();
 
 // ── transform stack ──────────────────────────────────────────────
