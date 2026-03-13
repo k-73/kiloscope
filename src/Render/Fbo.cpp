@@ -62,7 +62,7 @@ void Fbo::Resize(int w, int h, int samples) {
     glNamedFramebufferTexture(resolveFbo_, GL_COLOR_ATTACHMENT0, resolvedTex_, 0);
 }
 
-void Fbo::Bind() {
+void Fbo::Bind(float clearR, float clearG, float clearB) {
     glBindFramebuffer(GL_FRAMEBUFFER, msaaFbo_);
     glViewport(0, 0, w_, h_);
     glDisable(GL_SCISSOR_TEST);
@@ -73,7 +73,7 @@ void Fbo::Bind() {
     glCullFace(GL_BACK);
     glEnable(GL_MULTISAMPLE);
     glClearDepth(1.0);
-    glClearColor(0.12f, 0.12f, 0.14f, 1.f);
+    glClearColor(clearR, clearG, clearB, 1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 

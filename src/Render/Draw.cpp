@@ -43,11 +43,12 @@ static std::vector<glm::mat4> sMatStack = {glm::mat4(1.f)};
 
 // ── per-scene state ──────────────────────────────────────────────────
 
-struct SceneData { Fbo fbo; Camera cam; Grid grid; };
+struct SceneData { Fbo fbo; Camera cam; Grid grid; Environment env; };
 
 static std::string sShaderDir;
 static std::unordered_map<std::string, std::unique_ptr<SceneData>> sScenes;
 static struct { SceneData* scene{}; float cx{}, cy{}, w{}, h{}; } sFrame;
+static Environment* sEnv = nullptr;
 
 // ── transform helpers ────────────────────────────────────────────────
 
@@ -109,6 +110,13 @@ static void SetMeshUniforms(const glm::vec4& color, bool unlit = false) {
     sMeshShader.Set("uLightDir", sLightDir);
     sMeshShader.Set("uCamPos", sCamPos);
     sMeshShader.Set("uUnlit", unlit ? 1 : 0);
+    sMeshShader.Set("uBgColor", sEnv->bgColor);
+    sMeshShader.Set("uAmbient", sEnv->ambient);
+    sMeshShader.Set("uDiffuse", sEnv->diffuse);
+    sMeshShader.Set("uRoughness", sEnv->roughness);
+    sMeshShader.Set("uSpecular", sEnv->specular);
+    sMeshShader.Set("uFresnel", sEnv->fresnel);
+    sMeshShader.Set("uFogDensity", sEnv->fogDensity);
 }
 
 static void UploadMesh(const std::vector<MeshVert>& v) {
@@ -210,6 +218,17 @@ Camera& GetCamera(const char* name) {
     return it->second->cam;
 }
 
+Environment& GetEnvironment() {
+    assert(sFrame.scene && "GetEnvironment requires active scene");
+    return sFrame.scene->env;
+}
+
+Environment& GetEnvironment(const char* name) {
+    auto it = sScenes.find(name);
+    assert(it != sScenes.end() && "Scene not found");
+    return it->second->env;
+}
+
 void Begin(const char* name, const ViewportConfig& cfg) {
     auto& scene = sScenes[name];
     if (!scene) {
@@ -241,13 +260,16 @@ void Begin(const char* name, const ViewportConfig& cfg) {
 
     // begin render pass
     sFrame = { scene.get(), cursor.x, cursor.y, size.x, size.y };
-    scene->fbo.Bind();
+    sEnv = &scene->env;
+
+    const auto& bg = sEnv->bgColor;
+    scene->fbo.Bind(bg.r, bg.g, bg.b);
 
     float aspect = static_cast<float>(w) / std::max(1, h);
     sView     = cam.View();
     sProj     = cam.Projection(aspect);
     sCamPos   = cam.Position();
-    sLightDir = glm::normalize(glm::vec3(.5f, .3f, 1.f));
+    sLightDir = glm::normalize(sEnv->lightDir);
     sVpW = w;
     sVpH = h;
     sLineBatch.clear();

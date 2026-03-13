@@ -20,6 +20,20 @@ void End();
 Camera& GetCamera();
 Camera& GetCamera(const char* name);
 
+struct Environment {
+    glm::vec3 lightDir = {.5f, .3f, 1.f};  // normalized when used
+    glm::vec3 bgColor  = {.12f, .12f, .14f};
+    float ambient    = 0.22f;
+    float diffuse    = 0.7f;
+    float roughness  = 0.35f;
+    float specular   = 0.15f;
+    float fresnel    = 0.25f;
+    float fogDensity = 0.00015f;
+};
+
+Environment& GetEnvironment();
+Environment& GetEnvironment(const char* name);
+
 // ── transform stack ──────────────────────────────────────────────
 void PushMatrix();
 void PopMatrix();
