@@ -18,7 +18,7 @@ Example::Example()
 void Example::OnLoop() {
     elapsedTime_ = std::chrono::duration<float>(Clock::now() - startTime_).count();
 
-    constexpr float xRange = 4.f * kPi;
+    constexpr float xRange = 4.f * glm::pi<float>();
     for (int i = 0; i < kPlotPoints; ++i) {
         float x     = static_cast<float>(i) / kPlotPoints * xRange;
         plotX_[i]   = x;
@@ -106,7 +106,7 @@ void Example::OnDraw() {
     ImGui::Begin("Signals", nullptr);
     if (ImPlot::BeginPlot("##signals", {-1, -1})) {
         ImPlot::SetupAxes("x", "y");
-        ImPlot::SetupAxisLimits(ImAxis_X1, 0.0, 4.0 * kPi, ImPlotCond_Always);
+        ImPlot::SetupAxisLimits(ImAxis_X1, 0.0, 4.0 * glm::pi<float>(), ImPlotCond_Always);
         ImPlot::SetupAxisLimits(ImAxis_Y1, -1.2, 1.2, ImPlotCond_Always);
         ImPlot::PlotLine("sin", plotX_.data(), plotSin_.data(), kPlotPoints);
         ImPlot::PlotLine("cos", plotX_.data(), plotCos_.data(), kPlotPoints);
