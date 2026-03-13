@@ -1,12 +1,23 @@
 #pragma once
 #include <glm/glm.hpp>
+#include <string>
 
 namespace Kilo::Render {
 
 class Primitives;
 class Camera;
 
-// Context — set internally by Panel::Draw3D
+// ── scene viewport ──────────────────────────────────────────────
+struct ViewportConfig {
+    float width  = -1;  // -1 = fill available
+    float height = -1;
+};
+
+void Init(const std::string& shaderDir);
+void Begin(const char* name, const ViewportConfig& cfg = {});
+void End();
+
+// Context — set internally by Begin/End
 void SetContext(Primitives* prims, Camera* cam);
 Camera& GetCamera();
 

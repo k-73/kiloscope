@@ -1,13 +1,9 @@
 #pragma once
 #include <nlohmann/json.hpp>
-#include <memory>
 #include <mutex>
 #include <string>
 #include <string_view>
-#include <unordered_map>
 #include <cstdint>
-
-namespace Kilo::Render { class Scene; }
 
 namespace Kilo {
 
@@ -25,11 +21,6 @@ inline PanelFlags operator|(PanelFlags a, PanelFlags b) {
 inline bool operator&(PanelFlags a, PanelFlags b) {
     return (static_cast<uint8_t>(a) & static_cast<uint8_t>(b)) != 0;
 }
-
-struct ViewportConfig {
-    float width  = -1;  // -1 = fill available
-    float height = -1;
-};
 
 class PanelManager;
 
@@ -56,10 +47,6 @@ public:
 
     void Draw();
 
-protected:
-    void RenderBegin(const char* name, const ViewportConfig& cfg = {});
-    void RenderEnd();
-
 private:
     friend class PanelManager;
 
@@ -68,15 +55,7 @@ private:
     std::string title_;
     PanelFlags flags_;
     bool visible_ = true;
-
-    std::string shaderDir_;
-    std::unordered_map<std::string, std::unique_ptr<Render::Scene>> scenes_;
     std::mutex mutex_;
-
-    struct SceneFrame {
-        Render::Scene* scene{};
-        float cursorX{}, cursorY{}, w{}, h{};
-    } sf_;
 
     static int NextInstanceId(const std::string& typeId);
 };

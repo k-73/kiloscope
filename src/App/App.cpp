@@ -1,5 +1,6 @@
 #include "App.hpp"
 #include "Core/Log.hpp"
+#include "Render/Draw.hpp"
 #include <GLFW/glfw3.h>
 #include <atomic>
 #include <csignal>
@@ -21,7 +22,8 @@ App::App() {
     Log::SetLevel(config_.logLevel);
 
     ui_ = std::make_unique<UI::UiContext>(config_);
-    panels_ = std::make_unique<PanelManager>(std::string(ASSETS_DIR) + "/shaders");
+    Render::Init(std::string(ASSETS_DIR) + "/shaders");
+    panels_ = std::make_unique<PanelManager>();
 
     panels_->LoadFromFile(config_.panelConfigPath);
     if (panels_->Empty())

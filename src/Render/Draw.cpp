@@ -1,7 +1,11 @@
 #include "Render/Draw.hpp"
 #include "Render/Primitives.hpp"
 #include "Render/Camera.hpp"
+#include "Render/Scene.hpp"
+#include <imgui.h>
 #include <cassert>
+#include <memory>
+#include <unordered_map>
 
 namespace Kilo::Render {
 
@@ -99,5 +103,53 @@ void Axes(const glm::vec3& origin, float len)
 
 void Point(const glm::vec3& pos, const glm::vec4& color, float size)
 { Ctx().DrawPoint(pos, color, size); }
+
+// ── scene viewport ──────────────────────────────────────────────
+
+static std::string sShaderDir;
+static std::unordered_map<std::string, std::unique_ptr<Scene>> sScenes;
+static struct { Scene* scene{}; float cx{}, cy{}, w{}, h{}; } sFrame;
+
+void Init(const std::string& dir) { sShaderDir = dir; }
+
+void Begin(const char* name, const ViewportConfig& cfg) {
+    auto& scene = sScenes[name];
+    if (!scene) {
+        scene = std::make_unique<Scene>();
+        scene->Init(sShaderDir);
+    }
+
+    auto avail = ImGui::GetContentRegionAvail();
+    int w = std::max(1, static_cast<int>(cfg.width  > 0 ? cfg.width  : avail.x));
+    int h = std::max(1, static_cast<int>(cfg.height > 0 ? cfg.height : avail.y));
+    scene->Resize(w, h);
+
+    ImVec2 size{static_cast<float>(w), static_cast<float>(h)};
+    auto cursor = ImGui::GetCursorScreenPos();
+    ImGui::InvisibleButton(name, size,
+        ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonMiddle);
+
+    auto& io  = ImGui::GetIO();
+    auto& cam = scene->GetCamera();
+
+    if (ImGui::IsItemHovered() && io.MouseWheel != 0)
+        cam.Zoom(io.MouseWheel);
+    if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+        cam.Orbit(io.MouseDelta.x, io.MouseDelta.y);
+    if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Middle))
+        cam.Pan(io.MouseDelta.x, io.MouseDelta.y);
+
+    sFrame = { scene.get(), cursor.x, cursor.y, size.x, size.y };
+    scene->BeginRender();
+    SetContext(&scene->Prims(), &cam);
+}
+
+void End() {
+    SetContext(nullptr, &sFrame.scene->GetCamera());
+    sFrame.scene->EndRender();
+    ImGui::SetCursorScreenPos({sFrame.cx, sFrame.cy});
+    ImGui::Image(static_cast<ImTextureID>(static_cast<uintptr_t>(sFrame.scene->Texture())),
+                 {sFrame.w, sFrame.h}, {0, 1}, {1, 0});
+}
 
 } // namespace Kilo::Render

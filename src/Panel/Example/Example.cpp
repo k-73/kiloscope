@@ -40,7 +40,7 @@ void Example::OnLoop() {
 }
 
 void Example::OnDraw() {
-    RenderBegin("scene");
+    Render::Begin("scene");
 
     Render::Axes({0, 0, 0}, 1.f);
 
@@ -88,7 +88,7 @@ void Example::OnDraw() {
         Render::Plane({0, 0, 0}, {0, 1, 0}, {2, 2}, {.5f, .5f, .5f, .6f});
     Render::PopMatrix();
 
-    RenderEnd();
+    Render::End();
 
     ImGui::Begin("Camera Controls", nullptr);
         auto& cam = Render::GetCamera();

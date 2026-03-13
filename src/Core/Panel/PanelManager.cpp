@@ -7,9 +7,7 @@
 
 namespace Kilo {
 
-PanelManager::PanelManager(std::string shaderDir)
-    : shaderDir_(std::move(shaderDir))
-{}
+PanelManager::PanelManager() = default;
 
 void PanelManager::Start() {
     worker_ = std::jthread([this](std::stop_token st) { WorkerLoop(st); });
@@ -31,7 +29,6 @@ Panel* PanelManager::Add(std::string_view typeId) {
     auto panel = PanelRegistry::Instance().Create(typeId);
     if (!panel) return nullptr;
 
-    panel->shaderDir_ = shaderDir_;
     panel->OnAttach();
     auto* ptr = panel.get();
     panels_.push_back(std::move(panel));

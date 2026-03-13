@@ -11,7 +11,7 @@ namespace Kilo {
 
 class PanelManager {
 public:
-    explicit PanelManager(std::string shaderDir);
+    PanelManager();
     ~PanelManager();
 
     void   Start();
@@ -28,7 +28,6 @@ public:
 private:
     void WorkerLoop(std::stop_token st);
 
-    std::string shaderDir_;
     std::vector<std::unique_ptr<Panel>> panels_;
     std::jthread worker_;
 };
