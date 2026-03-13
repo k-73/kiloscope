@@ -5,6 +5,13 @@ uniform mat4 uView, uProj;
 uniform vec3 uCamPos;
 uniform float uCamDist;
 
+uniform float uScaleFine, uScaleMedium, uScaleCoarse;
+uniform vec3  uColorFine, uColorMedium, uColorCoarse;
+uniform float uAlphaFine, uAlphaMedium, uAlphaCoarse;
+uniform vec3  uAxisXColor, uAxisYColor;
+uniform float uAxisThickness, uAxisAlpha;
+uniform float uFadeStart, uFadeEnd;
+
 out vec4 FragColor;
 
 // Gaussian-profile grid line: thin bright core + wide soft glow
@@ -13,15 +20,12 @@ float SoftLine(vec2 coord, float scale) {
     vec2 d = fwidth(c);
     vec2 a = abs(fract(c - 0.5) - 0.5) / d;
 
-    // Sharp core (half-width ~1px)
     float core = max(exp2(-a.x * a.x * 2.0), exp2(-a.y * a.y * 2.0));
-    // Broad glow (half-width ~3px)
     float glow = max(exp2(-a.x * a.x * 0.25), exp2(-a.y * a.y * 0.25));
 
     return core * 0.7 + glow * 0.3;
 }
 
-// Soft axis line with gaussian profile
 float SoftAxis(float dist, float thickness) {
     float d = abs(dist) / thickness;
     return exp2(-d * d * 2.0);
@@ -33,29 +37,25 @@ void main() {
 
     vec3 fp = vNear + t * (vFar - vNear);
 
-    // Layered grid — all decade scales always present, coarser = brighter overlay
-    // SoftLine naturally returns ~0 when grid becomes sub-pixel dense
-    float g1   = SoftLine(fp.xy, 1.0);
-    float g10  = SoftLine(fp.xy, 10.0);
-    float g100 = SoftLine(fp.xy, 100.0);
+    // Layered grid at three scales
+    float g1   = SoftLine(fp.xy, uScaleFine);
+    float g10  = SoftLine(fp.xy, uScaleMedium);
+    float g100 = SoftLine(fp.xy, uScaleCoarse);
 
-    // Additive color: finer grids persist underneath, coarser ones glow brighter
-    vec3 col = vec3(0.30, 0.32, 0.38) * g1
-             + vec3(0.36, 0.38, 0.44) * g10
-             + vec3(0.48, 0.52, 0.58) * g100;
+    vec3 col = uColorFine * g1 + uColorMedium * g10 + uColorCoarse * g100;
 
-    // Axis highlights — continuous thickness proportional to camera distance
-    float axThick = uCamDist * 0.006;
+    // Axis highlights
+    float axThick = uCamDist * uAxisThickness;
     float axX = SoftAxis(fp.x, max(axThick, fwidth(fp.x) * 2.0));
     float axY = SoftAxis(fp.y, max(axThick, fwidth(fp.y) * 2.0));
-    col += vec3(0.2, 0.8, 0.2) * axX + vec3(0.8, 0.2, 0.2) * axY;
+    col += uAxisYColor * axX + uAxisXColor * axY;
 
     // Distance fade
     float d = length(fp.xy - uCamPos.xy);
-    float fade = 1.0 - smoothstep(uCamDist * 2.5, uCamDist * 10.0, d);
+    float fade = 1.0 - smoothstep(uCamDist * uFadeStart, uCamDist * uFadeEnd, d);
 
-    float alpha = max(max(g1 * 0.35, g10 * 0.50), g100 * 0.65) * fade;
-    alpha = max(alpha, max(axX, axY) * fade * 0.75);
+    float alpha = max(max(g1 * uAlphaFine, g10 * uAlphaMedium), g100 * uAlphaCoarse) * fade;
+    alpha = max(alpha, max(axX, axY) * fade * uAxisAlpha);
     if (alpha < 0.003) discard;
 
     FragColor = vec4(col, alpha);

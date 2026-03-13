@@ -42,7 +42,7 @@ void Example::OnLoop() {
 void Example::OnDraw() {
     Render::Begin("scene", {.width = 600, .height = 600});
         Render::Axes({0, 0, 0}, 1.f);
-
+        
         // Animated spiral path
         for (int i = 1; i < kPathPoints; ++i) {
             float norm = static_cast<float>(i) / kPathPoints;
@@ -88,6 +88,7 @@ void Example::OnDraw() {
         Render::PopMatrix();
     Render::End();
 
+    ImGui::Begin("Environment", nullptr);
     auto& env = Render::GetEnvironment("scene");
     ImGui::DragFloat3("Light Dir", &env.lightDir.x, 0.05f);
     ImGui::ColorEdit3("BG Color", &env.bgColor.x);
@@ -98,9 +99,30 @@ void Example::OnDraw() {
     ImGui::DragFloat("Fresnel", &env.fresnel, 0.01f, 0.f, 1.f);
     ImGui::DragFloat("Fog Density", &env.fogDensity, 0.00001f, 0.f, 0.01f);
     ImGui::Checkbox("Show Sun", &env.showSun);
+    ImGui::End();
+
+    ImGui::Begin("Grid Config", nullptr);
+    auto &grid = Render::GetGrid("scene");
+    ImGui::Checkbox("Show Grid", &grid.enabled);
+    ImGui::DragFloat("Grid Scale Fine", &grid.scaleFine, 0.1f, 0.1f, 10.f);
+    ImGui::DragFloat("Grid Scale Medium", &grid.scaleMedium, 0.1f, 0.1f, 100.f);
+    ImGui::DragFloat("Grid Scale Coarse", &grid.scaleCoarse, 0.1f, 0.1f, 1000.f);
+    ImGui::ColorEdit3("Grid Color Fine", &grid.colorFine.x);
+    ImGui::ColorEdit3("Grid Color Medium", &grid.colorMedium.x);
+    ImGui::ColorEdit3("Grid Color Coarse", &grid.colorCoarse.x);
+    ImGui::DragFloat("Grid Alpha Fine", &grid.alphaFine, 0.01f, 0.f, 1.f);
+    ImGui::DragFloat("Grid Alpha Medium", &grid.alphaMedium, 0.01f, 0.f, 1.f);
+    ImGui::DragFloat("Grid Alpha Coarse", &grid.alphaCoarse, 0.01f, 0.f, 1.f);
+    ImGui::ColorEdit3("Axis X Color", &grid.axisXColor.x);
+    ImGui::ColorEdit3("Axis Y Color", &grid.axisYColor.x);
+    ImGui::DragFloat("Axis Thickness", &grid.axisThickness, 0.001f, 0.001f, 0.1f);
+    ImGui::DragFloat("Axis Alpha", &grid.axisAlpha, 0.01f, 0.f, 1.f);
+    ImGui::DragFloat("Grid Fade Start", &grid.fadeStart, 0.1f, 0.f, 20.f);
+    ImGui::DragFloat("Grid Fade End", &grid.fadeEnd, 0.1f, 0.f, 50.f);
+    ImGui::End();
 
     ImGui::Begin("Camera Controls", nullptr);
-        auto& cam = Render::GetCamera();
+        auto& cam = Render::GetCamera("scene");
         ImGui::DragFloat3("Target",   &cam.Target().x, 0.05f);
         ImGui::DragFloat("Distance",  &cam.Distance(), 0.1f, 0.5f, 200.f);
         ImGui::SliderFloat("Yaw",     &cam.Yaw(), -180.f, 180.f, "%.1f\xc2\xb0");

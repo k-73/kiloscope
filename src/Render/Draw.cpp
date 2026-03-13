@@ -1,7 +1,6 @@
 #include "Render/Draw.hpp"
 #include "Render/Camera.hpp"
 #include "Render/Fbo.hpp"
-#include "Render/Grid.hpp"
 #include "Render/Shader.hpp"
 #include <GL/glew.h>
 #include <imgui.h>
@@ -28,9 +27,10 @@ struct LineVert { glm::vec3 pos, otherEnd; glm::vec2 expand; glm::vec4 color; };
 
 // ── shared GPU resources ─────────────────────────────────────────────
 
-static Shader sMeshShader, sLineShader;
+static Shader sMeshShader, sLineShader, sGridShader;
 static GLuint sMeshVao = 0, sMeshVbo = 0;
 static GLuint sLineVao = 0, sLineVbo = 0;
+static GLuint sGridVao = 0;
 
 // ── per-frame render state ───────────────────────────────────────────
 
@@ -43,7 +43,7 @@ static std::vector<glm::mat4> sMatStack = {glm::mat4(1.f)};
 
 // ── per-scene state ──────────────────────────────────────────────────
 
-struct SceneData { Fbo fbo; Camera cam; Grid grid; Environment env; };
+struct SceneData { Fbo fbo; Camera cam; Environment env; GridConfig gridCfg; };
 
 static std::string sShaderDir;
 static std::unordered_map<std::string, std::unique_ptr<SceneData>> sScenes;
@@ -191,6 +191,7 @@ void Init(const std::string& dir) {
     sShaderDir = dir;
     sMeshShader = Shader(dir + "/Basic.vert", dir + "/Basic.frag");
     sLineShader = Shader(dir + "/Line.vert",  dir + "/Line.frag");
+    sGridShader = Shader(dir + "/Grid.vert",  dir + "/Grid.frag");
 
     glCreateVertexArrays(1, &sMeshVao);
     glCreateBuffers(1, &sMeshVbo);
@@ -205,6 +206,8 @@ void Init(const std::string& dir) {
         {1, {3, offsetof(LineVert, otherEnd)}},
         {2, {2, offsetof(LineVert, expand)}},
         {3, {4, offsetof(LineVert, color)}}});
+
+    glCreateVertexArrays(1, &sGridVao);
 }
 
 Camera& GetCamera() {
@@ -231,10 +234,8 @@ Environment& GetEnvironment(const char* name) {
 
 void Begin(const char* name, const ViewportConfig& cfg) {
     auto& scene = sScenes[name];
-    if (!scene) {
+    if (!scene)
         scene = std::make_unique<SceneData>();
-        scene->grid.Init(sShaderDir);
-    }
 
     // viewport size
     auto avail = ImGui::GetContentRegionAvail();
@@ -302,11 +303,61 @@ static void DrawSun() {
     PopMatrix();
 }
 
+static void DrawGrid(const GridConfig& cfg, float camDist) {
+    sGridShader.Use();
+    sGridShader.Set("uView", sView);
+    sGridShader.Set("uProj", sProj);
+    sGridShader.Set("uCamPos", sCamPos);
+    sGridShader.Set("uCamDist", camDist);
+    sGridShader.Set("uScaleFine",   cfg.scaleFine);
+    sGridShader.Set("uScaleMedium", cfg.scaleMedium);
+    sGridShader.Set("uScaleCoarse", cfg.scaleCoarse);
+    sGridShader.Set("uColorFine",   cfg.colorFine);
+    sGridShader.Set("uColorMedium", cfg.colorMedium);
+    sGridShader.Set("uColorCoarse", cfg.colorCoarse);
+    sGridShader.Set("uAlphaFine",   cfg.alphaFine);
+    sGridShader.Set("uAlphaMedium", cfg.alphaMedium);
+    sGridShader.Set("uAlphaCoarse", cfg.alphaCoarse);
+    sGridShader.Set("uAxisXColor",  cfg.axisXColor);
+    sGridShader.Set("uAxisYColor",  cfg.axisYColor);
+    sGridShader.Set("uAxisThickness", cfg.axisThickness);
+    sGridShader.Set("uAxisAlpha",   cfg.axisAlpha);
+    sGridShader.Set("uFadeStart",   cfg.fadeStart);
+    sGridShader.Set("uFadeEnd",     cfg.fadeEnd);
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDepthMask(GL_TRUE);
+    glDisable(GL_CULL_FACE);
+    glBindVertexArray(sGridVao);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glBindVertexArray(0);
+    glDisable(GL_BLEND);
+    glEnable(GL_CULL_FACE);
+}
+
+void Grid(const GridConfig& cfg) {
+    assert(sFrame.scene && "Grid requires active scene");
+    sFrame.scene->gridCfg = cfg;
+}
+
+GridConfig& GetGrid() {
+    assert(sFrame.scene && "GetGrid requires active scene");
+    return sFrame.scene->gridCfg;
+}
+
+GridConfig& GetGrid(const char* name) {
+    auto it = sScenes.find(name);
+    assert(it != sScenes.end() && "Scene not found");
+    return it->second->gridCfg;
+}
+
 void End() {
     if (sEnv->showSun) DrawSun();
     FlushLines();
-    auto& cam = sFrame.scene->cam;
-    sFrame.scene->grid.Draw(sView, sProj, sCamPos, cam.Distance());
+    auto& g = sFrame.scene->gridCfg;
+    if (g.enabled)
+        DrawGrid(g, sFrame.scene->cam.Distance());
     sFrame.scene->fbo.Resolve();
     ImGui::SetCursorScreenPos({sFrame.cx, sFrame.cy});
     ImGui::Image(static_cast<ImTextureID>(static_cast<uintptr_t>(sFrame.scene->fbo.Texture())),

@@ -37,6 +37,30 @@ struct Environment {
 Environment& GetEnvironment();
 Environment& GetEnvironment(const char* name);
 
+// ── grid ────────────────────────────────────────────────────────
+struct GridConfig {
+    bool      enabled     = false;
+    float     scaleFine   = 1.f;
+    float     scaleMedium = 10.f;
+    float     scaleCoarse = 100.f;
+    glm::vec3 colorFine   = {.30f, .32f, .38f};
+    glm::vec3 colorMedium = {.36f, .38f, .44f};
+    glm::vec3 colorCoarse = {.48f, .52f, .58f};
+    float     alphaFine   = 0.35f;
+    float     alphaMedium = 0.50f;
+    float     alphaCoarse = 0.65f;
+    glm::vec3 axisXColor  = {.8f, .2f, .2f};
+    glm::vec3 axisYColor  = {.2f, .8f, .2f};
+    float     axisThickness = 0.006f;
+    float     axisAlpha   = 0.75f;
+    float     fadeStart   = 2.5f;
+    float     fadeEnd     = 10.f;
+};
+
+void Grid(const GridConfig& cfg = {});
+GridConfig& GetGrid();
+GridConfig& GetGrid(const char* name);
+
 // ── transform stack ──────────────────────────────────────────────
 void PushMatrix();
 void PopMatrix();
