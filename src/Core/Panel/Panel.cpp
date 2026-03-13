@@ -27,7 +27,7 @@ void Panel::Draw() {
     ImGui::End();
 }
 
-void Panel::SceneBegin(const char* name, const ViewportConfig& cfg) {
+void Panel::RenderBegin(const char* name, const ViewportConfig& cfg) {
     auto& scene = scenes_[name];
     if (!scene) {
         scene = std::make_unique<Render::Scene>();
@@ -59,7 +59,7 @@ void Panel::SceneBegin(const char* name, const ViewportConfig& cfg) {
     Render::SetContext(&scene->Prims(), &cam);
 }
 
-void Panel::SceneEnd() {
+void Panel::RenderEnd() {
     Render::SetContext(nullptr, &sf_.scene->GetCamera());
     sf_.scene->EndRender();
     ImGui::SetCursorScreenPos({sf_.cursorX, sf_.cursorY});

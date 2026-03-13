@@ -57,19 +57,8 @@ public:
     void Draw();
 
 protected:
-    template<typename F>
-    void Draw3D(const char* name, F&& fn) {
-        SceneBegin(name, {});
-        fn();
-        SceneEnd();
-    }
-
-    template<typename F>
-    void Draw3D(const char* name, const ViewportConfig& cfg, F&& fn) {
-        SceneBegin(name, cfg);
-        fn();
-        SceneEnd();
-    }
+    void RenderBegin(const char* name, const ViewportConfig& cfg = {});
+    void RenderEnd();
 
 private:
     friend class PanelManager;
@@ -88,9 +77,6 @@ private:
         Render::Scene* scene{};
         float cursorX{}, cursorY{}, w{}, h{};
     } sf_;
-
-    void SceneBegin(const char* name, const ViewportConfig& cfg);
-    void SceneEnd();
 
     static int NextInstanceId(const std::string& typeId);
 };
