@@ -28,50 +28,53 @@ void Example::OnLoop() {
 }
 
 void Example::OnDraw() {
-    float t = elapsedTime_;
+    using namespace Render::Color;
+    float time = elapsedTime_;
 
     Render::Begin("scene", {.width = 600, .height = 600});
         Render::Grid();
 
         // Origin frame
-        static bool frameShowed = true;
-        if (frameShowed) {
+        static bool showFrame = true;
+        if (showFrame) {
             Render::Frame(glm::mat4(1.f), 1.f);
             if (Render::Event().Clicked())
-                frameShowed = false;
+                showFrame = false;
         }
 
-        // Central body
-        Render::Sphere({0, 0, 0}, 0.4f, Render::Color::Yellow);
-        if(Render::Event().Hovered()) {
-            Render::Text({0, 0, 0.0f}, Render::Color::White, "sun");
-        }
+        // Star
+        Render::Sphere({0, 0, 0}, 0.4f, Hex("#F2EB4D"));
+        if (Render::Event().Hovered())
+            Render::Text({0, 0, 0.5f}, White, "star");
 
-        // Orbit 1 — equatorial
-        float r1 = 2.2f, a1 = t * 0.8f;
-        Render::Circle({0, 0, 0}, {0, 0, 1}, r1, Render::Color::Hex("#5980F240"), 64, 1.f);
-        Render::Sphere({r1 * std::cos(a1), r1 * std::sin(a1), 0}, 0.18f, Render::Color::Hex("#5980F2"));
+        // Planet 1 — equatorial orbit
+        constexpr float orbit1R = 2.2f, planet1R = 0.18f;
+        float orbit1Angle = time * 0.8f;
+        Render::Circle({0, 0, 0}, {0, 0, 1}, orbit1R, Hex("#5980F240"), 64, 1.f);
+        Render::Sphere({orbit1R * std::cos(orbit1Angle), orbit1R * std::sin(orbit1Angle), 0.f}, planet1R, Hex("#5980F2"));
 
-        // Orbit 2 — tilted 65°
+        // Planet 2 — tilted 65°
+        constexpr float orbit2R = 3.0f, planet2R = 0.14f;
+        float orbit2Angle = time * 0.5f;
         Render::PushMatrix();
         Render::RotateX(65.f);
-            float r2 = 3.f, a2 = t * 0.5f;
-            Render::Circle({0, 0, 0}, {0, 0, 1}, r2, Render::Color::Hex("#F2404040"), 64, 1.f);
-            Render::Sphere({r2 * std::cos(a2), r2 * std::sin(a2), 0}, 0.14f, Render::Color::Hex("#F24040"));
+            Render::Circle({0, 0, 0}, {0, 0, 1}, orbit2R, Hex("#F2404040"), 64, 1.f);
+            Render::Sphere({orbit2R * std::cos(orbit2Angle), orbit2R * std::sin(orbit2Angle), 0.f}, planet2R, Hex("#F24040"));
         Render::PopMatrix();
 
-        // Orbit 3 — opposite tilt
+        // Moon — tilted 55°
+        constexpr float orbit3R = 1.6f, moonR = 0.11f;
+        float orbit3Angle = time * 1.2f;
         Render::PushMatrix();
         Render::RotateY(55.f);
-            float r3 = 1.6f, a3 = t * 1.2f;
-            Render::Circle({0, 0, 0}, {0, 0, 1}, r3, Render::Color::Hex("#59D95940"), 64, 1.f);
-            Render::Sphere({r3 * std::cos(a3), r3 * std::sin(a3), 0}, 0.11f, Render::Color::Hex("#59D959"));
+            Render::Circle({0, 0, 0}, {0, 0, 1}, orbit3R, Hex("#59D95940"), 64, 1.f);
+            Render::Sphere({orbit3R * std::cos(orbit3Angle), orbit3R * std::sin(orbit3Angle), 0.f}, moonR, Hex("#59D959"));
         Render::PopMatrix();
 
-        // Labels
-        Render::Text({0, 0, 1}, Render::Color::White, "z");
-        Render::Text({1, 0, 0}, Render::Color::White, "x");
-        Render::Text({0, 1, 0}, Render::Color::White, "y");
+        // Axis labels
+        Render::Text({1.1f, 0, 0}, Hex("#E65555"), "X");
+        Render::Text({0, 1.1f, 0}, Hex("#55CC55"), "Y");
+        Render::Text({0, 0, 1.1f}, Hex("#5580E6"), "Z");
     Render::End();
 
     ImGui::Begin("Environment", nullptr);
