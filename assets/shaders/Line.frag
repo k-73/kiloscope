@@ -6,7 +6,9 @@ in float vHalfWidth;
 out vec4 FragColor;
 
 void main() {
-    float aa = 1.5 / (vHalfWidth + 1.0);
-    float alpha = 1.0 - smoothstep(1.0 - aa, 1.0, abs(vEdge));
-    FragColor = vec4(vColor.rgb, vColor.a * alpha);
+    float edge = vHalfWidth / (vHalfWidth + 0.5);
+    float coverage = 1.0 - smoothstep(edge, 1.0, abs(vEdge));
+    coverage *= vColor.a;
+    if (coverage < 0.02) discard;
+    FragColor = vec4(vColor.rgb, coverage);
 }

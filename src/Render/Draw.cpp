@@ -274,13 +274,14 @@ static void FlushLines() {
     sLineShader.Set("uProj", sProj);
     sLineShader.Set("uViewportSize", glm::vec2(sVpW, sVpH));
     sLineShader.Set("uLineWidth", sLineWidth);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
+    glDepthMask(GL_FALSE);
     glDisable(GL_CULL_FACE);
     glBindVertexArray(sLineVao);
     glDrawArrays(GL_TRIANGLES, 0, count);
     glBindVertexArray(0);
-    glDisable(GL_BLEND);
+    glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
+    glDepthMask(GL_TRUE);
     glEnable(GL_CULL_FACE);
 
     if (sPickEnabled) {
@@ -335,14 +336,15 @@ static void FlushPoints() {
     sPointShader.Set("uPointSize", sPointSize);
     sPointShader.Set("uViewportSize", glm::vec2(sVpW, sVpH));
     glEnable(GL_PROGRAM_POINT_SIZE);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
+    glDepthMask(GL_FALSE);
     glDisable(GL_CULL_FACE);
     glBindVertexArray(sPointVao);
     glDrawArrays(GL_POINTS, 0, count);
     glBindVertexArray(0);
     glDisable(GL_PROGRAM_POINT_SIZE);
-    glDisable(GL_BLEND);
+    glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
+    glDepthMask(GL_TRUE);
     glEnable(GL_CULL_FACE);
 
     if (sPickEnabled) {
@@ -525,6 +527,8 @@ void Begin(const char* name, const ViewportConfig& cfg) {
 
     const auto& bg = sEnv->bgColor;
     scene->fbo.Bind(bg.r, bg.g, bg.b);
+    glDisable(GL_BLEND);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE);
 
     float aspect = static_cast<float>(w) / std::max(1, h);
     sView     = cam.View();
@@ -595,14 +599,13 @@ static void DrawGrid(const GridConfig& cfg, float camDist) {
     sGridShader.Set("uFadeStart",   cfg.fadeStart);
     sGridShader.Set("uFadeEnd",     cfg.fadeEnd);
 
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
     glDepthMask(GL_TRUE);
     glDisable(GL_CULL_FACE);
     glBindVertexArray(sGridVao);
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glBindVertexArray(0);
-    glDisable(GL_BLEND);
+    glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
     glEnable(GL_CULL_FACE);
 }
 

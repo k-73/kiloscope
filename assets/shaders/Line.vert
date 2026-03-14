@@ -30,7 +30,7 @@ void main() {
     float scale = clamp(projScale / depth, 0.15, 3.0);
 
     float trueHW = uLineWidth * 0.5 * scale;
-    float hw = trueHW + 1.0;
+    float hw = trueHW + 0.5;
     vec2 off = perp * aExpand.x * hw / (uViewportSize * 0.5);
 
     vec4 clip = mix(cA, cB, aExpand.y);

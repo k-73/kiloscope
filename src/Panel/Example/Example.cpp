@@ -35,11 +35,10 @@ void Example::OnDraw() {
 
         // Origin frame
         static bool frameShowed = true;
-            if(frameShowed) {
+        if (frameShowed) {
             Render::Frame(glm::mat4(1.f), 1.f);
-            if(Render::Event().Clicked()) {
+            if (Render::Event().Clicked())
                 frameShowed = false;
-            }
         }
 
         // Central body
@@ -84,6 +83,10 @@ void Example::OnDraw() {
         ImGui::DragFloat("Fresnel",     &env.fresnel,    0.01f, 0.f, 1.f);
         ImGui::DragFloat("Fog Density", &env.fogDensity, 0.00001f, 0.f, 0.01f);
         ImGui::Checkbox("Show Sun", &env.showSun);
+        if (env.showSun) {
+            ImGui::DragFloat("Sun Distance", &env.sunDistance, 0.5f, 1.f, 100.f);
+            ImGui::DragFloat("Sun Radius",   &env.sunRadius,  0.05f, 0.05f, 5.f);
+        }
     ImGui::End();
 
     ImGui::Begin("Grid", nullptr);
@@ -93,12 +96,18 @@ void Example::OnDraw() {
         ImGui::DragFloat("Scale Medium", &grid.scaleMedium, 1.f,  1.f,  100.f);
         ImGui::DragFloat("Scale Coarse", &grid.scaleCoarse, 10.f, 10.f, 1000.f);
         ImGui::ColorEdit3("Color Fine",   &grid.colorFine.x);
+        ImGui::DragFloat("Alpha Fine",   &grid.alphaFine,   0.01f, 0.f, 1.f);
         ImGui::ColorEdit3("Color Medium", &grid.colorMedium.x);
+        ImGui::DragFloat("Alpha Medium", &grid.alphaMedium, 0.01f, 0.f, 1.f);
         ImGui::ColorEdit3("Color Coarse", &grid.colorCoarse.x);
+        ImGui::DragFloat("Alpha Coarse", &grid.alphaCoarse, 0.01f, 0.f, 1.f);
+        ImGui::Separator();
         ImGui::ColorEdit3("Axis X", &grid.axisXColor.x);
         ImGui::ColorEdit3("Axis Y", &grid.axisYColor.x);
-        ImGui::DragFloat("Axis Thickness", &grid.axisThickness, 0.001f, 0.001f, 0.1f);
+        ImGui::DragFloat("Axis Thickness", &grid.axisThickness, 0.001f, 0.001f, 0.5f);
+        ImGui::DragFloat("Axis Alpha",     &grid.axisAlpha,     0.01f, 0.f, 1.f);
         ImGui::Checkbox("Axis Scale With Cam", &grid.axisScaleWithCam);
+        ImGui::Separator();
         ImGui::DragFloat("Fade Start", &grid.fadeStart, 0.1f, 0.1f, 20.f);
         ImGui::DragFloat("Fade End",   &grid.fadeEnd,   0.1f, 1.f,  50.f);
     ImGui::End();

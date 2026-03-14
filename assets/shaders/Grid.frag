@@ -15,21 +15,17 @@ uniform float uFadeStart, uFadeEnd;
 
 out vec4 FragColor;
 
-// Gaussian-profile grid line: thin bright core + wide soft glow
 float SoftLine(vec2 coord, float scale) {
     vec2 c = coord / scale;
     vec2 d = fwidth(c);
     vec2 a = abs(fract(c - 0.5) - 0.5) / d;
-
-    float core = max(exp2(-a.x * a.x * 4.0), exp2(-a.y * a.y * 4.0));
-    float glow = max(exp2(-a.x * a.x * 0.5), exp2(-a.y * a.y * 0.5));
-
-    return core * 0.8 + glow * 0.2;
+    float lx = 1.0 - smoothstep(0.3, 1.5, a.x);
+    float ly = 1.0 - smoothstep(0.3, 1.5, a.y);
+    return max(lx, ly);
 }
 
 float SoftAxis(float dist, float thickness) {
-    float d = abs(dist) / thickness;
-    return exp2(-d * d * 2.0);
+    return 1.0 - smoothstep(thickness * 0.35, thickness, abs(dist));
 }
 
 void main() {
@@ -43,18 +39,37 @@ void main() {
     float g10  = SoftLine(fp.xy, uScaleMedium);
     float g100 = SoftLine(fp.xy, uScaleCoarse);
 
-    vec3 gridCol = uColorFine * g1 + uColorMedium * g10 + uColorCoarse * g100;
-    float gridAlpha = max(max(g1 * uAlphaFine, g10 * uAlphaMedium), g100 * uAlphaCoarse);
+    // Layer compositing: fine → medium over fine → coarse over result
+    vec3  gridCol = uColorFine;
+    float gridAlpha = g1 * uAlphaFine;
 
-    // Axis highlights — blend over grid, not additive
+    float medA = g10 * uAlphaMedium;
+    float prevA = gridAlpha;
+    gridAlpha = medA + prevA * (1.0 - medA);
+    if (gridAlpha > 0.001)
+        gridCol = (uColorMedium * medA + gridCol * prevA * (1.0 - medA)) / gridAlpha;
+
+    float coaA = g100 * uAlphaCoarse;
+    prevA = gridAlpha;
+    gridAlpha = coaA + prevA * (1.0 - coaA);
+    if (gridAlpha > 0.001)
+        gridCol = (uColorCoarse * coaA + gridCol * prevA * (1.0 - coaA)) / gridAlpha;
+
+    // Axis layer (composited "over" grid — no color bleeding)
     float axThick = (uAxisScaleWithCam != 0) ? uCamDist * uAxisThickness : uAxisThickness;
     float axX = SoftAxis(fp.x, max(axThick, fwidth(fp.x) * 2.0));
     float axY = SoftAxis(fp.y, max(axThick, fwidth(fp.y) * 2.0));
-    float axisBlend = clamp(max(axX, axY), 0.0, 1.0);
-    vec3 axisCol = uAxisYColor * axX + uAxisXColor * axY;
 
-    vec3 col = mix(gridCol, axisCol, axisBlend);
-    float alpha = mix(gridAlpha, uAxisAlpha, axisBlend);
+    vec3  axCol = uAxisYColor * axX + uAxisXColor * axY;
+    float axSum = axX + axY;
+    if (axSum > 0.001) axCol /= axSum;
+    float axA = clamp(max(axX, axY), 0.0, 1.0) * uAxisAlpha;
+
+    // Porter-Duff "over": axis on top of grid
+    float alpha = axA + gridAlpha * (1.0 - axA);
+    vec3  col   = alpha > 0.001
+        ? (axCol * axA + gridCol * gridAlpha * (1.0 - axA)) / alpha
+        : vec3(0);
 
     // Distance fade
     float d = length(fp.xy - uCamPos.xy);
