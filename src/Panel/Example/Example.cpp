@@ -69,7 +69,9 @@ void Example::OnDraw() {
         Render::PopMatrix();
 
         // Labels
-        Render::Text({0, 0, 0.6f}, Render::Color::White, "center");
+        Render::Text({0, 0, 1}, Render::Color::White, "z");
+        Render::Text({1, 0, 0}, Render::Color::White, "x");
+        Render::Text({0, 1, 0}, Render::Color::White, "y");
     Render::End();
 
     ImGui::Begin("Environment", nullptr);

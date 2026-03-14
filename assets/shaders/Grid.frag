@@ -1,7 +1,7 @@
 #version 450 core
 in vec3 vNear, vFar;
 
-uniform mat4 uView, uProj, uViewProj;
+uniform mat4 uViewProj;
 uniform vec3 uCamPos;
 uniform float uCamDist;
 

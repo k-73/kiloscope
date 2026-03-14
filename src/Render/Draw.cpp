@@ -220,7 +220,6 @@ static void BeginPickPass() {
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);
     glDepthMask(GL_TRUE);
-    glDisable(GL_BLEND);
 }
 
 static void EndPickPass() {
