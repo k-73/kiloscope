@@ -79,10 +79,57 @@ struct PickFbo {
     PickFbo& operator=(const PickFbo&) = delete;
 };
 
+// ── shadow FBO ───────────────────────────────────────────────────────
+
+struct ShadowFbo {
+    GLuint fbo = 0, depth = 0;
+    int w = 0, h = 0;
+
+    void Resize(int nw, int nh) {
+        if (nw == w && nh == h) return;
+        Destroy();
+        w = nw; h = nh;
+        glCreateFramebuffers(1, &fbo);
+        glCreateTextures(GL_TEXTURE_2D, 1, &depth);
+        glTextureStorage2D(depth, 1, GL_DEPTH_COMPONENT32F, w, h);
+        glTextureParameteri(depth, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+        glTextureParameteri(depth, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+        float border[] = {1.f, 1.f, 1.f, 1.f};
+        glTextureParameterfv(depth, GL_TEXTURE_BORDER_COLOR, border);
+        glTextureParameteri(depth, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTextureParameteri(depth, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTextureParameteri(depth, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+        glTextureParameteri(depth, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+        glNamedFramebufferTexture(fbo, GL_DEPTH_ATTACHMENT, depth, 0);
+        glNamedFramebufferDrawBuffer(fbo, GL_NONE);
+        glNamedFramebufferReadBuffer(fbo, GL_NONE);
+    }
+
+    void Bind() { glBindFramebuffer(GL_FRAMEBUFFER, fbo); glViewport(0, 0, w, h); }
+
+    void Clear() {
+        Bind();
+        float one = 1.f;
+        glClearBufferfv(GL_DEPTH, 0, &one);
+    }
+
+    void Destroy() {
+        if (fbo)   { glDeleteFramebuffers(1, &fbo); fbo = 0; }
+        if (depth) { glDeleteTextures(1, &depth);   depth = 0; }
+        w = h = 0;
+    }
+
+    ~ShadowFbo() { Destroy(); }
+    ShadowFbo() = default;
+    ShadowFbo(const ShadowFbo&) = delete;
+    ShadowFbo& operator=(const ShadowFbo&) = delete;
+};
+
 // ── shared GPU resources ─────────────────────────────────────────────
 
 static Shader sMeshShader, sLineShader, sGridShader, sPointShader;
 static Shader sPickMeshShader, sPickLineShader, sPickPointShader;
+static Shader sShadowShader;
 static GLuint sMeshVao = 0, sMeshVbo = 0;
 static GLuint sLineVao = 0, sLineVbo = 0;
 static GLuint sGridVao = 0;
@@ -102,9 +149,19 @@ static std::vector<glm::mat4> sMatStack = {glm::mat4(1.f)};
 static std::vector<MeshVert>  sMeshScratch;
 static std::vector<MeshVert>  sIndexedScratch;
 
+// ── shadow & light state ─────────────────────────────────────────────
+
+static glm::mat4 sLightVP;
+static bool sShadowReady = false;
+
+static constexpr int kMaxPointLights = 8;
+struct PointLightData { glm::vec3 pos, color; float range; };
+static int sNumPointLights = 0;
+static PointLightData sPointLights[kMaxPointLights];
+
 // ── per-scene state ──────────────────────────────────────────────────
 
-struct SceneData { Fbo fbo; PickFbo pickFbo; Camera cam; Environment env; GridConfig gridCfg; };
+struct SceneData { Fbo fbo; PickFbo pickFbo; ShadowFbo shadowFbo; Camera cam; Environment env; GridConfig gridCfg; };
 
 static std::unordered_map<uint32_t, std::unique_ptr<SceneData>> sScenes;
 static struct { SceneData* scene{}; float cx{}, cy{}, w{}, h{}; bool hovered{}; bool fly{}; } sFrame;
@@ -123,6 +180,7 @@ static uint32_t sLastPickId     = 0;
 static uint32_t sPickIdOverride = 0;
 static uint32_t sHoveredPickId  = 0;
 static bool     sPickEnabled    = true;
+static bool     sEmissive       = false;
 static Stats    sStats;
 
 static uint32_t AllocPickId() {
@@ -205,6 +263,22 @@ static void SetMeshFrameUniforms() {
     sMeshShader.Set("uSpecular", sEnv->specular);
     sMeshShader.Set("uFresnel", sEnv->fresnel);
     sMeshShader.Set("uFogDensity", sEnv->fogDensity);
+
+    // Shadow map
+    sMeshShader.Set("uLightVP", sLightVP);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, sFrame.scene->shadowFbo.depth);
+    sMeshShader.Set("uShadowMap", 0);
+
+    // Point lights
+    sMeshShader.Set("uNumPointLights", sNumPointLights);
+    for (int i = 0; i < sNumPointLights; ++i) {
+        char buf[48];
+        std::snprintf(buf, sizeof(buf), "uPLPos[%d]",   i); sMeshShader.Set(buf, sPointLights[i].pos);
+        std::snprintf(buf, sizeof(buf), "uPLColor[%d]", i); sMeshShader.Set(buf, sPointLights[i].color);
+        std::snprintf(buf, sizeof(buf), "uPLRange[%d]", i); sMeshShader.Set(buf, sPointLights[i].range);
+    }
+
     sMeshFrameReady = true;
 }
 
@@ -212,7 +286,7 @@ static void SetMeshUniforms(const glm::vec4& color, bool unlit = false) {
     SetMeshFrameUniforms();
     sMeshShader.Use();
     sMeshShader.Set("uColor", color);
-    sMeshShader.Set("uUnlit", unlit ? 1 : 0);
+    sMeshShader.Set("uUnlit", (unlit || sEmissive) ? 1 : 0);
 }
 
 // ── pick pass helpers ────────────────────────────────────────────────
@@ -223,6 +297,18 @@ static void BeginPickPass() {
 }
 
 static void EndPickPass() {
+    glBindFramebuffer(GL_FRAMEBUFFER, sFrame.scene->fbo.Handle());
+    glViewport(0, 0, sVpW, sVpH);
+}
+
+static void BeginShadowPass() {
+    sFrame.scene->shadowFbo.Bind();
+    glDepthMask(GL_TRUE);
+    glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+}
+
+static void EndShadowPass() {
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE);
     glBindFramebuffer(GL_FRAMEBUFFER, sFrame.scene->fbo.Handle());
     glViewport(0, 0, sVpW, sVpH);
 }
@@ -249,6 +335,23 @@ static void UploadMesh(const std::vector<MeshVert>& v) {
         glDrawArrays(GL_TRIANGLES, 0, count);
         ++sStats.pickDrawCalls;
         EndPickPass();
+    }
+
+    // Shadow pass
+    {
+        BeginShadowPass();
+        sShadowShader.Use();
+        if (!sShadowReady) {
+            sShadowShader.Set("uLightVP", sLightVP);
+            sShadowReady = true;
+        }
+        glEnable(GL_CULL_FACE);
+        glCullFace(GL_FRONT);
+        glBindVertexArray(sMeshVao);
+        glDrawArrays(GL_TRIANGLES, 0, count);
+        glCullFace(GL_BACK);
+        ++sStats.shadowDrawCalls;
+        EndShadowPass();
     }
 }
 
@@ -459,6 +562,7 @@ void Init(const std::string& dir) {
     sPickMeshShader  = Shader(dir + "/Pick.vert",      dir + "/Pick.frag");
     sPickLineShader  = Shader(dir + "/PickLine.vert",  dir + "/PickLine.frag");
     sPickPointShader = Shader(dir + "/PickPoint.vert", dir + "/PickPoint.frag");
+    sShadowShader    = Shader(dir + "/Shadow.vert",    dir + "/Shadow.frag");
 
     glCreateVertexArrays(1, &sMeshVao);
     glCreateBuffers(1, &sMeshVbo);
@@ -511,6 +615,13 @@ Environment& GetEnvironment() {
 
 Environment& GetEnvironment(const char* name) { return GetScene(name).env; }
 
+void PointLight(const glm::vec3& pos, const glm::vec3& color, float range) {
+    if (sNumPointLights >= kMaxPointLights) return;
+    sPointLights[sNumPointLights++] = {pos, color, range};
+}
+
+void Emissive(bool on) { sEmissive = on; }
+
 void Begin(const char* name, const ViewportConfig& cfg) {
     auto& scene = sScenes[HashName(name)];
     if (!scene) scene = std::make_unique<SceneData>();
@@ -520,6 +631,7 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     int h = std::max(1, static_cast<int>(cfg.height > 0 ? cfg.height : avail.y));
     scene->fbo.Resize(w, h, 16);
     scene->pickFbo.Resize(w, h);
+    scene->shadowFbo.Resize(2048, 2048);
 
     ImVec2 size{static_cast<float>(w), static_cast<float>(h)};
     auto cursor = ImGui::GetCursorScreenPos();
@@ -582,8 +694,19 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     sLightDir = glm::normalize(sEnv->lightDir);
     sVpW = w; sVpH = h;
 
-    // Init pick state
+    // Light VP for shadow mapping
+    {
+        float shadowSize = cam.Distance() * 2.f;
+        float shadowDist = shadowSize * 2.f;
+        glm::vec3 lightPos = -sLightDir * shadowDist;
+        glm::vec3 up = (std::abs(sLightDir.z) > 0.99f) ? glm::vec3(0, 1, 0) : glm::vec3(0, 0, 1);
+        sLightVP = glm::ortho(-shadowSize, shadowSize, -shadowSize, shadowSize, 0.1f, shadowDist * 2.f)
+                 * glm::lookAt(lightPos, glm::vec3(0.f), up);
+    }
+
+    // Init pick + shadow state
     scene->pickFbo.Clear();
+    scene->shadowFbo.Clear();
     glBindFramebuffer(GL_FRAMEBUFFER, scene->fbo.Handle());
     glViewport(0, 0, w, h);
 
@@ -593,10 +716,14 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     sPickEnabled = true;
     sMeshFrameReady = false;
     sPickMeshReady = false;
+    sShadowReady = false;
+    sNumPointLights = 0;
+    sEmissive = false;
     sStats = {};
     sStats.viewportW = w;
     sStats.viewportH = h;
     sStats.msaaSamples = scene->fbo.Samples();
+    sStats.pointLights = sNumPointLights;
     sLineBatch.clear();
     sPointBatch.clear();
     sTextBatch.clear();

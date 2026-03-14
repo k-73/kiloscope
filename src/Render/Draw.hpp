@@ -78,15 +78,17 @@ struct ViewportConfig {
 };
 
 struct Stats {
-    int drawCalls     = 0;
-    int pickDrawCalls = 0;
-    int vertices      = 0;
-    int lineSegments  = 0;
-    int points        = 0;
-    int textLabels    = 0;
-    int viewportW     = 0;
-    int viewportH     = 0;
-    int msaaSamples   = 0;
+    int drawCalls       = 0;
+    int pickDrawCalls   = 0;
+    int shadowDrawCalls = 0;
+    int vertices        = 0;
+    int lineSegments    = 0;
+    int points          = 0;
+    int textLabels      = 0;
+    int pointLights     = 0;
+    int viewportW       = 0;
+    int viewportH       = 0;
+    int msaaSamples     = 0;
 };
 
 void Init(const std::string& shaderDir);
@@ -113,6 +115,10 @@ struct Environment {
 
 Environment& GetEnvironment();
 Environment& GetEnvironment(const char* name);
+
+// ── lights ──────────────────────────────────────────────────────
+void PointLight(const glm::vec3& pos, const glm::vec3& color, float range);
+void Emissive(bool on);
 
 // ── grid ────────────────────────────────────────────────────────
 struct GridConfig {

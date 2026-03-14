@@ -33,6 +33,7 @@ void Example::OnDraw() {
 
     Render::Begin("scene", {.width = 600, .height = 600});
         Render::Grid();
+        Render::PointLight({0, 0, 0}, {1.f, .95f, .8f}, 6.f);
 
         // Origin frame
         static bool showFrame = true;
@@ -42,8 +43,10 @@ void Example::OnDraw() {
                 showFrame = false;
         }
 
-        // Star
+        // Star (emissive — no directional shading, no shadow receiving)
+        Render::Emissive(true);
         Render::Sphere({0, 0, 0}, 0.4f, Hex("#F2EB4D"));
+        Render::Emissive(false);
         auto starEvent = Render::Event();
         if (starEvent.Hovered())
             Render::Text({0, 0, 0.5f}, White, "star");
@@ -53,16 +56,23 @@ void Example::OnDraw() {
         // Planet 1 — equatorial orbit
         constexpr float orbit1R = 2.2f, planet1R = 0.18f;
         float orbit1Angle = time * 0.8f;
+        glm::vec3 planet1Pos = {orbit1R * std::cos(orbit1Angle), orbit1R * std::sin(orbit1Angle), 0.f};
         Render::Circle({0, 0, 0}, {0, 0, 1}, orbit1R, Hex("#5980F240"), 64, 1.f);
-        Render::Sphere({orbit1R * std::cos(orbit1Angle), orbit1R * std::sin(orbit1Angle), 0.f}, planet1R, Hex("#5980F2"));
+        Render::Sphere(planet1Pos, planet1R, Hex("#5980F2"));
 
-        // Planet 2 — tilted 65°
+        // Planet 2 — glowing, tilted 65°
         constexpr float orbit2R = 3.0f, planet2R = 0.14f;
         float orbit2Angle = time * 0.5f;
         Render::PushMatrix();
         Render::RotateX(65.f);
+            glm::vec3 planet2Local = {orbit2R * std::cos(orbit2Angle), orbit2R * std::sin(orbit2Angle), 0.f};
+            glm::vec3 planet2World = glm::vec3(glm::rotate(glm::mat4(1.f), glm::radians(65.f), {1, 0, 0})
+                                               * glm::vec4(planet2Local, 1.f));
+            Render::PointLight(planet2World, {1.f, .4f, .3f}, 3.f);
             Render::Circle({0, 0, 0}, {0, 0, 1}, orbit2R, Hex("#F2404040"), 64, 1.f);
-            Render::Sphere({orbit2R * std::cos(orbit2Angle), orbit2R * std::sin(orbit2Angle), 0.f}, planet2R, Hex("#F24040"));
+            Render::Emissive(true);
+            Render::Sphere(planet2Local, planet2R, Hex("#6a2d1aff"));
+            Render::Emissive(false);
         Render::PopMatrix();
 
         // Moon — tilted 55°
