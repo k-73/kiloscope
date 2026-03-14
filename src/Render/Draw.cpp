@@ -353,6 +353,8 @@ static void UploadMesh(const std::vector<MeshVert>& v) {
         ++sStats.shadowDrawCalls;
         EndShadowPass();
     }
+
+    sEmissive = false;
 }
 
 template <typename MeshT>
@@ -620,7 +622,7 @@ void PointLight(const glm::vec3& pos, const glm::vec3& color, float range) {
     sPointLights[sNumPointLights++] = {pos, color, range};
 }
 
-void Emissive(bool on) { sEmissive = on; }
+void SetNextEmissive() { sEmissive = true; }
 
 void Begin(const char* name, const ViewportConfig& cfg) {
     auto& scene = sScenes[HashName(name)];
@@ -718,7 +720,6 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     sPickMeshReady = false;
     sShadowReady = false;
     sNumPointLights = 0;
-    sEmissive = false;
     sStats = {};
     sStats.viewportW = w;
     sStats.viewportH = h;

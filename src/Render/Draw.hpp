@@ -118,7 +118,7 @@ Environment& GetEnvironment(const char* name);
 
 // ── lights ──────────────────────────────────────────────────────
 void PointLight(const glm::vec3& pos, const glm::vec3& color, float range);
-void Emissive(bool on);
+void SetNextEmissive();
 
 // ── grid ────────────────────────────────────────────────────────
 struct GridConfig {

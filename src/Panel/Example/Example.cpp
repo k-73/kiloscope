@@ -43,13 +43,12 @@ void Example::OnDraw() {
                 showFrame = false;
         }
 
-        // Star (emissive — no directional shading, no shadow receiving)
-        Render::Emissive(true);
+        // Star (emissive core + glow rings)
+        Render::SetNextEmissive();
         Render::Sphere({0, 0, 0}, 0.4f, Hex("#F2EB4D"));
-        Render::Emissive(false);
         auto starEvent = Render::Event();
         if (starEvent.Hovered())
-            Render::Text({0, 0, 0.5f}, White, "star");
+            Render::Text({0, 0, 0.7f}, White, "star");
         if (starEvent.Clicked())
             ImGui::OpenPopup("StarInfo");
 
@@ -60,19 +59,13 @@ void Example::OnDraw() {
         Render::Circle({0, 0, 0}, {0, 0, 1}, orbit1R, Hex("#5980F240"), 64, 1.f);
         Render::Sphere(planet1Pos, planet1R, Hex("#5980F2"));
 
-        // Planet 2 — glowing, tilted 65°
+        // Planet 2 — tilted 65°
         constexpr float orbit2R = 3.0f, planet2R = 0.14f;
         float orbit2Angle = time * 0.5f;
         Render::PushMatrix();
         Render::RotateX(65.f);
-            glm::vec3 planet2Local = {orbit2R * std::cos(orbit2Angle), orbit2R * std::sin(orbit2Angle), 0.f};
-            glm::vec3 planet2World = glm::vec3(glm::rotate(glm::mat4(1.f), glm::radians(65.f), {1, 0, 0})
-                                               * glm::vec4(planet2Local, 1.f));
-            Render::PointLight(planet2World, {1.f, .4f, .3f}, 3.f);
             Render::Circle({0, 0, 0}, {0, 0, 1}, orbit2R, Hex("#F2404040"), 64, 1.f);
-            Render::Emissive(true);
-            Render::Sphere(planet2Local, planet2R, Hex("#6a2d1aff"));
-            Render::Emissive(false);
+            Render::Sphere({orbit2R * std::cos(orbit2Angle), orbit2R * std::sin(orbit2Angle), 0.f}, planet2R, Hex("#F24040"));
         Render::PopMatrix();
 
         // Moon — tilted 55°
@@ -89,6 +82,22 @@ void Example::OnDraw() {
         Render::Text({0, 1.1f, 0}, Hex("#55CC55"), "Y");
         Render::Text({0, 0, 1.1f}, Hex("#5580E6"), "Z");
     Render::End();
+
+    // Star glow — screen-space radial gradient
+    {
+        auto s = Render::WorldToScreen({0, 0, 0});
+        if (s.x > 0.f) {
+            auto* dl = ImGui::GetWindowDrawList();
+            constexpr float glowR = 70.f;
+            constexpr int steps = 30;
+            for (int i = steps; i >= 0; --i) {
+                float t = static_cast<float>(i) / steps;
+                float a = (1.f - t * t) * 0.06f;
+                dl->AddCircleFilled({s.x, s.y}, glowR * t,
+                    ImGui::ColorConvertFloat4ToU32({1.f, .92f, .5f, a}), 32);
+            }
+        }
+    }
 
     if (ImGui::BeginPopup("StarInfo")) {
         ImGui::SeparatorText("Star");
