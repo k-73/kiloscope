@@ -102,6 +102,15 @@ GridConfig& GetGrid(const char* name);
 // ── projection helpers ──────────────────────────────────────────
 glm::vec2 WorldToScreen(const glm::vec3& worldPos);
 
+// ── interaction ─────────────────────────────────────────────────
+struct EventState {
+    bool hovered_ = false;
+    bool Hovered() const { return hovered_; }
+    bool Clicked(int button = 0) const;
+};
+
+EventState Event();
+
 // ── transform stack ──────────────────────────────────────────────
 void PushMatrix();
 void PopMatrix();

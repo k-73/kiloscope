@@ -54,7 +54,7 @@ struct SceneData { Fbo fbo; Camera cam; Environment env; GridConfig gridCfg; };
 
 static std::string sShaderDir;
 static std::unordered_map<uint32_t, std::unique_ptr<SceneData>> sScenes;
-static struct { SceneData* scene{}; float cx{}, cy{}, w{}, h{}; } sFrame;
+static struct { SceneData* scene{}; float cx{}, cy{}, w{}, h{}; bool hovered{}; } sFrame;
 static Environment* sEnv = nullptr;
 
 static uint32_t HashName(const char* s) {
@@ -73,6 +73,21 @@ static glm::vec3 XformPoint(const glm::vec3& p) {
 
 static glm::vec3 XformDir(const glm::vec3& d) {
     return glm::mat3(Mat()) * d;
+}
+
+static float MatScale() {
+    auto& m = Mat();
+    return std::max(std::max(glm::length(glm::vec3(m[0])),
+                             glm::length(glm::vec3(m[1]))),
+                    glm::length(glm::vec3(m[2])));
+}
+
+// ── interaction state ────────────────────────────────────────────────
+
+static struct { glm::vec3 center; float radius; bool valid; } sLastBounding = {{}, 0.f, false};
+
+static void UpdateBounding(const glm::vec3& worldCenter, float worldRadius) {
+    sLastBounding = {worldCenter, worldRadius, true};
 }
 
 // ── geometry helpers ─────────────────────────────────────────────────
@@ -185,19 +200,6 @@ static void FlushLines() {
     sLineBatch.clear();
 }
 
-static void BatchLine(const glm::vec3& a, const glm::vec3& b,
-                      const glm::vec4& color, float width) {
-    if (!sLineBatch.empty() && width != sLineWidth)
-        FlushLines();
-    sLineWidth = width;
-    sLineBatch.push_back({a, b, {-1, 0}, color});
-    sLineBatch.push_back({a, b, { 1, 0}, color});
-    sLineBatch.push_back({a, b, { 1, 1}, color});
-    sLineBatch.push_back({a, b, {-1, 0}, color});
-    sLineBatch.push_back({a, b, { 1, 1}, color});
-    sLineBatch.push_back({a, b, {-1, 1}, color});
-}
-
 static void BatchLineGradient(const glm::vec3& a, const glm::vec3& b,
                                const glm::vec4& ca, const glm::vec4& cb, float width) {
     if (!sLineBatch.empty() && width != sLineWidth)
@@ -209,6 +211,11 @@ static void BatchLineGradient(const glm::vec3& a, const glm::vec3& b,
     sLineBatch.push_back({a, b, {-1, 0}, ca});
     sLineBatch.push_back({a, b, { 1, 1}, cb});
     sLineBatch.push_back({a, b, {-1, 1}, cb});
+}
+
+static void BatchLine(const glm::vec3& a, const glm::vec3& b,
+                      const glm::vec4& color, float width) {
+    BatchLineGradient(a, b, color, color, width);
 }
 
 // ── point batching ───────────────────────────────────────────────────
@@ -239,6 +246,43 @@ static void FlushPoints() {
     sPointBatch.clear();
 }
 
+// ── projection helpers ───────────────────────────────────────────────
+
+glm::vec2 WorldToScreen(const glm::vec3& worldPos) {
+    glm::vec4 clip = sProj * sView * glm::vec4(worldPos, 1.f);
+    if (clip.w <= 0.f) return {-1.f, -1.f};
+    glm::vec3 ndc = glm::vec3(clip) / clip.w;
+    return {
+        sFrame.cx + (ndc.x * 0.5f + 0.5f) * sFrame.w,
+        sFrame.cy + (1.f - (ndc.y * 0.5f + 0.5f)) * sFrame.h
+    };
+}
+
+// ── interaction ──────────────────────────────────────────────────────
+
+bool EventState::Clicked(int button) const {
+    return hovered_ && ImGui::IsMouseClicked(button);
+}
+
+EventState Event() {
+    EventState state;
+    if (!sLastBounding.valid || !sFrame.hovered) return state;
+
+    auto screen = WorldToScreen(sLastBounding.center);
+    if (screen.x < 0.f) return state;
+
+    glm::vec4 clip = sProj * sView * glm::vec4(sLastBounding.center, 1.f);
+    float screenR = sLastBounding.radius * sProj[1][1] * sFrame.h * 0.5f / clip.w;
+    screenR = std::max(screenR, 4.f);
+
+    auto& mouse = ImGui::GetIO().MousePos;
+    float dx = mouse.x - screen.x;
+    float dy = mouse.y - screen.y;
+    state.hovered_ = (dx * dx + dy * dy) <= (screenR * screenR);
+
+    return state;
+}
+
 // ── text overlay ─────────────────────────────────────────────────────
 
 static void FlushText() {
@@ -247,14 +291,11 @@ static void FlushText() {
     ImGui::PushClipRect({sFrame.cx, sFrame.cy},
                         {sFrame.cx + sFrame.w, sFrame.cy + sFrame.h}, true);
     for (auto& e : sTextBatch) {
-        glm::vec4 clip = sProj * sView * glm::vec4(e.worldPos, 1.f);
-        if (clip.w <= 0.f) continue;
-        glm::vec3 ndc = glm::vec3(clip) / clip.w;
-        float sx = sFrame.cx + (ndc.x * 0.5f + 0.5f) * sFrame.w;
-        float sy = sFrame.cy + (1.f - (ndc.y * 0.5f + 0.5f)) * sFrame.h;
+        auto screen = WorldToScreen(e.worldPos);
+        if (screen.x < 0.f) continue;
         ImU32 col = ImGui::ColorConvertFloat4ToU32(
             {e.color.r, e.color.g, e.color.b, e.color.a});
-        dl->AddText({sx, sy}, col, e.text.c_str());
+        dl->AddText({screen.x, screen.y}, col, e.text.c_str());
     }
     ImGui::PopClipRect();
     sTextBatch.clear();
@@ -356,16 +397,18 @@ void Begin(const char* name, const ViewportConfig& cfg) {
 
     auto& io  = ImGui::GetIO();
     auto& cam = scene->cam;
+    bool hovered = ImGui::IsItemHovered();
+    bool active  = ImGui::IsItemActive();
 
-    if (ImGui::IsItemHovered() && io.MouseWheel != 0)
+    if (hovered && io.MouseWheel != 0)
         cam.Zoom(io.MouseWheel);
-    if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+    if (active && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
         cam.Orbit(io.MouseDelta.x, io.MouseDelta.y);
-    if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Middle))
+    if (active && ImGui::IsMouseDragging(ImGuiMouseButton_Middle))
         cam.Pan(io.MouseDelta.x, io.MouseDelta.y);
 
     // begin render pass
-    sFrame = { scene.get(), cursor.x, cursor.y, size.x, size.y };
+    sFrame = { scene.get(), cursor.x, cursor.y, size.x, size.y, hovered };
     sEnv = &scene->env;
 
     const auto& bg = sEnv->bgColor;
@@ -381,6 +424,7 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     sLineBatch.clear();
     sPointBatch.clear();
     sTextBatch.clear();
+    sLastBounding.valid = false;
     sMatStack = {glm::mat4(1.f)};
 }
 
@@ -468,18 +512,6 @@ void End() {
     ImGui::Image(static_cast<ImTextureID>(static_cast<uintptr_t>(sFrame.scene->fbo.Texture())),
                  {sFrame.w, sFrame.h}, {0, 1}, {1, 0});
     FlushText();
-}
-
-// ── projection helpers ───────────────────────────────────────────────
-
-glm::vec2 WorldToScreen(const glm::vec3& worldPos) {
-    glm::vec4 clip = sProj * sView * glm::vec4(worldPos, 1.f);
-    if (clip.w <= 0.f) return {-1.f, -1.f};
-    glm::vec3 ndc = glm::vec3(clip) / clip.w;
-    return {
-        sFrame.cx + (ndc.x * 0.5f + 0.5f) * sFrame.w,
-        sFrame.cy + (1.f - (ndc.y * 0.5f + 0.5f)) * sFrame.h
-    };
 }
 
 // ── transform stack ──────────────────────────────────────────────────
@@ -623,6 +655,9 @@ void Triangle(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c,
     auto normal = glm::normalize(glm::cross(tb - ta, tc - ta));
     SetMeshUniforms(color);
     UploadMesh({{ta, normal}, {tb, normal}, {tc, normal}});
+    auto cent = (ta + tb + tc) / 3.f;
+    UpdateBounding(cent, std::max(glm::length(ta - cent),
+                         std::max(glm::length(tb - cent), glm::length(tc - cent))));
 }
 
 void Quad(const glm::vec3& a, const glm::vec3& b,
@@ -632,6 +667,9 @@ void Quad(const glm::vec3& a, const glm::vec3& b,
     SetMeshUniforms(color);
     UploadMesh({{ta, normal}, {tb, normal}, {tc, normal},
                 {ta, normal}, {tc, normal}, {td, normal}});
+    auto cent = (ta + tb + tc + td) * 0.25f;
+    UpdateBounding(cent, std::max(std::max(glm::length(ta - cent), glm::length(tb - cent)),
+                                  std::max(glm::length(tc - cent), glm::length(td - cent))));
 }
 
 void Plane(const glm::vec3& center, const glm::vec3& normal,
@@ -654,6 +692,7 @@ void Sphere(const glm::vec3& center, float radius,
     AppendMesh(v, generator::SphereMesh(radius, seg, seg / 2),
                glm::translate(Mat(), center));
     UploadMesh(v);
+    UpdateBounding(XformPoint(center), radius * MatScale());
 }
 
 void Box(const glm::vec3& center, const glm::vec3& size,
@@ -663,6 +702,7 @@ void Box(const glm::vec3& center, const glm::vec3& size,
     AppendMesh(v, generator::BoxMesh({size.x, size.y, size.z}, {1, 1, 1}),
                glm::translate(Mat(), center));
     UploadMesh(v);
+    UpdateBounding(XformPoint(center), glm::length(size) * 0.5f * MatScale());
 }
 
 void Cube(const glm::vec3& center, float size, const glm::vec4& color) {
@@ -678,6 +718,8 @@ void Cylinder(const glm::vec3& a, const glm::vec3& b,
     AppendMesh(v, generator::CappedCylinderMesh(radius, halfLen, seg, 1, 1),
                Mat() * ZAlign(a, b));
     UploadMesh(v);
+    UpdateBounding(XformPoint((a + b) * 0.5f),
+                   std::sqrt(halfLen * halfLen + radius * radius) * MatScale());
 }
 
 void Cone(const glm::vec3& base, const glm::vec3& tip,
@@ -689,6 +731,8 @@ void Cone(const glm::vec3& base, const glm::vec3& tip,
     AppendMesh(v, generator::CappedConeMesh(radius, halfLen, seg, 1, 1),
                Mat() * ZAlign(base, tip));
     UploadMesh(v);
+    UpdateBounding(XformPoint((base + tip) * 0.5f),
+                   std::sqrt(halfLen * halfLen + radius * radius) * MatScale());
 }
 
 void Capsule(const glm::vec3& a, const glm::vec3& b,
@@ -700,6 +744,7 @@ void Capsule(const glm::vec3& a, const glm::vec3& b,
     AppendMesh(v, generator::CapsuleMesh(radius, halfLen, seg, 1, seg / 2),
                Mat() * ZAlign(a, b));
     UploadMesh(v);
+    UpdateBounding(XformPoint((a + b) * 0.5f), (halfLen + radius) * MatScale());
 }
 
 void Torus(const glm::vec3& center, const glm::vec3& axis,
@@ -709,6 +754,7 @@ void Torus(const glm::vec3& center, const glm::vec3& axis,
     AppendMesh(v, generator::TorusMesh(minorR, majorR, seg / 2, seg),
                Mat() * AxisTransform(center, axis));
     UploadMesh(v);
+    UpdateBounding(XformPoint(center), (majorR + minorR) * MatScale());
 }
 
 void Disk(const glm::vec3& center, const glm::vec3& normal,
@@ -718,6 +764,7 @@ void Disk(const glm::vec3& center, const glm::vec3& normal,
     AppendMesh(v, generator::DiskMesh(radius, 0.0, seg, 1),
                Mat() * AxisTransform(center, normal));
     UploadMesh(v);
+    UpdateBounding(XformPoint(center), radius * MatScale());
 }
 
 void Ring(const glm::vec3& center, const glm::vec3& normal,
@@ -727,6 +774,7 @@ void Ring(const glm::vec3& center, const glm::vec3& normal,
     AppendMesh(v, generator::DiskMesh(outerR, innerR, seg, 1),
                Mat() * AxisTransform(center, normal));
     UploadMesh(v);
+    UpdateBounding(XformPoint(center), outerR * MatScale());
 }
 
 // ── custom mesh ──────────────────────────────────────────────────────
@@ -785,6 +833,7 @@ void WireBox(const glm::vec3& center, const glm::vec3& size,
     Line(c[6],c[7],color,width); Line(c[7],c[4],color,width);
     Line(c[0],c[4],color,width); Line(c[1],c[5],color,width);
     Line(c[2],c[6],color,width); Line(c[3],c[7],color,width);
+    UpdateBounding(XformPoint(center), glm::length(size) * 0.5f * MatScale());
 }
 
 void WireSphere(const glm::vec3& center, float radius,
@@ -792,6 +841,7 @@ void WireSphere(const glm::vec3& center, float radius,
     Circle(center, {1, 0, 0}, radius, color, seg, width);
     Circle(center, {0, 1, 0}, radius, color, seg, width);
     Circle(center, {0, 0, 1}, radius, color, seg, width);
+    UpdateBounding(XformPoint(center), radius * MatScale());
 }
 
 void WireCylinder(const glm::vec3& a, const glm::vec3& b,
@@ -811,6 +861,8 @@ void WireCylinder(const glm::vec3& a, const glm::vec3& b,
         auto d = perp * std::cos(angle) + side * std::sin(angle);
         Line(a + d * radius, b + d * radius, color, width);
     }
+    UpdateBounding(XformPoint((a + b) * 0.5f),
+                   std::sqrt(len * len * 0.25f + radius * radius) * MatScale());
 }
 
 void WireCone(const glm::vec3& base, const glm::vec3& tip,
@@ -829,6 +881,8 @@ void WireCone(const glm::vec3& base, const glm::vec3& tip,
         auto d = perp * std::cos(angle) + side * std::sin(angle);
         Line(base + d * radius, tip, color, width);
     }
+    UpdateBounding(XformPoint((base + tip) * 0.5f),
+                   std::sqrt(len * len * 0.25f + radius * radius) * MatScale());
 }
 
 void WireCapsule(const glm::vec3& a, const glm::vec3& b,
@@ -854,6 +908,7 @@ void WireCapsule(const glm::vec3& a, const glm::vec3& b,
     Arc(a, side, -dir, radius, 180.f, color, halfSeg, width);
     Arc(b, perp,  dir, radius, 180.f, color, halfSeg, width);
     Arc(b, side,  dir, radius, 180.f, color, halfSeg, width);
+    UpdateBounding(XformPoint((a + b) * 0.5f), (len * 0.5f + radius) * MatScale());
 }
 
 // ── composite ────────────────────────────────────────────────────────
@@ -876,6 +931,7 @@ void Arrow(const glm::vec3& from, const glm::vec3& to,
     AppendMesh(v, generator::CappedConeMesh(headR, halfHead, 24, 1, 1),
                Mat() * ZAlign(shaftEnd, to));
     UploadMesh(v);
+    UpdateBounding(XformPoint((from + to) * 0.5f), len * 0.5f * MatScale());
 }
 
 void Axes(const glm::vec3& origin, float len) {
@@ -883,6 +939,7 @@ void Axes(const glm::vec3& origin, float len) {
     Arrow(origin, origin + glm::vec3(len, 0, 0), {.95f, .25f, .25f, 1}, s, h);
     Arrow(origin, origin + glm::vec3(0, len, 0), {.35f, .85f, .35f, 1}, s, h);
     Arrow(origin, origin + glm::vec3(0, 0, len), {.35f, .50f, .95f, 1}, s, h);
+    UpdateBounding(XformPoint(origin), len * MatScale());
 }
 
 void Frame(const glm::mat4& pose, float len) {
@@ -906,6 +963,7 @@ void Cross(const glm::vec3& pos, float size,
     Line(pos - glm::vec3(hs, 0, 0), pos + glm::vec3(hs, 0, 0), color, width);
     Line(pos - glm::vec3(0, hs, 0), pos + glm::vec3(0, hs, 0), color, width);
     Line(pos - glm::vec3(0, 0, hs), pos + glm::vec3(0, 0, hs), color, width);
+    UpdateBounding(XformPoint(pos), size * 0.5f * MatScale());
 }
 
 void AABB(const glm::vec3& mn, const glm::vec3& mx,

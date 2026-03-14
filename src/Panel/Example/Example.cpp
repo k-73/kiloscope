@@ -34,10 +34,19 @@ void Example::OnDraw() {
         Render::Grid();
 
         // Origin frame
-        Render::Frame(glm::mat4(1.f), 1.f);
+        static bool frameShowed = true;
+            if(frameShowed) {
+            Render::Frame(glm::mat4(1.f), 1.f);
+            if(Render::Event().Clicked()) {
+                frameShowed = false;
+            }        
+        }
 
         // Central body
         Render::Sphere({0, 0, 0}, 0.4f, Render::Color::Yellow);
+        if(Render::Event().Hovered()) {
+            Render::Text({0, 0, 0.0f}, Render::Color::White, "sun");
+        }
 
         // Orbit 1 — equatorial
         float r1 = 2.2f, a1 = t * 0.8f;
