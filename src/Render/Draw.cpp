@@ -166,11 +166,22 @@ struct PointLightData { glm::vec3 pos, color; float range; };
 static int sNumPointLights = 0;
 static PointLightData sPointLights[kMaxPointLights];
 
+// ── deferred mesh draw list ──────────────────────────────────────────
+
+struct MeshDraw {
+    GLsizei offset, count;
+    glm::vec4 color;
+    bool unlit;
+    uint32_t pickId;
+    bool castShadow;
+};
+static std::vector<MeshDraw> sDrawList;
+static std::vector<MeshVert> sVboAccum;  // all mesh vertices for deferred rendering
+
 // ── per-scene state ──────────────────────────────────────────────────
 
 struct SceneData {
-    Fbo fbo; PickFbo pickFbo;
-    ShadowFbo shadowRead, shadowWrite;  // double-buffered: read prev frame, write current
+    Fbo fbo; PickFbo pickFbo; ShadowFbo shadowFbo;
     Camera cam; Environment env; GridConfig gridCfg;
     uint32_t hoveredPickId = 0;
 };
@@ -279,7 +290,7 @@ static void SetMeshFrameUniforms() {
     // Shadow map
     sMeshShader.Set("uLightVP", sLightVP);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, sFrame.scene->shadowRead.depth);
+    glBindTexture(GL_TEXTURE_2D, sFrame.scene->shadowFbo.depth);
     sMeshShader.Set("uShadowMap", 0);
 
     // Point lights
@@ -294,11 +305,12 @@ static void SetMeshFrameUniforms() {
     sMeshFrameReady = true;
 }
 
+static glm::vec4 sCurrentColor;
+static bool sCurrentUnlit = false;
+
 static void SetMeshUniforms(const glm::vec4& color, bool unlit = false) {
-    SetMeshFrameUniforms();
-    sMeshShader.Use();
-    sMeshShader.Set("uColor", color);
-    sMeshShader.Set("uUnlit", (unlit || sEmissive) ? 1 : 0);
+    sCurrentColor = color;
+    sCurrentUnlit = unlit || sEmissive;
 }
 
 // ── pick pass helpers ────────────────────────────────────────────────
@@ -314,7 +326,7 @@ static void EndPickPass() {
 }
 
 static void BeginShadowPass() {
-    sFrame.scene->shadowWrite.Bind();
+    sFrame.scene->shadowFbo.Bind();
     glDepthMask(GL_TRUE);
     glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
 }
@@ -327,14 +339,19 @@ static void EndShadowPass() {
 
 static void UploadMesh(const std::vector<MeshVert>& v) {
     auto count = static_cast<GLsizei>(v.size());
-    glNamedBufferData(sMeshVbo, GLsizeiptr(count * sizeof(MeshVert)),
-                      v.data(), GL_DYNAMIC_DRAW);
-    glBindVertexArray(sMeshVao);
-    glDrawArrays(GL_TRIANGLES, 0, count);
-    ++sStats.drawCalls;
-    sStats.vertices += count;
+    auto offset = static_cast<GLsizei>(sVboAccum.size());
 
+    // Accumulate vertices in CPU buffer (uploaded once in End())
+    sVboAccum.insert(sVboAccum.end(), v.begin(), v.end());
+
+    // Record draw call for deferred execution
+    sDrawList.push_back({offset, count, sCurrentColor, sCurrentUnlit, sLastPickId, sShadowCasting});
+
+    // Immediate: pick pass (needs per-primitive for Event())
     if (sPickEnabled && sLastPickId) {
+        // Upload current accumulated data to VBO for pick draw
+        glNamedBufferData(sMeshVbo, GLsizeiptr(sVboAccum.size() * sizeof(MeshVert)),
+                          sVboAccum.data(), GL_DYNAMIC_DRAW);
         BeginPickPass();
         sPickMeshShader.Use();
         if (!sPickMeshReady) {
@@ -344,31 +361,12 @@ static void UploadMesh(const std::vector<MeshVert>& v) {
         sPickMeshShader.Set("uPickId", sLastPickId);
         glEnable(GL_CULL_FACE);
         glBindVertexArray(sMeshVao);
-        glDrawArrays(GL_TRIANGLES, 0, count);
+        glDrawArrays(GL_TRIANGLES, offset, count);
         ++sStats.pickDrawCalls;
         EndPickPass();
     }
 
-    // Shadow pass
-    if (sShadowCasting) {
-        BeginShadowPass();
-        sShadowShader.Use();
-        if (!sShadowReady) {
-            sShadowShader.Set("uLightVP", sLightVP);
-            sShadowReady = true;
-        }
-        glEnable(GL_CULL_FACE);
-        glCullFace(GL_FRONT);
-        glEnable(GL_POLYGON_OFFSET_FILL);
-        glPolygonOffset(1.1f, 4.f);
-        glBindVertexArray(sMeshVao);
-        glDrawArrays(GL_TRIANGLES, 0, count);
-        glDisable(GL_POLYGON_OFFSET_FILL);
-        glCullFace(GL_BACK);
-        ++sStats.shadowDrawCalls;
-        EndShadowPass();
-    }
-
+    sStats.vertices += count;
     sEmissive = false;
     sShadowCasting = true;
 }
@@ -649,8 +647,7 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     int h = std::max(1, static_cast<int>(cfg.height > 0 ? cfg.height : avail.y));
     scene->fbo.Resize(w, h, 16);
     scene->pickFbo.Resize(w, h);
-    scene->shadowRead.Resize(2048, 2048);
-    scene->shadowWrite.Resize(2048, 2048);
+    scene->shadowFbo.Resize(2048, 2048);
 
     ImVec2 size{static_cast<float>(w), static_cast<float>(h)};
     auto cursor = ImGui::GetCursorScreenPos();
@@ -718,33 +715,28 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     sLightDir = glm::normalize(sEnv->lightDir);
     sVpW = w; sVpH = h;
 
-    // Light VP for shadow mapping (centered on camera pivot, texel-snapped)
+    // Light VP for shadow mapping (NDC texel-snapped)
     {
         auto pivot = cam.Pivot();
-        float shadowSize = cam.Distance() * 2.f;
+        float shadowSize = std::max(4.f, std::ceil(cam.Distance() * 2.f));
         float shadowDist = shadowSize * 2.f;
         glm::vec3 lightPos = pivot + sLightDir * shadowDist;
         glm::vec3 up = (std::abs(sLightDir.z) > 0.99f) ? glm::vec3(0, 1, 0) : glm::vec3(0, 0, 1);
         auto lightView = glm::lookAt(lightPos, pivot, up);
         auto lightProj = glm::ortho(-shadowSize, shadowSize, -shadowSize, shadowSize, 0.1f, shadowDist * 2.f);
 
-        // Snap to texel grid to prevent shadow swimming
-        float texelSize = shadowSize * 2.f / 2048.f;
-        auto vp = lightProj * lightView;
-        glm::vec4 origin = vp * glm::vec4(0, 0, 0, 1);
-        origin.x = std::round(origin.x / texelSize) * texelSize;
-        origin.y = std::round(origin.y / texelSize) * texelSize;
-        // Create snapped VP (adjust the translation of the projection)
-        glm::vec4 offset = origin - vp * glm::vec4(0, 0, 0, 1);
-        lightProj[3][0] += offset.x;
-        lightProj[3][1] += offset.y;
+        // Snap projection so shadow texels align to stable world grid
+        constexpr float shadowRes = 2048.f;
+        float ndcTexel = 2.f / shadowRes;
+        glm::vec4 origin = lightProj * lightView * glm::vec4(0, 0, 0, 1);
+        lightProj[3][0] -= origin.x - std::floor(origin.x / ndcTexel) * ndcTexel;
+        lightProj[3][1] -= origin.y - std::floor(origin.y / ndcTexel) * ndcTexel;
 
         sLightVP = lightProj * lightView;
     }
 
     // Init pick + shadow state
     scene->pickFbo.Clear();
-    scene->shadowWrite.Clear();
     glBindFramebuffer(GL_FRAMEBUFFER, scene->fbo.Handle());
     glViewport(0, 0, w, h);
 
@@ -756,6 +748,8 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     sPickMeshReady = false;
     sShadowReady = false;
     sNumPointLights = 0;
+    sDrawList.clear();
+    sVboAccum.clear();
     sStats = {};
     sStats.viewportW = w;
     sStats.viewportH = h;
@@ -867,6 +861,41 @@ void End() {
         sPickEnabled = true;
     }
 
+    // ── Two-pass deferred mesh rendering ────────────────────────
+    if (!sDrawList.empty()) {
+        // Upload ALL mesh data to VBO once
+        glNamedBufferData(sMeshVbo, GLsizeiptr(sVboAccum.size() * sizeof(MeshVert)),
+                          sVboAccum.data(), GL_DYNAMIC_DRAW);
+
+        // Pass 1: shadow map (all meshes → shadow FBO)
+        sFrame.scene->shadowFbo.Clear();
+        BeginShadowPass();
+        sShadowShader.Use();
+        sShadowShader.Set("uLightVP", sLightVP);
+        glEnable(GL_CULL_FACE);
+        glCullFace(GL_FRONT);
+        glBindVertexArray(sMeshVao);
+        for (auto& d : sDrawList)
+            if (d.castShadow)
+                glDrawArrays(GL_TRIANGLES, d.offset, d.count);
+        glCullFace(GL_BACK);
+        sStats.shadowDrawCalls += static_cast<int>(sDrawList.size());
+        EndShadowPass();
+
+        // Pass 2: color (all meshes → main FBO, shadow map complete)
+        SetMeshFrameUniforms();
+        sMeshShader.Use();
+        glBindVertexArray(sMeshVao);
+        for (auto& d : sDrawList) {
+            sMeshShader.Set("uColor", d.color);
+            sMeshShader.Set("uUnlit", d.unlit ? 1 : 0);
+            glDrawArrays(GL_TRIANGLES, d.offset, d.count);
+            ++sStats.drawCalls;
+        }
+        sDrawList.clear();
+        sVboAccum.clear();
+    }
+
     if (sEnv->showSun) DrawSun();
     FlushPoints();
     FlushLines();
@@ -881,9 +910,6 @@ void End() {
         int my = static_cast<int>(sFrame.h - 1.f - (io.MousePos.y - sFrame.cy));
         sFrame.scene->hoveredPickId = sFrame.scene->pickFbo.ReadPixel(mx, my);
     }
-
-    // Swap shadow buffers: write becomes read for next frame
-    std::swap(sFrame.scene->shadowRead, sFrame.scene->shadowWrite);
 
     sFrame.scene->fbo.Resolve();
     ImGui::SetCursorScreenPos({sFrame.cx, sFrame.cy});
