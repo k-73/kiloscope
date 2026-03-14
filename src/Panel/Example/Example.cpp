@@ -39,7 +39,7 @@ void Example::OnDraw() {
             Render::Frame(glm::mat4(1.f), 1.f);
             if(Render::Event().Clicked()) {
                 frameShowed = false;
-            }        
+            }
         }
 
         // Central body
@@ -69,12 +69,6 @@ void Example::OnDraw() {
             Render::Sphere({r3 * std::cos(a3), r3 * std::sin(a3), 0}, 0.11f, Render::Color::Green);
         Render::PopMatrix();
 
-        // Rotating OBB
-        Render::OBB({4.f, 0, 1.f}, glm::angleAxis(t * 0.3f, glm::vec3(0, 0, 1)),
-                    {1.f, 0.5f, 0.8f}, Render::Color::Cyan);
-        if(Render::Event().Clicked()) {
-            Render::Text({4.f, 0, 1.8f}, Render::Color::White, "OBB") ;
-        }
         // Labels
         Render::Text({0, 0, 0.6f}, Render::Color::White, "center");
     Render::End();

@@ -73,6 +73,9 @@ struct PickFbo {
     }
 
     ~PickFbo() { Destroy(); }
+    PickFbo() = default;
+    PickFbo(const PickFbo&) = delete;
+    PickFbo& operator=(const PickFbo&) = delete;
 };
 
 // ── shared GPU resources ─────────────────────────────────────────────
@@ -100,7 +103,6 @@ static std::vector<glm::mat4> sMatStack = {glm::mat4(1.f)};
 
 struct SceneData { Fbo fbo; PickFbo pickFbo; Camera cam; Environment env; GridConfig gridCfg; };
 
-static std::string sShaderDir;
 static std::unordered_map<uint32_t, std::unique_ptr<SceneData>> sScenes;
 static struct { SceneData* scene{}; float cx{}, cy{}, w{}, h{}; bool hovered{}; } sFrame;
 static Environment* sEnv = nullptr;
@@ -432,7 +434,6 @@ static void Eigen3(const glm::mat3& A, glm::vec3& eigenvalues, glm::mat3& eigenv
 // ── scene viewport ───────────────────────────────────────────────────
 
 void Init(const std::string& dir) {
-    sShaderDir = dir;
     sMeshShader      = Shader(dir + "/Basic.vert",     dir + "/Basic.frag");
     sLineShader      = Shader(dir + "/Line.vert",      dir + "/Line.frag");
     sGridShader      = Shader(dir + "/Grid.vert",      dir + "/Grid.frag");
