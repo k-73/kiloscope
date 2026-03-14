@@ -98,7 +98,8 @@ static std::vector<TextEntry> sTextBatch;
 static float sLineWidth  = 2.5f;
 static float sPointSize  = 4.f;
 static std::vector<glm::mat4> sMatStack = {glm::mat4(1.f)};
-static std::vector<MeshVert>  sMeshScratch;  // reused per-frame, avoids allocations
+static std::vector<MeshVert>  sMeshScratch;
+static std::vector<MeshVert>  sIndexedScratch;
 
 // ── per-scene state ──────────────────────────────────────────────────
 
@@ -187,6 +188,7 @@ static void SetupVao(GLuint vao, GLuint vbo, GLsizei stride,
 }
 
 static bool sMeshFrameReady = false;
+static bool sPickMeshReady  = false;
 
 static void SetMeshFrameUniforms() {
     if (sMeshFrameReady) return;
@@ -239,8 +241,11 @@ static void UploadMesh(const std::vector<MeshVert>& v) {
     if (sPickEnabled && sLastPickId) {
         BeginPickPass();
         sPickMeshShader.Use();
-        sPickMeshShader.Set("uView", sView);
-        sPickMeshShader.Set("uProj", sProj);
+        if (!sPickMeshReady) {
+            sPickMeshShader.Set("uView", sView);
+            sPickMeshShader.Set("uProj", sProj);
+            sPickMeshReady = true;
+        }
         sPickMeshShader.Set("uPickId", sLastPickId);
         glEnable(GL_CULL_FACE);
         glBindVertexArray(sMeshVao);
@@ -254,19 +259,19 @@ template <typename MeshT>
 static void AppendMesh(std::vector<MeshVert>& out, const MeshT& mesh,
                        const glm::mat4& xform) {
     auto nmat = glm::transpose(glm::inverse(glm::mat3(xform)));
-    std::vector<MeshVert> indexed;
+    sIndexedScratch.clear();
     for (auto it = mesh.vertices(); !it.done(); it.next()) {
         auto v = it.generate();
-        indexed.push_back({
+        sIndexedScratch.push_back({
             glm::vec3(xform * glm::vec4(glm::vec3(v.position), 1.f)),
             glm::normalize(nmat * glm::vec3(v.normal))
         });
     }
     for (auto it = mesh.triangles(); !it.done(); it.next()) {
         auto t = it.generate();
-        out.push_back(indexed[t.vertices[0]]);
-        out.push_back(indexed[t.vertices[1]]);
-        out.push_back(indexed[t.vertices[2]]);
+        out.push_back(sIndexedScratch[t.vertices[0]]);
+        out.push_back(sIndexedScratch[t.vertices[1]]);
+        out.push_back(sIndexedScratch[t.vertices[2]]);
     }
 }
 
@@ -558,6 +563,7 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     sPickIdOverride = 0;
     sPickEnabled = true;
     sMeshFrameReady = false;
+    sPickMeshReady = false;
     sLineBatch.clear();
     sPointBatch.clear();
     sTextBatch.clear();
