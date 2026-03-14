@@ -47,7 +47,7 @@ void Fbo::Resize(int w, int h, int samples) {
 
     glCreateFramebuffers(1, &msaaFbo_);
     glCreateRenderbuffers(1, &msaaColor_);
-    glNamedRenderbufferStorageMultisample(msaaColor_, samples_, GL_RGBA8, w_, h_);
+    glNamedRenderbufferStorageMultisample(msaaColor_, samples_, GL_RGBA16F, w_, h_);
     glNamedFramebufferRenderbuffer(msaaFbo_, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, msaaColor_);
 
     glCreateRenderbuffers(1, &msaaDepth_);
@@ -56,7 +56,7 @@ void Fbo::Resize(int w, int h, int samples) {
 
     glCreateFramebuffers(1, &resolveFbo_);
     glCreateTextures(GL_TEXTURE_2D, 1, &resolvedTex_);
-    glTextureStorage2D(resolvedTex_, 1, GL_RGBA8, w_, h_);
+    glTextureStorage2D(resolvedTex_, 1, GL_RGBA16F, w_, h_);
     glTextureParameteri(resolvedTex_, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTextureParameteri(resolvedTex_, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glNamedFramebufferTexture(resolveFbo_, GL_COLOR_ATTACHMENT0, resolvedTex_, 0);
