@@ -107,7 +107,7 @@ static std::vector<MeshVert>  sIndexedScratch;
 struct SceneData { Fbo fbo; PickFbo pickFbo; Camera cam; Environment env; GridConfig gridCfg; };
 
 static std::unordered_map<uint32_t, std::unique_ptr<SceneData>> sScenes;
-static struct { SceneData* scene{}; float cx{}, cy{}, w{}, h{}; bool hovered{}; } sFrame;
+static struct { SceneData* scene{}; float cx{}, cy{}, w{}, h{}; bool hovered{}; bool fly{}; } sFrame;
 static Environment* sEnv = nullptr;
 
 static uint32_t HashName(const char* s) {
@@ -531,21 +531,20 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     auto& cam = scene->cam;
     bool hovered = ImGui::IsItemHovered();
     bool active  = ImGui::IsItemActive();
+    bool shift = ImGui::IsKeyDown(ImGuiKey_LeftShift) || ImGui::IsKeyDown(ImGuiKey_RightShift);
     bool fly = active && ImGui::IsMouseDown(ImGuiMouseButton_Right);
 
     // Scroll = zoom
     if (hovered && io.MouseWheel != 0.f)
         cam.Zoom(io.MouseWheel);
 
-    // LMB drag = orbit (disabled in fly mode)
-    if (active && !fly && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
-        cam.Orbit(io.MouseDelta.x, io.MouseDelta.y);
+    // MMB drag = orbit / Shift+MMB = pan (Blender standard)
+    if (active && ImGui::IsMouseDragging(ImGuiMouseButton_Middle)) {
+        if (shift) cam.Pan(io.MouseDelta.x, io.MouseDelta.y);
+        else       cam.Orbit(io.MouseDelta.x, io.MouseDelta.y);
+    }
 
-    // MMB drag = pan
-    if (active && ImGui::IsMouseDragging(ImGuiMouseButton_Middle))
-        cam.Pan(io.MouseDelta.x, io.MouseDelta.y);
-
-    // RMB = fly mode (look + WASD/arrows/QE, cursor locked)
+    // RMB hold = fly mode (cursor locked, WASD/arrows/QE)
     {
         auto* win = glfwGetCurrentContext();
         bool wasFly = glfwGetInputMode(win, GLFW_CURSOR) == GLFW_CURSOR_DISABLED;
@@ -562,12 +561,12 @@ void Begin(const char* name, const ViewportConfig& cfg) {
         if (ImGui::IsKeyDown(ImGuiKey_D) || ImGui::IsKeyDown(ImGuiKey_RightArrow)) r += 1.f;
         if (ImGui::IsKeyDown(ImGuiKey_A) || ImGui::IsKeyDown(ImGuiKey_LeftArrow))  r -= 1.f;
         if (ImGui::IsKeyDown(ImGuiKey_E) || ImGui::IsKeyDown(ImGuiKey_Space))      u += 1.f;
-        if (ImGui::IsKeyDown(ImGuiKey_Q) || ImGui::IsKeyDown(ImGuiKey_LeftShift))  u -= 1.f;
+        if (ImGui::IsKeyDown(ImGuiKey_Q))                                          u -= 1.f;
         if (f != 0.f || r != 0.f || u != 0.f)
             cam.FlyMove(f, r, u, io.DeltaTime);
     }
 
-    sFrame = { scene.get(), cursor.x, cursor.y, size.x, size.y, hovered };
+    sFrame = { scene.get(), cursor.x, cursor.y, size.x, size.y, hovered, fly };
     sEnv = &scene->env;
 
     const auto& bg = sEnv->bgColor;
@@ -679,6 +678,29 @@ GridConfig& GetGrid() {
 GridConfig& GetGrid(const char* name) { return GetScene(name).gridCfg; }
 
 void End() {
+    // Fly mode pivot indicator
+    if (sFrame.fly) {
+        sPickEnabled = false;
+        auto& cam = sFrame.scene->cam;
+        auto pivot = cam.Pivot();
+        float dist = cam.Distance();
+        float s = dist * 0.03f;
+
+        // Mini axes at pivot
+        Line(pivot, pivot + glm::vec3(s, 0, 0), {.95f, .25f, .25f, .7f}, 2.f);
+        Line(pivot, pivot + glm::vec3(0, s, 0), {.35f, .85f, .35f, .7f}, 2.f);
+        Line(pivot, pivot + glm::vec3(0, 0, s), {.35f, .50f, .95f, .7f}, 2.f);
+
+        // Distance line from camera to pivot
+        auto eye = cam.Eye();
+        Line(eye, pivot, {1.f, 1.f, 1.f, .15f}, 1.f);
+
+        // Distance label
+        Text(pivot + glm::vec3(s * 0.5f, s * 0.5f, s), {1.f, 1.f, 1.f, .6f}, "%.1f", dist);
+
+        sPickEnabled = true;
+    }
+
     if (sEnv->showSun) DrawSun();
     FlushPoints();
     FlushLines();
