@@ -2,10 +2,47 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <string>
+#include <cmath>
 
 namespace Kilo::Render {
 
 class Camera;
+
+// ── colors ──────────────────────────────────────────────────────
+namespace Color {
+
+inline constexpr glm::vec4 Red     {.95f, .25f, .25f, 1.f};
+inline constexpr glm::vec4 Green   {.35f, .85f, .35f, 1.f};
+inline constexpr glm::vec4 Blue    {.35f, .50f, .95f, 1.f};
+inline constexpr glm::vec4 Yellow  {1.f,  .92f, .30f, 1.f};
+inline constexpr glm::vec4 Cyan    {.30f, .90f, .95f, 1.f};
+inline constexpr glm::vec4 Magenta {.90f, .35f, .90f, 1.f};
+inline constexpr glm::vec4 Orange  {1.f,  .60f, .20f, 1.f};
+inline constexpr glm::vec4 White   {1.f,  1.f,  1.f,  1.f};
+inline constexpr glm::vec4 Gray    {.55f, .55f, .55f, 1.f};
+inline constexpr glm::vec4 Black   {.05f, .05f, .05f, 1.f};
+
+inline constexpr glm::vec4 WithAlpha(glm::vec4 c, float a) {
+    return {c.r, c.g, c.b, a};
+}
+
+inline glm::vec4 Hue(float t) {
+    float h = t - std::floor(t);
+    float s = h * 6.f;
+    int   i = static_cast<int>(s);
+    float f = s - static_cast<float>(i);
+    float q = 1.f - f, v = f;
+    switch (i % 6) {
+        case 0: return {1.f, v,   0.f, 1.f};
+        case 1: return {q,   1.f, 0.f, 1.f};
+        case 2: return {0.f, 1.f, v,   1.f};
+        case 3: return {0.f, q,   1.f, 1.f};
+        case 4: return {v,   0.f, 1.f, 1.f};
+        default:return {1.f, 0.f, q,   1.f};
+    }
+}
+
+} // namespace Color
 
 // ── scene viewport ──────────────────────────────────────────────
 struct ViewportConfig {
@@ -21,7 +58,7 @@ Camera& GetCamera();
 Camera& GetCamera(const char* name);
 
 struct Environment {
-    glm::vec3 lightDir = {.5f, .3f, 1.f};  // normalized when used
+    glm::vec3 lightDir = {.5f, .3f, 1.f};
     glm::vec3 bgColor  = {.12f, .12f, .14f};
     float ambient    = 0.22f;
     float diffuse    = 0.7f;
@@ -62,6 +99,9 @@ void Grid(const GridConfig& cfg);
 GridConfig& GetGrid();
 GridConfig& GetGrid(const char* name);
 
+// ── projection helpers ──────────────────────────────────────────
+glm::vec2 WorldToScreen(const glm::vec3& worldPos);
+
 // ── transform stack ──────────────────────────────────────────────
 void PushMatrix();
 void PopMatrix();
@@ -83,11 +123,25 @@ void Line(const glm::vec3& a, const glm::vec3& b,
           const glm::vec4& color, float width = 2.5f);
 void Polyline(const glm::vec3* points, int count,
               const glm::vec4& color, float width = 2.5f, bool closed = false);
+void Path(const glm::vec3* points, const glm::vec4* colors,
+          int count, float width = 2.5f, bool closed = false);
 void Arc(const glm::vec3& center, const glm::vec3& axis,
          const glm::vec3& startDir, float radius,
          float angleDeg, const glm::vec4& color, int seg = 32, float width = 2.5f);
 void Circle(const glm::vec3& center, const glm::vec3& axis,
             float radius, const glm::vec4& color, int seg = 32, float width = 2.5f);
+void Spline(const glm::vec3* controlPoints, int count,
+            const glm::vec4& color, int segments = 32, float width = 2.5f);
+
+// ── points ───────────────────────────────────────────────────────
+void Points(const glm::vec3* positions, int count,
+            const glm::vec4& color, float size = 4.f);
+void Points(const glm::vec3* positions, const glm::vec4* colors,
+            int count, float size = 4.f);
+
+// ── text ─────────────────────────────────────────────────────────
+void Text(const glm::vec3& pos, const glm::vec4& color,
+          const char* fmt, ...) __attribute__((format(printf, 3, 4)));
 
 // ── basic geometry ───────────────────────────────────────────────
 void Triangle(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c,
@@ -116,21 +170,39 @@ void Disk(const glm::vec3& center, const glm::vec3& normal,
 void Ring(const glm::vec3& center, const glm::vec3& normal,
           float innerR, float outerR, const glm::vec4& color, int seg = 32);
 
+// ── custom mesh ──────────────────────────────────────────────────
+void Mesh(const glm::vec3* verts, const glm::vec3* normals,
+          const uint32_t* indices, int indexCount, const glm::vec4& color);
+void Mesh(const glm::vec3* verts, const glm::vec3* normals,
+          int vertCount, const glm::vec4& color);
+
 // ── wireframe ────────────────────────────────────────────────────
 void WireBox(const glm::vec3& center, const glm::vec3& size,
              const glm::vec4& color, float width = 2.5f);
 void WireSphere(const glm::vec3& center, float radius,
                 const glm::vec4& color, int seg = 32, float width = 2.5f);
+void WireCylinder(const glm::vec3& a, const glm::vec3& b,
+                  float radius, const glm::vec4& color, int seg = 16, float width = 2.5f);
+void WireCone(const glm::vec3& base, const glm::vec3& tip,
+              float radius, const glm::vec4& color, int seg = 16, float width = 2.5f);
+void WireCapsule(const glm::vec3& a, const glm::vec3& b,
+                 float radius, const glm::vec4& color, int seg = 16, float width = 2.5f);
 
 // ── composite ────────────────────────────────────────────────────
 void Arrow(const glm::vec3& from, const glm::vec3& to,
            const glm::vec4& color, float shaftR = 0.02f, float headR = 0.06f);
 void Axes(const glm::vec3& origin, float len = 1.f);
+void Frame(const glm::mat4& pose, float len = 0.3f);
+void Frame(const glm::vec3& pos, const glm::quat& orient, float len = 0.3f);
 void Point(const glm::vec3& pos, const glm::vec4& color, float size = 0.05f);
 void Cross(const glm::vec3& pos, float size,
            const glm::vec4& color, float width = 2.5f);
 void AABB(const glm::vec3& min, const glm::vec3& max,
           const glm::vec4& color, float width = 2.5f);
+void OBB(const glm::vec3& center, const glm::quat& orient,
+         const glm::vec3& size, const glm::vec4& color, float width = 2.5f);
+void Covariance(const glm::vec3& pos, const glm::mat3& cov,
+                const glm::vec4& color, float sigma = 2.f, int seg = 24);
 void WireGrid(const glm::vec3& center, const glm::vec3& normal,
               float size, int divisions, const glm::vec4& color, float width = 1.f);
 void Frustum(const glm::mat4& viewProj,

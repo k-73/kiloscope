@@ -28,38 +28,50 @@ void Example::OnLoop() {
 }
 
 void Example::OnDraw() {
+    namespace R = Kilo::Render;
+    using namespace R::Color;
     float t = elapsedTime_;
 
-    Render::Begin("scene", {.width = 600, .height = 600});
-        Render::Grid();
+    R::Begin("scene", {.width = 600, .height = 600});
+        R::Grid();
+
+        // Origin frame
+        R::Frame(glm::mat4(1.f), 1.f);
 
         // Central body
-        Render::Sphere({0, 0, 0}, 0.4f, {1.f, .85f, .4f, 1.f});
+        R::Sphere({0, 0, 0}, 0.4f, Yellow);
 
         // Orbit 1 — equatorial
         float r1 = 2.2f, a1 = t * 0.8f;
-        Render::Circle({0, 0, 0}, {0, 0, 1}, r1, {.4f, .65f, 1.f, .25f}, 64, 1.f);
-        Render::Sphere({r1 * std::cos(a1), r1 * std::sin(a1), 0}, 0.18f, {.4f, .65f, 1.f, 1.f});
+        R::Circle({0, 0, 0}, {0, 0, 1}, r1, WithAlpha(Blue, .25f), 64, 1.f);
+        R::Sphere({r1 * std::cos(a1), r1 * std::sin(a1), 0}, 0.18f, Blue);
 
         // Orbit 2 — tilted 65°
-        Render::PushMatrix();
-        Render::RotateX(65.f);
+        R::PushMatrix();
+        R::RotateX(65.f);
             float r2 = 3.f, a2 = t * 0.5f;
-            Render::Circle({0, 0, 0}, {0, 0, 1}, r2, {.95f, .45f, .5f, .25f}, 64, 1.f);
-            Render::Sphere({r2 * std::cos(a2), r2 * std::sin(a2), 0}, 0.14f, {.95f, .5f, .55f, 1.f});
-        Render::PopMatrix();
+            R::Circle({0, 0, 0}, {0, 0, 1}, r2, WithAlpha(Red, .25f), 64, 1.f);
+            R::Sphere({r2 * std::cos(a2), r2 * std::sin(a2), 0}, 0.14f, Red);
+        R::PopMatrix();
 
         // Orbit 3 — opposite tilt
-        Render::PushMatrix();
-        Render::RotateY(55.f);
+        R::PushMatrix();
+        R::RotateY(55.f);
             float r3 = 1.6f, a3 = t * 1.2f;
-            Render::Circle({0, 0, 0}, {0, 0, 1}, r3, {.3f, .85f, .65f, .25f}, 64, 1.f);
-            Render::Sphere({r3 * std::cos(a3), r3 * std::sin(a3), 0}, 0.11f, {.3f, .85f, .7f, 1.f});
-        Render::PopMatrix();
-    Render::End();
+            R::Circle({0, 0, 0}, {0, 0, 1}, r3, WithAlpha(Green, .25f), 64, 1.f);
+            R::Sphere({r3 * std::cos(a3), r3 * std::sin(a3), 0}, 0.11f, Green);
+        R::PopMatrix();
+
+        // Rotating OBB
+        R::OBB({4.f, 0, 1.f}, glm::angleAxis(t * 0.3f, glm::vec3(0, 0, 1)),
+               {1.f, 0.5f, 0.8f}, Cyan);
+
+        // Labels
+        R::Text({0, 0, 0.6f}, White, "center");
+    R::End();
 
     ImGui::Begin("Environment", nullptr);
-        auto& env = Render::GetEnvironment("scene");
+        auto& env = R::GetEnvironment("scene");
         ImGui::DragFloat3("Light Dir", &env.lightDir.x, 0.05f);
         ImGui::ColorEdit3("BG Color", &env.bgColor.x);
         ImGui::DragFloat("Ambient",     &env.ambient,    0.01f, 0.f, 1.f);
@@ -72,7 +84,7 @@ void Example::OnDraw() {
     ImGui::End();
 
     ImGui::Begin("Grid", nullptr);
-        auto& grid = Render::GetGrid("scene");
+        auto& grid = R::GetGrid("scene");
         ImGui::Checkbox("Enabled", &grid.enabled);
         ImGui::DragFloat("Scale Fine",   &grid.scaleFine,   0.1f, 0.1f, 10.f);
         ImGui::DragFloat("Scale Medium", &grid.scaleMedium, 1.f,  1.f,  100.f);
@@ -88,7 +100,7 @@ void Example::OnDraw() {
     ImGui::End();
 
     ImGui::Begin("Camera", nullptr);
-        auto& cam = Render::GetCamera("scene");
+        auto& cam = R::GetCamera("scene");
         ImGui::DragFloat3("Target",   &cam.Target().x, 0.05f);
         ImGui::DragFloat("Distance",  &cam.Distance(), 0.1f, 0.5f, 200.f);
         ImGui::SliderFloat("Yaw",     &cam.Yaw(), -180.f, 180.f, "%.1f\xc2\xb0");

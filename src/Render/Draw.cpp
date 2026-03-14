@@ -14,6 +14,7 @@
 #include <generator/DiskMesh.hpp>
 #include <cassert>
 #include <cmath>
+#include <cstdarg>
 #include <memory>
 #include <unordered_map>
 #include <vector>
@@ -22,23 +23,29 @@ namespace Kilo::Render {
 
 // ── types ────────────────────────────────────────────────────────────
 
-struct MeshVert { glm::vec3 pos, normal; };
-struct LineVert { glm::vec3 pos, otherEnd; glm::vec2 expand; glm::vec4 color; };
+struct MeshVert  { glm::vec3 pos, normal; };
+struct LineVert  { glm::vec3 pos, otherEnd; glm::vec2 expand; glm::vec4 color; };
+struct PointVert { glm::vec3 pos; glm::vec4 color; };
+struct TextEntry { glm::vec3 worldPos; glm::vec4 color; std::string text; };
 
 // ── shared GPU resources ─────────────────────────────────────────────
 
-static Shader sMeshShader, sLineShader, sGridShader;
+static Shader sMeshShader, sLineShader, sGridShader, sPointShader;
 static GLuint sMeshVao = 0, sMeshVbo = 0;
 static GLuint sLineVao = 0, sLineVbo = 0;
 static GLuint sGridVao = 0;
+static GLuint sPointVao = 0, sPointVbo = 0;
 
 // ── per-frame render state ───────────────────────────────────────────
 
 static glm::mat4 sView, sProj;
 static glm::vec3 sCamPos, sLightDir;
 static int sVpW = 1, sVpH = 1;
-static std::vector<LineVert> sLineBatch;
-static float sLineWidth = 2.5f;
+static std::vector<LineVert>  sLineBatch;
+static std::vector<PointVert> sPointBatch;
+static std::vector<TextEntry> sTextBatch;
+static float sLineWidth  = 2.5f;
+static float sPointSize  = 4.f;
 static std::vector<glm::mat4> sMatStack = {glm::mat4(1.f)};
 
 // ── per-scene state ──────────────────────────────────────────────────
@@ -191,13 +198,100 @@ static void BatchLine(const glm::vec3& a, const glm::vec3& b,
     sLineBatch.push_back({a, b, {-1, 1}, color});
 }
 
+static void BatchLineGradient(const glm::vec3& a, const glm::vec3& b,
+                               const glm::vec4& ca, const glm::vec4& cb, float width) {
+    if (!sLineBatch.empty() && width != sLineWidth)
+        FlushLines();
+    sLineWidth = width;
+    sLineBatch.push_back({a, b, {-1, 0}, ca});
+    sLineBatch.push_back({a, b, { 1, 0}, ca});
+    sLineBatch.push_back({a, b, { 1, 1}, cb});
+    sLineBatch.push_back({a, b, {-1, 0}, ca});
+    sLineBatch.push_back({a, b, { 1, 1}, cb});
+    sLineBatch.push_back({a, b, {-1, 1}, cb});
+}
+
+// ── point batching ───────────────────────────────────────────────────
+
+static void FlushPoints() {
+    if (sPointBatch.empty()) return;
+    sPointShader.Use();
+    sPointShader.Set("uView", sView);
+    sPointShader.Set("uProj", sProj);
+    sPointShader.Set("uPointSize", sPointSize);
+    sPointShader.Set("uViewportSize", glm::vec2(sVpW, sVpH));
+
+    glEnable(GL_PROGRAM_POINT_SIZE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDisable(GL_CULL_FACE);
+
+    glNamedBufferData(sPointVbo,
+        GLsizeiptr(sPointBatch.size() * sizeof(PointVert)),
+        sPointBatch.data(), GL_DYNAMIC_DRAW);
+    glBindVertexArray(sPointVao);
+    glDrawArrays(GL_POINTS, 0, static_cast<GLsizei>(sPointBatch.size()));
+    glBindVertexArray(0);
+
+    glDisable(GL_PROGRAM_POINT_SIZE);
+    glDisable(GL_BLEND);
+    glEnable(GL_CULL_FACE);
+    sPointBatch.clear();
+}
+
+// ── text overlay ─────────────────────────────────────────────────────
+
+static void FlushText() {
+    if (sTextBatch.empty()) return;
+    auto* dl = ImGui::GetWindowDrawList();
+    ImGui::PushClipRect({sFrame.cx, sFrame.cy},
+                        {sFrame.cx + sFrame.w, sFrame.cy + sFrame.h}, true);
+    for (auto& e : sTextBatch) {
+        glm::vec4 clip = sProj * sView * glm::vec4(e.worldPos, 1.f);
+        if (clip.w <= 0.f) continue;
+        glm::vec3 ndc = glm::vec3(clip) / clip.w;
+        float sx = sFrame.cx + (ndc.x * 0.5f + 0.5f) * sFrame.w;
+        float sy = sFrame.cy + (1.f - (ndc.y * 0.5f + 0.5f)) * sFrame.h;
+        ImU32 col = ImGui::ColorConvertFloat4ToU32(
+            {e.color.r, e.color.g, e.color.b, e.color.a});
+        dl->AddText({sx, sy}, col, e.text.c_str());
+    }
+    ImGui::PopClipRect();
+    sTextBatch.clear();
+}
+
+// ── Jacobi eigensolver for 3x3 symmetric ─────────────────────────────
+
+static void Eigen3(const glm::mat3& A, glm::vec3& eigenvalues, glm::mat3& eigenvectors) {
+    glm::mat3 D = A;
+    eigenvectors = glm::mat3(1.f);
+    for (int iter = 0; iter < 50; ++iter) {
+        // find largest off-diagonal |D[p][q]|
+        int p = 0, q = 1;
+        float mx = std::abs(D[0][1]);
+        if (std::abs(D[0][2]) > mx) { p = 0; q = 2; mx = std::abs(D[0][2]); }
+        if (std::abs(D[1][2]) > mx) { p = 1; q = 2; mx = std::abs(D[1][2]); }
+        if (mx < 1e-8f) break;
+
+        float theta = 0.5f * std::atan2(2.f * D[p][q], D[q][q] - D[p][p]);
+        float c = std::cos(theta), s = std::sin(theta);
+        glm::mat3 J(1.f);
+        J[p][p] = c;  J[q][q] = c;
+        J[p][q] = s;  J[q][p] = -s;
+        D = glm::transpose(J) * D * J;
+        eigenvectors = eigenvectors * J;
+    }
+    eigenvalues = {D[0][0], D[1][1], D[2][2]};
+}
+
 // ── scene viewport ───────────────────────────────────────────────────
 
 void Init(const std::string& dir) {
     sShaderDir = dir;
-    sMeshShader = Shader(dir + "/Basic.vert", dir + "/Basic.frag");
-    sLineShader = Shader(dir + "/Line.vert",  dir + "/Line.frag");
-    sGridShader = Shader(dir + "/Grid.vert",  dir + "/Grid.frag");
+    sMeshShader  = Shader(dir + "/Basic.vert", dir + "/Basic.frag");
+    sLineShader  = Shader(dir + "/Line.vert",  dir + "/Line.frag");
+    sGridShader  = Shader(dir + "/Grid.vert",  dir + "/Grid.frag");
+    sPointShader = Shader(dir + "/Point.vert", dir + "/Point.frag");
 
     glCreateVertexArrays(1, &sMeshVao);
     glCreateBuffers(1, &sMeshVbo);
@@ -214,6 +308,12 @@ void Init(const std::string& dir) {
         {3, {4, offsetof(LineVert, color)}}});
 
     glCreateVertexArrays(1, &sGridVao);
+
+    glCreateVertexArrays(1, &sPointVao);
+    glCreateBuffers(1, &sPointVbo);
+    SetupVao(sPointVao, sPointVbo, sizeof(PointVert), {
+        {0, {3, offsetof(PointVert, pos)}},
+        {1, {4, offsetof(PointVert, color)}}});
 }
 
 static SceneData& GetScene(uint32_t id) {
@@ -279,6 +379,8 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     sVpW = w;
     sVpH = h;
     sLineBatch.clear();
+    sPointBatch.clear();
+    sTextBatch.clear();
     sMatStack = {glm::mat4(1.f)};
 }
 
@@ -290,19 +392,15 @@ static void DrawSun() {
     PushMatrix();
     ResetMatrix();
 
-    // unlit sphere core
     SetMeshUniforms({1.f, .98f, .85f, 1.f}, true);
     std::vector<MeshVert> sv;
     AppendMesh(sv, generator::SphereMesh(r, 16, 8),
                glm::translate(glm::mat4(1.f), sunPos));
     UploadMesh(sv);
 
-    // glow rings (billboard — facing camera)
     Circle(sunPos, facing, r * 1.8f, {1.f, .95f, .7f, .45f}, 32, 3.f);
     Circle(sunPos, facing, r * 3.f,  {1.f, .9f,  .5f, .18f}, 32, 2.f);
     Circle(sunPos, facing, r * 5.f,  {1.f, .85f, .4f, .07f}, 32, 1.5f);
-
-    // direction indicator
     Line({0, 0, 0}, sunPos, {1.f, .95f, .7f, .12f}, 1.f);
 
     PopMatrix();
@@ -360,6 +458,7 @@ GridConfig& GetGrid(const char* name) { return GetScene(name).gridCfg; }
 
 void End() {
     if (sEnv->showSun) DrawSun();
+    FlushPoints();
     FlushLines();
     auto& g = sFrame.scene->gridCfg;
     if (g.enabled)
@@ -368,6 +467,19 @@ void End() {
     ImGui::SetCursorScreenPos({sFrame.cx, sFrame.cy});
     ImGui::Image(static_cast<ImTextureID>(static_cast<uintptr_t>(sFrame.scene->fbo.Texture())),
                  {sFrame.w, sFrame.h}, {0, 1}, {1, 0});
+    FlushText();
+}
+
+// ── projection helpers ───────────────────────────────────────────────
+
+glm::vec2 WorldToScreen(const glm::vec3& worldPos) {
+    glm::vec4 clip = sProj * sView * glm::vec4(worldPos, 1.f);
+    if (clip.w <= 0.f) return {-1.f, -1.f};
+    glm::vec3 ndc = glm::vec3(clip) / clip.w;
+    return {
+        sFrame.cx + (ndc.x * 0.5f + 0.5f) * sFrame.w,
+        sFrame.cy + (1.f - (ndc.y * 0.5f + 0.5f)) * sFrame.h
+    };
 }
 
 // ── transform stack ──────────────────────────────────────────────────
@@ -413,6 +525,17 @@ void Polyline(const glm::vec3* points, int count,
         Line(points[count - 1], points[0], color, width);
 }
 
+void Path(const glm::vec3* points, const glm::vec4* colors,
+          int count, float width, bool closed) {
+    if (count < 2) return;
+    for (int i = 1; i < count; ++i)
+        BatchLineGradient(XformPoint(points[i - 1]), XformPoint(points[i]),
+                          colors[i - 1], colors[i], width);
+    if (closed && count > 2)
+        BatchLineGradient(XformPoint(points[count - 1]), XformPoint(points[0]),
+                          colors[count - 1], colors[0], width);
+}
+
 void Arc(const glm::vec3& center, const glm::vec3& axis,
          const glm::vec3& startDir, float radius,
          float angleDeg, const glm::vec4& color, int seg, float width) {
@@ -431,6 +554,65 @@ void Arc(const glm::vec3& center, const glm::vec3& axis,
 void Circle(const glm::vec3& center, const glm::vec3& axis,
             float radius, const glm::vec4& color, int seg, float width) {
     Arc(center, axis, Perpendicular(axis), radius, 360.f, color, seg, width);
+}
+
+void Spline(const glm::vec3* cp, int count,
+            const glm::vec4& color, int segments, float width) {
+    if (count < 2) return;
+    if (count == 2) { Line(cp[0], cp[1], color, width); return; }
+
+    auto catmullRom = [](const glm::vec3& p0, const glm::vec3& p1,
+                         const glm::vec3& p2, const glm::vec3& p3, float t) {
+        return 0.5f * ((2.f * p1) +
+            (-p0 + p2) * t +
+            (2.f * p0 - 5.f * p1 + 4.f * p2 - p3) * t * t +
+            (-p0 + 3.f * p1 - 3.f * p2 + p3) * t * t * t);
+    };
+
+    for (int i = 0; i < count - 1; ++i) {
+        const auto& p0 = cp[std::max(0, i - 1)];
+        const auto& p1 = cp[i];
+        const auto& p2 = cp[std::min(count - 1, i + 1)];
+        const auto& p3 = cp[std::min(count - 1, i + 2)];
+        glm::vec3 prev = p1;
+        for (int s = 1; s <= segments; ++s) {
+            float t = static_cast<float>(s) / static_cast<float>(segments);
+            auto cur = catmullRom(p0, p1, p2, p3, t);
+            Line(prev, cur, color, width);
+            prev = cur;
+        }
+    }
+}
+
+// ── points ───────────────────────────────────────────────────────────
+
+void Points(const glm::vec3* positions, int count,
+            const glm::vec4& color, float size) {
+    if (!sPointBatch.empty() && size != sPointSize)
+        FlushPoints();
+    sPointSize = size;
+    for (int i = 0; i < count; ++i)
+        sPointBatch.push_back({XformPoint(positions[i]), color});
+}
+
+void Points(const glm::vec3* positions, const glm::vec4* colors,
+            int count, float size) {
+    if (!sPointBatch.empty() && size != sPointSize)
+        FlushPoints();
+    sPointSize = size;
+    for (int i = 0; i < count; ++i)
+        sPointBatch.push_back({XformPoint(positions[i]), colors[i]});
+}
+
+// ── text ─────────────────────────────────────────────────────────────
+
+void Text(const glm::vec3& pos, const glm::vec4& color, const char* fmt, ...) {
+    char buf[256];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, args);
+    va_end(args);
+    sTextBatch.push_back({XformPoint(pos), color, buf});
 }
 
 // ── basic geometry ───────────────────────────────────────────────────
@@ -547,6 +729,41 @@ void Ring(const glm::vec3& center, const glm::vec3& normal,
     UploadMesh(v);
 }
 
+// ── custom mesh ──────────────────────────────────────────────────────
+
+void Mesh(const glm::vec3* verts, const glm::vec3* normals,
+          const uint32_t* indices, int indexCount, const glm::vec4& color) {
+    SetMeshUniforms(color);
+    auto& m = Mat();
+    auto nmat = glm::transpose(glm::inverse(glm::mat3(m)));
+    std::vector<MeshVert> v;
+    v.reserve(indexCount);
+    for (int i = 0; i < indexCount; ++i) {
+        uint32_t idx = indices[i];
+        v.push_back({
+            glm::vec3(m * glm::vec4(verts[idx], 1.f)),
+            glm::normalize(nmat * normals[idx])
+        });
+    }
+    UploadMesh(v);
+}
+
+void Mesh(const glm::vec3* verts, const glm::vec3* normals,
+          int vertCount, const glm::vec4& color) {
+    SetMeshUniforms(color);
+    auto& m = Mat();
+    auto nmat = glm::transpose(glm::inverse(glm::mat3(m)));
+    std::vector<MeshVert> v;
+    v.reserve(vertCount);
+    for (int i = 0; i < vertCount; ++i) {
+        v.push_back({
+            glm::vec3(m * glm::vec4(verts[i], 1.f)),
+            glm::normalize(nmat * normals[i])
+        });
+    }
+    UploadMesh(v);
+}
+
 // ── wireframe ────────────────────────────────────────────────────────
 
 void WireBox(const glm::vec3& center, const glm::vec3& size,
@@ -562,7 +779,6 @@ void WireBox(const glm::vec3& center, const glm::vec3& size,
         center + glm::vec3( hs.x,  hs.y,  hs.z),
         center + glm::vec3(-hs.x,  hs.y,  hs.z),
     };
-    // bottom, top, verticals
     Line(c[0],c[1],color,width); Line(c[1],c[2],color,width);
     Line(c[2],c[3],color,width); Line(c[3],c[0],color,width);
     Line(c[4],c[5],color,width); Line(c[5],c[6],color,width);
@@ -576,6 +792,68 @@ void WireSphere(const glm::vec3& center, float radius,
     Circle(center, {1, 0, 0}, radius, color, seg, width);
     Circle(center, {0, 1, 0}, radius, color, seg, width);
     Circle(center, {0, 0, 1}, radius, color, seg, width);
+}
+
+void WireCylinder(const glm::vec3& a, const glm::vec3& b,
+                  float radius, const glm::vec4& color, int seg, float width) {
+    auto axis = b - a;
+    float len = glm::length(axis);
+    if (len < 1e-6f) return;
+    auto dir  = axis / len;
+    auto perp = Perpendicular(dir);
+    auto side = glm::cross(dir, perp);
+
+    Circle(a, dir, radius, color, seg, width);
+    Circle(b, dir, radius, color, seg, width);
+
+    for (int i = 0; i < 4; ++i) {
+        float angle = glm::half_pi<float>() * static_cast<float>(i);
+        auto d = perp * std::cos(angle) + side * std::sin(angle);
+        Line(a + d * radius, b + d * radius, color, width);
+    }
+}
+
+void WireCone(const glm::vec3& base, const glm::vec3& tip,
+              float radius, const glm::vec4& color, int seg, float width) {
+    auto axis = tip - base;
+    float len = glm::length(axis);
+    if (len < 1e-6f) return;
+    auto dir  = axis / len;
+    auto perp = Perpendicular(dir);
+    auto side = glm::cross(dir, perp);
+
+    Circle(base, dir, radius, color, seg, width);
+
+    for (int i = 0; i < 4; ++i) {
+        float angle = glm::half_pi<float>() * static_cast<float>(i);
+        auto d = perp * std::cos(angle) + side * std::sin(angle);
+        Line(base + d * radius, tip, color, width);
+    }
+}
+
+void WireCapsule(const glm::vec3& a, const glm::vec3& b,
+                 float radius, const glm::vec4& color, int seg, float width) {
+    auto axis = b - a;
+    float len = glm::length(axis);
+    if (len < 1e-6f) { WireSphere((a + b) * 0.5f, radius, color, seg, width); return; }
+    auto dir  = axis / len;
+    auto perp = Perpendicular(dir);
+    auto side = glm::cross(dir, perp);
+
+    Circle(a, dir, radius, color, seg, width);
+    Circle(b, dir, radius, color, seg, width);
+
+    for (int i = 0; i < 4; ++i) {
+        float angle = glm::half_pi<float>() * static_cast<float>(i);
+        auto d = perp * std::cos(angle) + side * std::sin(angle);
+        Line(a + d * radius, b + d * radius, color, width);
+    }
+
+    int halfSeg = std::max(4, seg / 2);
+    Arc(a, perp, -dir, radius, 180.f, color, halfSeg, width);
+    Arc(a, side, -dir, radius, 180.f, color, halfSeg, width);
+    Arc(b, perp,  dir, radius, 180.f, color, halfSeg, width);
+    Arc(b, side,  dir, radius, 180.f, color, halfSeg, width);
 }
 
 // ── composite ────────────────────────────────────────────────────────
@@ -607,6 +885,17 @@ void Axes(const glm::vec3& origin, float len) {
     Arrow(origin, origin + glm::vec3(0, 0, len), {.35f, .50f, .95f, 1}, s, h);
 }
 
+void Frame(const glm::mat4& pose, float len) {
+    PushMatrix();
+    Transform(pose);
+    Axes({0, 0, 0}, len);
+    PopMatrix();
+}
+
+void Frame(const glm::vec3& pos, const glm::quat& orient, float len) {
+    Frame(glm::translate(glm::mat4(1.f), pos) * glm::mat4_cast(orient), len);
+}
+
 void Point(const glm::vec3& pos, const glm::vec4& color, float size) {
     Sphere(pos, size, color, 8);
 }
@@ -622,6 +911,37 @@ void Cross(const glm::vec3& pos, float size,
 void AABB(const glm::vec3& mn, const glm::vec3& mx,
           const glm::vec4& color, float width) {
     WireBox((mn + mx) * 0.5f, mx - mn, color, width);
+}
+
+void OBB(const glm::vec3& center, const glm::quat& orient,
+         const glm::vec3& size, const glm::vec4& color, float width) {
+    PushMatrix();
+    Translate(center);
+    Rotate(orient);
+    WireBox({0, 0, 0}, size, color, width);
+    PopMatrix();
+}
+
+void Covariance(const glm::vec3& pos, const glm::mat3& cov,
+                const glm::vec4& color, float sigma, int seg) {
+    glm::vec3 eigvals;
+    glm::mat3 eigvecs;
+    Eigen3(cov, eigvals, eigvecs);
+
+    glm::vec3 radii = sigma * glm::vec3(
+        std::sqrt(std::max(eigvals.x, 0.f)),
+        std::sqrt(std::max(eigvals.y, 0.f)),
+        std::sqrt(std::max(eigvals.z, 0.f)));
+
+    PushMatrix();
+    Translate(pos);
+    Transform(glm::mat4(glm::vec4(eigvecs[0], 0),
+                         glm::vec4(eigvecs[1], 0),
+                         glm::vec4(eigvecs[2], 0),
+                         glm::vec4(0, 0, 0, 1)));
+    Scale(radii);
+    Sphere({0, 0, 0}, 1.f, color, seg);
+    PopMatrix();
 }
 
 void WireGrid(const glm::vec3& center, const glm::vec3& normal,
@@ -653,7 +973,6 @@ void Frustum(const glm::mat4& viewProj,
         unproject(-1,-1, 1), unproject(1,-1, 1),
         unproject( 1, 1, 1), unproject(-1, 1, 1)
     };
-    // near + far faces
     for (int i = 0; i < 4; ++i) {
         Line(n[i], n[(i+1)%4], color, width);
         Line(f[i], f[(i+1)%4], color, width);
