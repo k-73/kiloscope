@@ -6,10 +6,9 @@ uniform vec3 uCamPos;
 uniform float uCamDist;
 
 uniform float uScaleFine, uScaleMedium, uScaleCoarse;
-uniform vec3  uColorFine, uColorMedium, uColorCoarse;
-uniform float uAlphaFine, uAlphaMedium, uAlphaCoarse;
-uniform vec3  uAxisXColor, uAxisYColor;
-uniform float uAxisThickness, uAxisAlpha;
+uniform vec4  uColorFine, uColorMedium, uColorCoarse;  // rgb + alpha
+uniform vec4  uAxisXColor, uAxisYColor;                 // rgb + alpha
+uniform float uAxisThickness;
 uniform int   uAxisScaleWithCam;
 uniform float uFadeStart, uFadeEnd;
 
@@ -40,30 +39,34 @@ void main() {
     float g100 = SoftLine(fp.xy, uScaleCoarse);
 
     // Layer compositing: fine → medium over fine → coarse over result
-    vec3  gridCol = uColorFine;
-    float gridAlpha = g1 * uAlphaFine;
+    vec3  gridCol = uColorFine.rgb;
+    float gridAlpha = g1 * uColorFine.a;
 
-    float medA = g10 * uAlphaMedium;
+    float medA = g10 * uColorMedium.a;
     float prevA = gridAlpha;
     gridAlpha = medA + prevA * (1.0 - medA);
     if (gridAlpha > 0.001)
-        gridCol = (uColorMedium * medA + gridCol * prevA * (1.0 - medA)) / gridAlpha;
+        gridCol = (uColorMedium.rgb * medA + gridCol * prevA * (1.0 - medA)) / gridAlpha;
 
-    float coaA = g100 * uAlphaCoarse;
+    float coaA = g100 * uColorCoarse.a;
     prevA = gridAlpha;
     gridAlpha = coaA + prevA * (1.0 - coaA);
     if (gridAlpha > 0.001)
-        gridCol = (uColorCoarse * coaA + gridCol * prevA * (1.0 - coaA)) / gridAlpha;
+        gridCol = (uColorCoarse.rgb * coaA + gridCol * prevA * (1.0 - coaA)) / gridAlpha;
 
-    // Axis layer (composited "over" grid — no color bleeding)
+    // Axis layer (composited "over" grid)
     float axThick = (uAxisScaleWithCam != 0) ? uCamDist * uAxisThickness : uAxisThickness;
     float axX = SoftAxis(fp.x, max(axThick, fwidth(fp.x) * 2.0));
     float axY = SoftAxis(fp.y, max(axThick, fwidth(fp.y) * 2.0));
 
-    vec3  axCol = uAxisYColor * axX + uAxisXColor * axY;
+    // Per-axis alpha from vec4.a
+    float axAlphaX = axY * uAxisXColor.a;  // axY = distance from Y=0 = X axis
+    float axAlphaY = axX * uAxisYColor.a;  // axX = distance from X=0 = Y axis
+    float axA = clamp(max(axAlphaX, axAlphaY), 0.0, 1.0);
+
+    vec3 axCol = uAxisYColor.rgb * axX + uAxisXColor.rgb * axY;
     float axSum = axX + axY;
     if (axSum > 0.001) axCol /= axSum;
-    float axA = clamp(max(axX, axY), 0.0, 1.0) * uAxisAlpha;
 
     // Porter-Duff "over": axis on top of grid
     float alpha = axA + gridAlpha * (1.0 - axA);

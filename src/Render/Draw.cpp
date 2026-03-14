@@ -620,13 +620,9 @@ static void DrawGrid(const GridConfig& cfg, float camDist) {
     sGridShader.Set("uColorFine",   cfg.colorFine);
     sGridShader.Set("uColorMedium", cfg.colorMedium);
     sGridShader.Set("uColorCoarse", cfg.colorCoarse);
-    sGridShader.Set("uAlphaFine",   cfg.alphaFine);
-    sGridShader.Set("uAlphaMedium", cfg.alphaMedium);
-    sGridShader.Set("uAlphaCoarse", cfg.alphaCoarse);
     sGridShader.Set("uAxisXColor",  cfg.axisXColor);
     sGridShader.Set("uAxisYColor",  cfg.axisYColor);
     sGridShader.Set("uAxisThickness", cfg.axisThickness);
-    sGridShader.Set("uAxisAlpha",   cfg.axisAlpha);
     sGridShader.Set("uAxisScaleWithCam", cfg.axisScaleWithCam ? 1 : 0);
     sGridShader.Set("uFadeStart",   cfg.fadeStart);
     sGridShader.Set("uFadeEnd",     cfg.fadeEnd);
