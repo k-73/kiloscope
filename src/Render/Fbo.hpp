@@ -18,6 +18,7 @@ public:
     void Resolve();
 
     GLuint Texture() const { return resolvedTex_; }
+    GLuint Handle()  const { return msaaFbo_; }
     int Width() const { return w_; }
     int Height() const { return h_; }
 

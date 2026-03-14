@@ -54,6 +54,7 @@ void Shader::Set(const char* n, const glm::vec3& v) const { glUniform3fv(Loc(n),
 void Shader::Set(const char* n, const glm::vec4& v) const { glUniform4fv(Loc(n), 1, glm::value_ptr(v)); }
 void Shader::Set(const char* n, float f)            const { glUniform1f(Loc(n), f); }
 void Shader::Set(const char* n, int i)              const { glUniform1i(Loc(n), i); }
+void Shader::Set(const char* n, unsigned int u)     const { glUniform1ui(Loc(n), u); }
 
 GLuint Shader::Compile(GLenum type, const std::string& src) {
     GLuint s = glCreateShader(type);
