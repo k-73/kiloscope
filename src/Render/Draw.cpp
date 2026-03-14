@@ -103,6 +103,7 @@ struct ShadowFbo {
         glNamedFramebufferTexture(fbo, GL_DEPTH_ATTACHMENT, depth, 0);
         glNamedFramebufferDrawBuffer(fbo, GL_NONE);
         glNamedFramebufferReadBuffer(fbo, GL_NONE);
+        Clear();
     }
 
     void Bind() { glBindFramebuffer(GL_FRAMEBUFFER, fbo); glViewport(0, 0, w, h); }
@@ -123,6 +124,12 @@ struct ShadowFbo {
     ShadowFbo() = default;
     ShadowFbo(const ShadowFbo&) = delete;
     ShadowFbo& operator=(const ShadowFbo&) = delete;
+    ShadowFbo(ShadowFbo&& o) noexcept
+        : fbo(std::exchange(o.fbo, 0)), depth(std::exchange(o.depth, 0)), w(o.w), h(o.h) {}
+    ShadowFbo& operator=(ShadowFbo&& o) noexcept {
+        if (this != &o) { Destroy(); fbo = std::exchange(o.fbo, 0); depth = std::exchange(o.depth, 0); w = o.w; h = o.h; }
+        return *this;
+    }
 };
 
 // ── shared GPU resources ─────────────────────────────────────────────
@@ -161,7 +168,12 @@ static PointLightData sPointLights[kMaxPointLights];
 
 // ── per-scene state ──────────────────────────────────────────────────
 
-struct SceneData { Fbo fbo; PickFbo pickFbo; ShadowFbo shadowFbo; Camera cam; Environment env; GridConfig gridCfg; };
+struct SceneData {
+    Fbo fbo; PickFbo pickFbo;
+    ShadowFbo shadowRead, shadowWrite;  // double-buffered: read prev frame, write current
+    Camera cam; Environment env; GridConfig gridCfg;
+    uint32_t hoveredPickId = 0;
+};
 
 static std::unordered_map<uint32_t, std::unique_ptr<SceneData>> sScenes;
 static struct { SceneData* scene{}; float cx{}, cy{}, w{}, h{}; bool hovered{}; bool fly{}; } sFrame;
@@ -178,9 +190,9 @@ static uint32_t HashName(const char* s) {
 static uint32_t sNextPickId     = 0;
 static uint32_t sLastPickId     = 0;
 static uint32_t sPickIdOverride = 0;
-static uint32_t sHoveredPickId  = 0;
 static bool     sPickEnabled    = true;
 static bool     sEmissive       = false;
+static bool     sShadowCasting  = true;
 static Stats    sStats;
 
 static uint32_t AllocPickId() {
@@ -267,7 +279,7 @@ static void SetMeshFrameUniforms() {
     // Shadow map
     sMeshShader.Set("uLightVP", sLightVP);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, sFrame.scene->shadowFbo.depth);
+    glBindTexture(GL_TEXTURE_2D, sFrame.scene->shadowRead.depth);
     sMeshShader.Set("uShadowMap", 0);
 
     // Point lights
@@ -302,7 +314,7 @@ static void EndPickPass() {
 }
 
 static void BeginShadowPass() {
-    sFrame.scene->shadowFbo.Bind();
+    sFrame.scene->shadowWrite.Bind();
     glDepthMask(GL_TRUE);
     glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
 }
@@ -338,7 +350,7 @@ static void UploadMesh(const std::vector<MeshVert>& v) {
     }
 
     // Shadow pass
-    {
+    if (sShadowCasting) {
         BeginShadowPass();
         sShadowShader.Use();
         if (!sShadowReady) {
@@ -347,14 +359,18 @@ static void UploadMesh(const std::vector<MeshVert>& v) {
         }
         glEnable(GL_CULL_FACE);
         glCullFace(GL_FRONT);
+        glEnable(GL_POLYGON_OFFSET_FILL);
+        glPolygonOffset(1.1f, 4.f);
         glBindVertexArray(sMeshVao);
         glDrawArrays(GL_TRIANGLES, 0, count);
+        glDisable(GL_POLYGON_OFFSET_FILL);
         glCullFace(GL_BACK);
         ++sStats.shadowDrawCalls;
         EndShadowPass();
     }
 
     sEmissive = false;
+    sShadowCasting = true;
 }
 
 template <typename MeshT>
@@ -509,7 +525,7 @@ bool EventState::Clicked(int button) const {
 EventState Event() {
     EventState state;
     state.hovered_ = sFrame.hovered && sLastPickId != 0
-                  && sLastPickId == sHoveredPickId;
+                  && sFrame.scene && sLastPickId == sFrame.scene->hoveredPickId;
     return state;
 }
 
@@ -622,7 +638,7 @@ void PointLight(const glm::vec3& pos, const glm::vec3& color, float range) {
     sPointLights[sNumPointLights++] = {pos, color, range};
 }
 
-void SetNextEmissive() { sEmissive = true; }
+void SetNextEmissive() { sEmissive = true; sShadowCasting = false; }
 
 void Begin(const char* name, const ViewportConfig& cfg) {
     auto& scene = sScenes[HashName(name)];
@@ -633,7 +649,8 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     int h = std::max(1, static_cast<int>(cfg.height > 0 ? cfg.height : avail.y));
     scene->fbo.Resize(w, h, 16);
     scene->pickFbo.Resize(w, h);
-    scene->shadowFbo.Resize(2048, 2048);
+    scene->shadowRead.Resize(2048, 2048);
+    scene->shadowWrite.Resize(2048, 2048);
 
     ImVec2 size{static_cast<float>(w), static_cast<float>(h)};
     auto cursor = ImGui::GetCursorScreenPos();
@@ -660,12 +677,16 @@ void Begin(const char* name, const ViewportConfig& cfg) {
 
     // RMB hold = fly mode (cursor locked, WASD/arrows/QE)
     {
+        static bool sFlyLocked = false;
         auto* win = glfwGetCurrentContext();
-        bool wasFly = glfwGetInputMode(win, GLFW_CURSOR) == GLFW_CURSOR_DISABLED;
-        if (fly && !wasFly)
+        if (fly && !sFlyLocked) {
             glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-        else if (!fly && wasFly)
+            sFlyLocked = true;
+        }
+        if (!ImGui::IsMouseDown(ImGuiMouseButton_Right) && sFlyLocked) {
             glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            sFlyLocked = false;
+        }
     }
     if (fly) {
         cam.FlyLook(io.MouseDelta.x, io.MouseDelta.y);
@@ -684,6 +705,7 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     sEnv = &scene->env;
 
     const auto& bg = sEnv->bgColor;
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
     scene->fbo.Bind(bg.r, bg.g, bg.b);
     glDisable(GL_BLEND);
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE);
@@ -696,19 +718,33 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     sLightDir = glm::normalize(sEnv->lightDir);
     sVpW = w; sVpH = h;
 
-    // Light VP for shadow mapping
+    // Light VP for shadow mapping (centered on camera pivot, texel-snapped)
     {
+        auto pivot = cam.Pivot();
         float shadowSize = cam.Distance() * 2.f;
         float shadowDist = shadowSize * 2.f;
-        glm::vec3 lightPos = -sLightDir * shadowDist;
+        glm::vec3 lightPos = pivot + sLightDir * shadowDist;
         glm::vec3 up = (std::abs(sLightDir.z) > 0.99f) ? glm::vec3(0, 1, 0) : glm::vec3(0, 0, 1);
-        sLightVP = glm::ortho(-shadowSize, shadowSize, -shadowSize, shadowSize, 0.1f, shadowDist * 2.f)
-                 * glm::lookAt(lightPos, glm::vec3(0.f), up);
+        auto lightView = glm::lookAt(lightPos, pivot, up);
+        auto lightProj = glm::ortho(-shadowSize, shadowSize, -shadowSize, shadowSize, 0.1f, shadowDist * 2.f);
+
+        // Snap to texel grid to prevent shadow swimming
+        float texelSize = shadowSize * 2.f / 2048.f;
+        auto vp = lightProj * lightView;
+        glm::vec4 origin = vp * glm::vec4(0, 0, 0, 1);
+        origin.x = std::round(origin.x / texelSize) * texelSize;
+        origin.y = std::round(origin.y / texelSize) * texelSize;
+        // Create snapped VP (adjust the translation of the projection)
+        glm::vec4 offset = origin - vp * glm::vec4(0, 0, 0, 1);
+        lightProj[3][0] += offset.x;
+        lightProj[3][1] += offset.y;
+
+        sLightVP = lightProj * lightView;
     }
 
     // Init pick + shadow state
     scene->pickFbo.Clear();
-    scene->shadowFbo.Clear();
+    scene->shadowWrite.Clear();
     glBindFramebuffer(GL_FRAMEBUFFER, scene->fbo.Handle());
     glViewport(0, 0, w, h);
 
@@ -734,6 +770,7 @@ void Begin(const char* name, const ViewportConfig& cfg) {
 
 static void DrawSun() {
     sPickEnabled = false;
+    sShadowCasting = false;
     float r = sEnv->sunRadius;
     glm::vec3 sunPos = glm::normalize(sEnv->lightDir) * sEnv->sunDistance;
     glm::vec3 facing = glm::normalize(sCamPos - sunPos);
@@ -754,6 +791,7 @@ static void DrawSun() {
 
     PopMatrix();
     sPickEnabled = true;
+    sShadowCasting = true;
 }
 
 static void DrawGrid(const GridConfig& cfg, float camDist) {
@@ -836,15 +874,16 @@ void End() {
     if (g.enabled)
         DrawGrid(g, sFrame.scene->cam.Distance());
 
-    // Read pick buffer at mouse position
+    // Read pick buffer at mouse position (per-scene)
     if (sFrame.hovered) {
         auto& io = ImGui::GetIO();
         int mx = static_cast<int>(io.MousePos.x - sFrame.cx);
         int my = static_cast<int>(sFrame.h - 1.f - (io.MousePos.y - sFrame.cy));
-        sHoveredPickId = sFrame.scene->pickFbo.ReadPixel(mx, my);
-    } else {
-        sHoveredPickId = 0;
+        sFrame.scene->hoveredPickId = sFrame.scene->pickFbo.ReadPixel(mx, my);
     }
+
+    // Swap shadow buffers: write becomes read for next frame
+    std::swap(sFrame.scene->shadowRead, sFrame.scene->shadowWrite);
 
     sFrame.scene->fbo.Resolve();
     ImGui::SetCursorScreenPos({sFrame.cx, sFrame.cy});

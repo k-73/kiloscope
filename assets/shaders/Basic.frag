@@ -33,7 +33,7 @@ float Shadow(vec3 worldPos) {
     vec4 ls = uLightVP * vec4(worldPos, 1.0);
     vec3 proj = ls.xyz / ls.w * 0.5 + 0.5;
     if (proj.z > 1.0) return 1.0;
-    proj.z -= 0.002;
+    // no shader bias — glPolygonOffset + front-face culling handles acne
     return texture(uShadowMap, proj);
 }
 

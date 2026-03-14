@@ -83,22 +83,6 @@ void Example::OnDraw() {
         Render::Text({0, 0, 1.1f}, Hex("#5580E6"), "Z");
     Render::End();
 
-    // Star glow — screen-space radial gradient
-    {
-        auto s = Render::WorldToScreen({0, 0, 0});
-        if (s.x > 0.f) {
-            auto* dl = ImGui::GetWindowDrawList();
-            constexpr float glowR = 70.f;
-            constexpr int steps = 30;
-            for (int i = steps; i >= 0; --i) {
-                float t = static_cast<float>(i) / steps;
-                float a = (1.f - t * t) * 0.06f;
-                dl->AddCircleFilled({s.x, s.y}, glowR * t,
-                    ImGui::ColorConvertFloat4ToU32({1.f, .92f, .5f, a}), 32);
-            }
-        }
-    }
-
     if (ImGui::BeginPopup("StarInfo")) {
         ImGui::SeparatorText("Star");
         ImGui::Spacing();
@@ -160,6 +144,22 @@ void Example::OnDraw() {
             cam.Pitch()    = 30.f;
             cam.Fov()      = 45.f;
         }
+    ImGui::End();
+
+    // ── Scene 2: Shadow demo ─────────────────────────────────────
+    ImGui::SetNextWindowSize({500, 500}, ImGuiCond_FirstUseEver);
+    ImGui::Begin("Shadow Demo", nullptr);
+        Render::Begin("shadows");
+            Render::Grid();
+            Render::Box({0, 0, -0.05f}, {10.f, 10.f, 0.1f}, Hex("#909090"));
+            Render::Sphere({0, 0, 0.5f}, 0.5f, Hex("#E05050"));
+            Render::Box({2.f, 0, 0.5f}, {1.f, 1.f, 1.f}, Hex("#5090E0"));
+            Render::Cylinder({-2.f, 0, 0}, {-2.f, 0, 1.5f}, 0.3f, Hex("#50C070"));
+            Render::Cylinder({0, 2.5f, 0}, {0, 2.5f, 2.f}, 0.2f, Hex("#D0A040"));
+            Render::Sphere({0, 2.5f, 2.2f}, 0.3f, Hex("#D0A040"));
+            Render::Sphere({1.f, 1.f, 0.2f}, 0.2f, Hex("#C060C0"));
+            Render::Cube({-1.f, -1.5f, 0.3f}, 0.6f, Hex("#60C0C0"));
+        Render::End();
     ImGui::End();
 
     ImGui::Begin("Signals", nullptr);
