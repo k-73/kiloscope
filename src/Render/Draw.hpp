@@ -50,9 +50,22 @@ struct ViewportConfig {
     float height = -1;
 };
 
+struct Stats {
+    int drawCalls     = 0;
+    int pickDrawCalls = 0;
+    int vertices      = 0;
+    int lineSegments  = 0;
+    int points        = 0;
+    int textLabels    = 0;
+    int viewportW     = 0;
+    int viewportH     = 0;
+    int msaaSamples   = 0;
+};
+
 void Init(const std::string& shaderDir);
 void Begin(const char* name, const ViewportConfig& cfg = {});
 void End();
+const Stats& GetStats();
 
 Camera& GetCamera();
 Camera& GetCamera(const char* name);

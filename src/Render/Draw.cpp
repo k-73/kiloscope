@@ -122,6 +122,7 @@ static uint32_t sLastPickId     = 0;
 static uint32_t sPickIdOverride = 0;
 static uint32_t sHoveredPickId  = 0;
 static bool     sPickEnabled    = true;
+static Stats    sStats;
 
 static uint32_t AllocPickId() {
     return sPickIdOverride ? sPickIdOverride : ++sNextPickId;
@@ -234,6 +235,8 @@ static void UploadMesh(const std::vector<MeshVert>& v) {
     glBindVertexArray(sMeshVao);
     glDrawArrays(GL_TRIANGLES, 0, count);
     glBindVertexArray(0);
+    ++sStats.drawCalls;
+    sStats.vertices += count;
 
     if (sPickEnabled && sLastPickId) {
         BeginPickPass();
@@ -247,6 +250,7 @@ static void UploadMesh(const std::vector<MeshVert>& v) {
         glBindVertexArray(sMeshVao);
         glDrawArrays(GL_TRIANGLES, 0, count);
         glBindVertexArray(0);
+        ++sStats.pickDrawCalls;
         EndPickPass();
     }
 }
@@ -280,6 +284,9 @@ static void FlushLines() {
     glNamedBufferData(sLineVbo, GLsizeiptr(count * sizeof(LineVert)),
                       sLineBatch.data(), GL_DYNAMIC_DRAW);
 
+    ++sStats.drawCalls;
+    sStats.lineSegments += count / 6;
+
     sLineShader.Use();
     sLineShader.Set("uView", sView);
     sLineShader.Set("uProj", sProj);
@@ -307,6 +314,7 @@ static void FlushLines() {
         glDrawArrays(GL_TRIANGLES, 0, count);
         glBindVertexArray(0);
         glEnable(GL_CULL_FACE);
+        ++sStats.pickDrawCalls;
         EndPickPass();
     }
 
@@ -341,6 +349,9 @@ static void FlushPoints() {
     glNamedBufferData(sPointVbo, GLsizeiptr(count * sizeof(PointVert)),
                       sPointBatch.data(), GL_DYNAMIC_DRAW);
 
+    ++sStats.drawCalls;
+    sStats.points += count;
+
     sPointShader.Use();
     sPointShader.Set("uView", sView);
     sPointShader.Set("uProj", sProj);
@@ -372,6 +383,7 @@ static void FlushPoints() {
         glBindVertexArray(0);
         glDisable(GL_PROGRAM_POINT_SIZE);
         glEnable(GL_CULL_FACE);
+        ++sStats.pickDrawCalls;
         EndPickPass();
     }
 
@@ -560,6 +572,10 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     sPickEnabled = true;
     sMeshFrameReady = false;
     sPickMeshReady = false;
+    sStats = {};
+    sStats.viewportW = w;
+    sStats.viewportH = h;
+    sStats.msaaSamples = 16;
     sLineBatch.clear();
     sPointBatch.clear();
     sTextBatch.clear();
@@ -623,7 +639,10 @@ static void DrawGrid(const GridConfig& cfg, float camDist) {
     glBindVertexArray(0);
     glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
     glEnable(GL_CULL_FACE);
+    ++sStats.drawCalls;
 }
+
+const Stats& GetStats() { return sStats; }
 
 void Grid() {
     assert(sFrame.scene && "Grid requires active scene");
@@ -810,6 +829,7 @@ void Text(const glm::vec3& pos, const glm::vec4& color, const char* fmt, ...) {
     vsnprintf(buf, sizeof(buf), fmt, args);
     va_end(args);
     sTextBatch.push_back({XformPoint(pos), color, buf});
+    ++sStats.textLabels;
 }
 
 // ── basic geometry ───────────────────────────────────────────────────
