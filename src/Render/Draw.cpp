@@ -647,7 +647,7 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     int h = std::max(1, static_cast<int>(cfg.height > 0 ? cfg.height : avail.y));
     scene->fbo.Resize(w, h, 16);
     scene->pickFbo.Resize(w, h);
-    scene->shadowFbo.Resize(2048, 2048);
+    scene->shadowFbo.Resize(4096, 4096);
 
     ImVec2 size{static_cast<float>(w), static_cast<float>(h)};
     auto cursor = ImGui::GetCursorScreenPos();
@@ -726,7 +726,7 @@ void Begin(const char* name, const ViewportConfig& cfg) {
         auto lightProj = glm::ortho(-shadowSize, shadowSize, -shadowSize, shadowSize, 0.1f, shadowDist * 2.f);
 
         // Snap projection so shadow texels align to stable world grid
-        constexpr float shadowRes = 2048.f;
+        constexpr float shadowRes = 4096.f;
         float ndcTexel = 2.f / shadowRes;
         glm::vec4 origin = lightProj * lightView * glm::vec4(0, 0, 0, 1);
         lightProj[3][0] -= origin.x - std::floor(origin.x / ndcTexel) * ndcTexel;

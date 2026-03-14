@@ -34,17 +34,16 @@ float Shadow(vec3 worldPos, vec3 N, vec3 L) {
     vec3 proj = ls.xyz / ls.w * 0.5 + 0.5;
     if (proj.z > 1.0) return 1.0;
 
-    // Slope-dependent bias: more at grazing angles, minimal when perpendicular
     float cosTheta = clamp(dot(N, L), 0.0, 1.0);
-    proj.z += mix(0.0008, 0.0001, cosTheta);
+    proj.z += mix(0.0006, 0.00005, cosTheta);
 
-    // 3x3 PCF for soft shadow edges
+    // 5x5 PCF for smooth shadow edges
     float shadow = 0.0;
-    vec2 texel = 1.0 / vec2(2048.0);
-    for (int x = -1; x <= 1; ++x)
-        for (int y = -1; y <= 1; ++y)
+    vec2 texel = 1.0 / vec2(4096.0);
+    for (int x = -2; x <= 2; ++x)
+        for (int y = -2; y <= 2; ++y)
             shadow += texture(uShadowMap, vec3(proj.xy + vec2(x, y) * texel, proj.z));
-    return shadow / 9.0;
+    return shadow / 25.0;
 }
 
 void main() {

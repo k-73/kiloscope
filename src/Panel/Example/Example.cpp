@@ -33,7 +33,6 @@ void Example::OnDraw() {
 
     Render::Begin("scene", {.width = 600, .height = 600});
         Render::Grid();
-        Render::PointLight({0, 0, 0}, {1.f, .95f, .8f}, 6.f);
 
         // Origin frame
         static bool showFrame = true;
@@ -43,8 +42,7 @@ void Example::OnDraw() {
                 showFrame = false;
         }
 
-        // Star (emissive core + glow rings)
-        Render::SetNextEmissive();
+        // Star
         Render::Sphere({0, 0, 0}, 0.4f, Hex("#F2EB4D"));
         auto starEvent = Render::Event();
         if (starEvent.Hovered())
