@@ -218,8 +218,6 @@ static void SetMeshUniforms(const glm::vec4& color, bool unlit = false) {
 
 static void BeginPickPass() {
     sFrame.scene->pickFbo.Bind();
-    glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LESS);
     glDepthMask(GL_TRUE);
 }
 
@@ -234,7 +232,6 @@ static void UploadMesh(const std::vector<MeshVert>& v) {
                       v.data(), GL_DYNAMIC_DRAW);
     glBindVertexArray(sMeshVao);
     glDrawArrays(GL_TRIANGLES, 0, count);
-    glBindVertexArray(0);
     ++sStats.drawCalls;
     sStats.vertices += count;
 
@@ -249,7 +246,6 @@ static void UploadMesh(const std::vector<MeshVert>& v) {
         glEnable(GL_CULL_FACE);
         glBindVertexArray(sMeshVao);
         glDrawArrays(GL_TRIANGLES, 0, count);
-        glBindVertexArray(0);
         ++sStats.pickDrawCalls;
         EndPickPass();
     }
@@ -297,7 +293,6 @@ static void FlushLines() {
     glDisable(GL_CULL_FACE);
     glBindVertexArray(sLineVao);
     glDrawArrays(GL_TRIANGLES, 0, count);
-    glBindVertexArray(0);
     glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
     glDepthMask(GL_TRUE);
     glEnable(GL_CULL_FACE);
@@ -312,7 +307,6 @@ static void FlushLines() {
         glDisable(GL_CULL_FACE);
         glBindVertexArray(sLineVao);
         glDrawArrays(GL_TRIANGLES, 0, count);
-        glBindVertexArray(0);
         glEnable(GL_CULL_FACE);
         ++sStats.pickDrawCalls;
         EndPickPass();
@@ -363,7 +357,6 @@ static void FlushPoints() {
     glDisable(GL_CULL_FACE);
     glBindVertexArray(sPointVao);
     glDrawArrays(GL_POINTS, 0, count);
-    glBindVertexArray(0);
     glDisable(GL_PROGRAM_POINT_SIZE);
     glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
     glDepthMask(GL_TRUE);
@@ -380,7 +373,6 @@ static void FlushPoints() {
         glDisable(GL_CULL_FACE);
         glBindVertexArray(sPointVao);
         glDrawArrays(GL_POINTS, 0, count);
-        glBindVertexArray(0);
         glDisable(GL_PROGRAM_POINT_SIZE);
         glEnable(GL_CULL_FACE);
         ++sStats.pickDrawCalls;
@@ -632,7 +624,6 @@ static void DrawGrid(const GridConfig& cfg, float camDist) {
     glDisable(GL_CULL_FACE);
     glBindVertexArray(sGridVao);
     glDrawArrays(GL_TRIANGLES, 0, 6);
-    glBindVertexArray(0);
     glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
     glEnable(GL_CULL_FACE);
     ++sStats.drawCalls;

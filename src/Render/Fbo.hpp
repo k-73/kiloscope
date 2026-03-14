@@ -13,7 +13,7 @@ public:
     Fbo(const Fbo&) = delete;
     Fbo& operator=(const Fbo&) = delete;
 
-    void Resize(int w, int h, int samples = 8);
+    void Resize(int w, int h, int samples = 16);
     void Bind(float clearR = 0.12f, float clearG = 0.12f, float clearB = 0.14f);
     void Resolve();
 

@@ -7,6 +7,9 @@
 
 namespace Kilo {
 
+static const char* sGpuRenderer = nullptr;
+static const char* sGlVersion   = nullptr;
+
 void Diagnostics::OnDraw() {
     auto& io = ImGui::GetIO();
 
@@ -23,9 +26,16 @@ void Diagnostics::OnDraw() {
     ImGui::Text("Vertices: %d  Lines: %d  Points: %d", s.vertices, s.lineSegments, s.points);
     ImGui::Text("Text Labels: %d", s.textLabels);
     ImGui::Text("Viewport: %dx%d  MSAA: %dx", s.viewportW, s.viewportH, s.msaaSamples);
+    if (s.viewportW > 0 && s.msaaSamples > 0) {
+        float fboMB = s.viewportW * s.viewportH * s.msaaSamples * 8.f / (1024.f * 1024.f) * 2.f;
+        ImGui::Text("FBO VRAM: ~%.1f MB (color+depth)", fboMB);
+    }
 
     ImGui::SeparatorText("GPU");
-    ImGui::Text("Renderer: %s", glGetString(GL_RENDERER));
+    if (!sGpuRenderer) sGpuRenderer = reinterpret_cast<const char*>(glGetString(GL_RENDERER));
+    if (!sGlVersion)   sGlVersion   = reinterpret_cast<const char*>(glGetString(GL_VERSION));
+    ImGui::Text("GPU: %s", sGpuRenderer ? sGpuRenderer : "?");
+    ImGui::Text("GL:  %s", sGlVersion ? sGlVersion : "?");
     ImGui::Text("ImGui Vtx: %d  Idx: %d  Windows: %d",
         io.MetricsRenderVertices, io.MetricsRenderIndices, io.MetricsRenderWindows);
 
