@@ -44,8 +44,11 @@ void Example::OnDraw() {
 
         // Star
         Render::Sphere({0, 0, 0}, 0.4f, Hex("#F2EB4D"));
-        if (Render::Event().Hovered())
+        auto starEvent = Render::Event();
+        if (starEvent.Hovered())
             Render::Text({0, 0, 0.5f}, White, "star");
+        if (starEvent.Clicked())
+            ImGui::OpenPopup("StarInfo");
 
         // Planet 1 — equatorial orbit
         constexpr float orbit1R = 2.2f, planet1R = 0.18f;
@@ -76,6 +79,14 @@ void Example::OnDraw() {
         Render::Text({0, 1.1f, 0}, Hex("#55CC55"), "Y");
         Render::Text({0, 0, 1.1f}, Hex("#5580E6"), "Z");
     Render::End();
+
+    if (ImGui::BeginPopup("StarInfo")) {
+        ImGui::SeparatorText("Star");
+        ImGui::Spacing();
+        if (ImGui::Button("Close"))
+            ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+    }
 
     ImGui::Begin("Environment", nullptr);
         auto& env = Render::GetEnvironment("scene");
