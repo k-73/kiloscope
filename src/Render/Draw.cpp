@@ -193,9 +193,7 @@ static bool sPickMeshReady  = false;
 static void SetMeshFrameUniforms() {
     if (sMeshFrameReady) return;
     sMeshShader.Use();
-    sMeshShader.Set("uModel", glm::mat4(1.f));
-    sMeshShader.Set("uView", sView);
-    sMeshShader.Set("uProj", sProj);
+    sMeshShader.Set("uViewProj", sViewProj);
     sMeshShader.Set("uLightDir", sLightDir);
     sMeshShader.Set("uCamPos", sCamPos);
     sMeshShader.Set("uBgColor", sEnv->bgColor);
@@ -242,8 +240,7 @@ static void UploadMesh(const std::vector<MeshVert>& v) {
         BeginPickPass();
         sPickMeshShader.Use();
         if (!sPickMeshReady) {
-            sPickMeshShader.Set("uView", sView);
-            sPickMeshShader.Set("uProj", sProj);
+            sPickMeshShader.Set("uViewProj", sViewProj);
             sPickMeshReady = true;
         }
         sPickMeshShader.Set("uPickId", sLastPickId);
@@ -599,6 +596,7 @@ static void DrawGrid(const GridConfig& cfg, float camDist) {
     sGridShader.Use();
     sGridShader.Set("uView", sView);
     sGridShader.Set("uProj", sProj);
+    sGridShader.Set("uViewProj", sViewProj);
     sGridShader.Set("uCamPos", sCamPos);
     sGridShader.Set("uCamDist", camDist);
     sGridShader.Set("uScaleFine",   cfg.scaleFine);

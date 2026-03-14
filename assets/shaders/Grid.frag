@@ -1,7 +1,7 @@
 #version 450 core
 in vec3 vNear, vFar;
 
-uniform mat4 uView, uProj;
+uniform mat4 uView, uProj, uViewProj;
 uniform vec3 uCamPos;
 uniform float uCamDist;
 
@@ -78,6 +78,6 @@ void main() {
     if (alpha < 0.003) discard;
 
     FragColor = vec4(col, alpha);
-    vec4 cp = uProj * uView * vec4(fp, 1);
+    vec4 cp = uViewProj * vec4(fp, 1);
     gl_FragDepth = cp.z / cp.w * 0.5 + 0.5;
 }
