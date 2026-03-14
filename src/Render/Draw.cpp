@@ -3,6 +3,7 @@
 #include "Render/Fbo.hpp"
 #include "Render/Shader.hpp"
 #include <GL/glew.h>
+#include <GLFW/glfw3.h>
 #include <imgui.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <generator/SphereMesh.hpp>
@@ -523,19 +524,48 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     ImVec2 size{static_cast<float>(w), static_cast<float>(h)};
     auto cursor = ImGui::GetCursorScreenPos();
     ImGui::InvisibleButton(name, size,
-        ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonMiddle);
+        ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonMiddle
+        | ImGuiButtonFlags_MouseButtonRight);
 
     auto& io  = ImGui::GetIO();
     auto& cam = scene->cam;
     bool hovered = ImGui::IsItemHovered();
     bool active  = ImGui::IsItemActive();
+    bool fly = active && ImGui::IsMouseDown(ImGuiMouseButton_Right);
 
-    if (hovered && io.MouseWheel != 0)
+    // Scroll = zoom
+    if (hovered && io.MouseWheel != 0.f)
         cam.Zoom(io.MouseWheel);
-    if (active && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+
+    // LMB drag = orbit (disabled in fly mode)
+    if (active && !fly && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
         cam.Orbit(io.MouseDelta.x, io.MouseDelta.y);
+
+    // MMB drag = pan
     if (active && ImGui::IsMouseDragging(ImGuiMouseButton_Middle))
         cam.Pan(io.MouseDelta.x, io.MouseDelta.y);
+
+    // RMB = fly mode (look + WASD/arrows/QE, cursor locked)
+    {
+        auto* win = glfwGetCurrentContext();
+        bool wasFly = glfwGetInputMode(win, GLFW_CURSOR) == GLFW_CURSOR_DISABLED;
+        if (fly && !wasFly)
+            glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        else if (!fly && wasFly)
+            glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    }
+    if (fly) {
+        cam.FlyLook(io.MouseDelta.x, io.MouseDelta.y);
+        float f = 0.f, r = 0.f, u = 0.f;
+        if (ImGui::IsKeyDown(ImGuiKey_W) || ImGui::IsKeyDown(ImGuiKey_UpArrow))    f += 1.f;
+        if (ImGui::IsKeyDown(ImGuiKey_S) || ImGui::IsKeyDown(ImGuiKey_DownArrow))  f -= 1.f;
+        if (ImGui::IsKeyDown(ImGuiKey_D) || ImGui::IsKeyDown(ImGuiKey_RightArrow)) r += 1.f;
+        if (ImGui::IsKeyDown(ImGuiKey_A) || ImGui::IsKeyDown(ImGuiKey_LeftArrow))  r -= 1.f;
+        if (ImGui::IsKeyDown(ImGuiKey_E) || ImGui::IsKeyDown(ImGuiKey_Space))      u += 1.f;
+        if (ImGui::IsKeyDown(ImGuiKey_Q) || ImGui::IsKeyDown(ImGuiKey_LeftShift))  u -= 1.f;
+        if (f != 0.f || r != 0.f || u != 0.f)
+            cam.FlyMove(f, r, u, io.DeltaTime);
+    }
 
     sFrame = { scene.get(), cursor.x, cursor.y, size.x, size.y, hovered };
     sEnv = &scene->env;

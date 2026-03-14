@@ -115,17 +115,20 @@ void Example::OnDraw() {
 
     ImGui::Begin("Camera", nullptr);
         auto& cam = Render::GetCamera("scene");
-        ImGui::DragFloat3("Target",   &cam.Target().x, 0.05f);
-        ImGui::DragFloat("Distance",  &cam.Distance(), 0.1f, 0.5f, 200.f);
+        auto eye = cam.Position();
+        ImGui::Text("Eye:   %.1f, %.1f, %.1f", eye.x, eye.y, eye.z);
+        ImGui::Text("Pivot: %.1f, %.1f, %.1f", cam.Pivot().x, cam.Pivot().y, cam.Pivot().z);
+        ImGui::DragFloat3("Pivot",    &cam.Target().x, 0.05f);
+        ImGui::DragFloat("Distance",  &cam.Distance(), 0.1f, 0.01f, 1000.f);
         ImGui::SliderFloat("Yaw",     &cam.Yaw(), -180.f, 180.f, "%.1f\xc2\xb0");
         ImGui::SliderFloat("Pitch",   &cam.Pitch(), -89.f, 89.f, "%.1f\xc2\xb0");
-        auto pos = cam.Position();
-        ImGui::Text("Pos: %.1f, %.1f, %.1f", pos.x, pos.y, pos.z);
+        ImGui::SliderFloat("FOV",     &cam.Fov(), 10.f, 120.f, "%.0f\xc2\xb0");
         if (ImGui::Button("Reset")) {
             cam.Target()   = {0.f, 0.f, 0.f};
             cam.Distance() = 8.f;
             cam.Yaw()      = 45.f;
             cam.Pitch()    = 30.f;
+            cam.Fov()      = 45.f;
         }
     ImGui::End();
 
