@@ -82,12 +82,69 @@ static float MatScale() {
                     glm::length(glm::vec3(m[2])));
 }
 
-// ── interaction state ────────────────────────────────────────────────
+// ── geometry helpers ─────────────────────────────────────────────────
 
-static struct { glm::vec3 center; float radius; bool valid; } sLastBounding = {{}, 0.f, false};
+static glm::vec3 Perpendicular(const glm::vec3& v) {
+    auto n = glm::normalize(v);
+    return glm::normalize(glm::cross(n, std::abs(n.y) < 0.99f
+                                        ? glm::vec3(0, 1, 0) : glm::vec3(1, 0, 0)));
+}
 
-static void UpdateBounding(const glm::vec3& worldCenter, float worldRadius) {
-    sLastBounding = {worldCenter, worldRadius, true};
+// ── hit testing ──────────────────────────────────────────────────────
+
+static struct {
+    enum { None, Circle, Rect } type = None;
+    glm::vec2 center; float screenR;   // Circle
+    glm::vec2 mn, mx;                  // Rect
+} sHit;
+
+static void SetHitCircle(const glm::vec3& worldCenter, float worldRadius) {
+    auto s = WorldToScreen(worldCenter);
+    if (s.x < 0.f) { sHit.type = decltype(sHit)::None; return; }
+    glm::vec4 clip = sProj * sView * glm::vec4(worldCenter, 1.f);
+    float r = worldRadius * sProj[1][1] * sFrame.h * 0.5f / clip.w;
+    sHit = {decltype(sHit)::Circle, s, std::max(r, 4.f), {}, {}};
+}
+
+static void BeginHitRect() {
+    sHit = {decltype(sHit)::Rect, {}, 0.f, glm::vec2(1e18f), glm::vec2(-1e18f)};
+}
+
+static void AddHitPoint(const glm::vec3& worldPos) {
+    auto s = WorldToScreen(worldPos);
+    if (s.x < 0.f) return;
+    sHit.mn = glm::min(sHit.mn, s);
+    sHit.mx = glm::max(sHit.mx, s);
+}
+
+static void PadHitRect(float px) {
+    sHit.mn -= glm::vec2(px);
+    sHit.mx += glm::vec2(px);
+}
+
+static void SetHitBox(const glm::vec3& center, const glm::vec3& halfSize) {
+    BeginHitRect();
+    for (int i = 0; i < 8; ++i)
+        AddHitPoint(XformPoint(center + glm::vec3(
+            (i & 1) ? halfSize.x : -halfSize.x,
+            (i & 2) ? halfSize.y : -halfSize.y,
+            (i & 4) ? halfSize.z : -halfSize.z)));
+}
+
+static void SetHitTube(const glm::vec3& a, const glm::vec3& b, float radius) {
+    auto wa = XformPoint(a), wb = XformPoint(b);
+    auto dir = wb - wa;
+    float len = glm::length(dir);
+    if (len < 1e-6f) { SetHitCircle(wa, radius * MatScale()); return; }
+    auto n = dir / len;
+    auto p = Perpendicular(n);
+    auto s = glm::cross(n, p);
+    float r = radius * MatScale();
+    BeginHitRect();
+    for (auto& end : {wa, wb}) {
+        AddHitPoint(end + p * r); AddHitPoint(end - p * r);
+        AddHitPoint(end + s * r); AddHitPoint(end - s * r);
+    }
 }
 
 // ── geometry helpers ─────────────────────────────────────────────────
@@ -109,12 +166,6 @@ static glm::mat4 ZAlign(const glm::vec3& a, const glm::vec3& b) {
 
 static glm::mat4 AxisTransform(const glm::vec3& center, const glm::vec3& axis) {
     return glm::translate(glm::mat4(1.f), center) * AxisRotation(axis);
-}
-
-static glm::vec3 Perpendicular(const glm::vec3& v) {
-    auto n = glm::normalize(v);
-    return glm::normalize(glm::cross(n, std::abs(n.y) < 0.99f
-                                        ? glm::vec3(0, 1, 0) : glm::vec3(1, 0, 0)));
 }
 
 // ── GPU helpers ──────────────────────────────────────────────────────
@@ -266,20 +317,18 @@ bool EventState::Clicked(int button) const {
 
 EventState Event() {
     EventState state;
-    if (!sLastBounding.valid || !sFrame.hovered) return state;
-
-    auto screen = WorldToScreen(sLastBounding.center);
-    if (screen.x < 0.f) return state;
-
-    glm::vec4 clip = sProj * sView * glm::vec4(sLastBounding.center, 1.f);
-    float screenR = sLastBounding.radius * sProj[1][1] * sFrame.h * 0.5f / clip.w;
-    screenR = std::max(screenR, 4.f);
+    if (sHit.type == decltype(sHit)::None || !sFrame.hovered) return state;
 
     auto& mouse = ImGui::GetIO().MousePos;
-    float dx = mouse.x - screen.x;
-    float dy = mouse.y - screen.y;
-    state.hovered_ = (dx * dx + dy * dy) <= (screenR * screenR);
 
+    if (sHit.type == decltype(sHit)::Circle) {
+        float dx = mouse.x - sHit.center.x;
+        float dy = mouse.y - sHit.center.y;
+        state.hovered_ = (dx * dx + dy * dy) <= (sHit.screenR * sHit.screenR);
+    } else {
+        state.hovered_ = mouse.x >= sHit.mn.x && mouse.x <= sHit.mx.x
+                      && mouse.y >= sHit.mn.y && mouse.y <= sHit.mx.y;
+    }
     return state;
 }
 
@@ -307,7 +356,6 @@ static void Eigen3(const glm::mat3& A, glm::vec3& eigenvalues, glm::mat3& eigenv
     glm::mat3 D = A;
     eigenvectors = glm::mat3(1.f);
     for (int iter = 0; iter < 50; ++iter) {
-        // find largest off-diagonal |D[p][q]|
         int p = 0, q = 1;
         float mx = std::abs(D[0][1]);
         if (std::abs(D[0][2]) > mx) { p = 0; q = 2; mx = std::abs(D[0][2]); }
@@ -383,13 +431,11 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     auto& scene = sScenes[HashName(name)];
     if (!scene) scene = std::make_unique<SceneData>();
 
-    // viewport size
     auto avail = ImGui::GetContentRegionAvail();
     int w = std::max(1, static_cast<int>(cfg.width  > 0 ? cfg.width  : avail.x));
     int h = std::max(1, static_cast<int>(cfg.height > 0 ? cfg.height : avail.y));
     scene->fbo.Resize(w, h, 8);
 
-    // input region
     ImVec2 size{static_cast<float>(w), static_cast<float>(h)};
     auto cursor = ImGui::GetCursorScreenPos();
     ImGui::InvisibleButton(name, size,
@@ -407,7 +453,6 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     if (active && ImGui::IsMouseDragging(ImGuiMouseButton_Middle))
         cam.Pan(io.MouseDelta.x, io.MouseDelta.y);
 
-    // begin render pass
     sFrame = { scene.get(), cursor.x, cursor.y, size.x, size.y, hovered };
     sEnv = &scene->env;
 
@@ -419,12 +464,11 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     sProj     = cam.Projection(aspect);
     sCamPos   = cam.Position();
     sLightDir = glm::normalize(sEnv->lightDir);
-    sVpW = w;
-    sVpH = h;
+    sVpW = w; sVpH = h;
     sLineBatch.clear();
     sPointBatch.clear();
     sTextBatch.clear();
-    sLastBounding.valid = false;
+    sHit.type = decltype(sHit)::None;
     sMatStack = {glm::mat4(1.f)};
 }
 
@@ -545,21 +589,29 @@ void Scale(float s) { Scale({s, s, s}); }
 
 void Line(const glm::vec3& a, const glm::vec3& b,
           const glm::vec4& color, float width) {
-    BatchLine(XformPoint(a), XformPoint(b), color, width);
+    auto wa = XformPoint(a), wb = XformPoint(b);
+    BatchLine(wa, wb, color, width);
+    BeginHitRect(); AddHitPoint(wa); AddHitPoint(wb); PadHitRect(width + 4.f);
 }
 
 void Polyline(const glm::vec3* points, int count,
               const glm::vec4& color, float width, bool closed) {
     if (count < 2) return;
+    BeginHitRect();
+    for (int i = 0; i < count; ++i) AddHitPoint(XformPoint(points[i]));
+    PadHitRect(width + 4.f);
     for (int i = 1; i < count; ++i)
-        Line(points[i - 1], points[i], color, width);
+        BatchLine(XformPoint(points[i - 1]), XformPoint(points[i]), color, width);
     if (closed && count > 2)
-        Line(points[count - 1], points[0], color, width);
+        BatchLine(XformPoint(points[count - 1]), XformPoint(points[0]), color, width);
 }
 
 void Path(const glm::vec3* points, const glm::vec4* colors,
           int count, float width, bool closed) {
     if (count < 2) return;
+    BeginHitRect();
+    for (int i = 0; i < count; ++i) AddHitPoint(XformPoint(points[i]));
+    PadHitRect(width + 4.f);
     for (int i = 1; i < count; ++i)
         BatchLineGradient(XformPoint(points[i - 1]), XformPoint(points[i]),
                           colors[i - 1], colors[i], width);
@@ -575,6 +627,13 @@ void Arc(const glm::vec3& center, const glm::vec3& axis,
     auto ta = glm::normalize(XformDir(axis));
     auto ts = glm::normalize(XformDir(startDir));
     float step = glm::radians(angleDeg) / static_cast<float>(seg);
+    BeginHitRect();
+    for (int i = 0; i <= seg; ++i) {
+        auto r0 = glm::rotate(glm::mat4(1), step * i, ta);
+        auto pt = tc + glm::vec3(r0 * glm::vec4(ts * radius, 0));
+        AddHitPoint(pt);
+    }
+    PadHitRect(width + 4.f);
     for (int i = 0; i < seg; ++i) {
         auto r0 = glm::rotate(glm::mat4(1), step * i,       ta);
         auto r1 = glm::rotate(glm::mat4(1), step * (i + 1), ta);
@@ -601,16 +660,20 @@ void Spline(const glm::vec3* cp, int count,
             (-p0 + 3.f * p1 - 3.f * p2 + p3) * t * t * t);
     };
 
+    BeginHitRect();
+    for (int i = 0; i < count; ++i) AddHitPoint(XformPoint(cp[i]));
+    PadHitRect(width + 4.f);
+
     for (int i = 0; i < count - 1; ++i) {
         const auto& p0 = cp[std::max(0, i - 1)];
         const auto& p1 = cp[i];
         const auto& p2 = cp[std::min(count - 1, i + 1)];
         const auto& p3 = cp[std::min(count - 1, i + 2)];
-        glm::vec3 prev = p1;
+        auto prev = XformPoint(p1);
         for (int s = 1; s <= segments; ++s) {
             float t = static_cast<float>(s) / static_cast<float>(segments);
-            auto cur = catmullRom(p0, p1, p2, p3, t);
-            Line(prev, cur, color, width);
+            auto cur = XformPoint(catmullRom(p0, p1, p2, p3, t));
+            BatchLine(prev, cur, color, width);
             prev = cur;
         }
     }
@@ -623,8 +686,13 @@ void Points(const glm::vec3* positions, int count,
     if (!sPointBatch.empty() && size != sPointSize)
         FlushPoints();
     sPointSize = size;
-    for (int i = 0; i < count; ++i)
-        sPointBatch.push_back({XformPoint(positions[i]), color});
+    BeginHitRect();
+    for (int i = 0; i < count; ++i) {
+        auto w = XformPoint(positions[i]);
+        sPointBatch.push_back({w, color});
+        AddHitPoint(w);
+    }
+    PadHitRect(size + 2.f);
 }
 
 void Points(const glm::vec3* positions, const glm::vec4* colors,
@@ -632,8 +700,13 @@ void Points(const glm::vec3* positions, const glm::vec4* colors,
     if (!sPointBatch.empty() && size != sPointSize)
         FlushPoints();
     sPointSize = size;
-    for (int i = 0; i < count; ++i)
-        sPointBatch.push_back({XformPoint(positions[i]), colors[i]});
+    BeginHitRect();
+    for (int i = 0; i < count; ++i) {
+        auto w = XformPoint(positions[i]);
+        sPointBatch.push_back({w, colors[i]});
+        AddHitPoint(w);
+    }
+    PadHitRect(size + 2.f);
 }
 
 // ── text ─────────────────────────────────────────────────────────────
@@ -644,7 +717,9 @@ void Text(const glm::vec3& pos, const glm::vec4& color, const char* fmt, ...) {
     va_start(args, fmt);
     vsnprintf(buf, sizeof(buf), fmt, args);
     va_end(args);
-    sTextBatch.push_back({XformPoint(pos), color, buf});
+    auto wp = XformPoint(pos);
+    sTextBatch.push_back({wp, color, buf});
+    BeginHitRect(); AddHitPoint(wp); PadHitRect(40.f);
 }
 
 // ── basic geometry ───────────────────────────────────────────────────
@@ -655,9 +730,7 @@ void Triangle(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c,
     auto normal = glm::normalize(glm::cross(tb - ta, tc - ta));
     SetMeshUniforms(color);
     UploadMesh({{ta, normal}, {tb, normal}, {tc, normal}});
-    auto cent = (ta + tb + tc) / 3.f;
-    UpdateBounding(cent, std::max(glm::length(ta - cent),
-                         std::max(glm::length(tb - cent), glm::length(tc - cent))));
+    BeginHitRect(); AddHitPoint(ta); AddHitPoint(tb); AddHitPoint(tc);
 }
 
 void Quad(const glm::vec3& a, const glm::vec3& b,
@@ -667,9 +740,7 @@ void Quad(const glm::vec3& a, const glm::vec3& b,
     SetMeshUniforms(color);
     UploadMesh({{ta, normal}, {tb, normal}, {tc, normal},
                 {ta, normal}, {tc, normal}, {td, normal}});
-    auto cent = (ta + tb + tc + td) * 0.25f;
-    UpdateBounding(cent, std::max(std::max(glm::length(ta - cent), glm::length(tb - cent)),
-                                  std::max(glm::length(tc - cent), glm::length(td - cent))));
+    BeginHitRect(); AddHitPoint(ta); AddHitPoint(tb); AddHitPoint(tc); AddHitPoint(td);
 }
 
 void Plane(const glm::vec3& center, const glm::vec3& normal,
@@ -692,7 +763,7 @@ void Sphere(const glm::vec3& center, float radius,
     AppendMesh(v, generator::SphereMesh(radius, seg, seg / 2),
                glm::translate(Mat(), center));
     UploadMesh(v);
-    UpdateBounding(XformPoint(center), radius * MatScale());
+    SetHitCircle(XformPoint(center), radius * MatScale());
 }
 
 void Box(const glm::vec3& center, const glm::vec3& size,
@@ -702,7 +773,7 @@ void Box(const glm::vec3& center, const glm::vec3& size,
     AppendMesh(v, generator::BoxMesh({size.x, size.y, size.z}, {1, 1, 1}),
                glm::translate(Mat(), center));
     UploadMesh(v);
-    UpdateBounding(XformPoint(center), glm::length(size) * 0.5f * MatScale());
+    SetHitBox(center, size * 0.5f);
 }
 
 void Cube(const glm::vec3& center, float size, const glm::vec4& color) {
@@ -718,8 +789,7 @@ void Cylinder(const glm::vec3& a, const glm::vec3& b,
     AppendMesh(v, generator::CappedCylinderMesh(radius, halfLen, seg, 1, 1),
                Mat() * ZAlign(a, b));
     UploadMesh(v);
-    UpdateBounding(XformPoint((a + b) * 0.5f),
-                   std::sqrt(halfLen * halfLen + radius * radius) * MatScale());
+    SetHitTube(a, b, radius);
 }
 
 void Cone(const glm::vec3& base, const glm::vec3& tip,
@@ -731,8 +801,7 @@ void Cone(const glm::vec3& base, const glm::vec3& tip,
     AppendMesh(v, generator::CappedConeMesh(radius, halfLen, seg, 1, 1),
                Mat() * ZAlign(base, tip));
     UploadMesh(v);
-    UpdateBounding(XformPoint((base + tip) * 0.5f),
-                   std::sqrt(halfLen * halfLen + radius * radius) * MatScale());
+    SetHitTube(base, tip, radius);
 }
 
 void Capsule(const glm::vec3& a, const glm::vec3& b,
@@ -744,7 +813,7 @@ void Capsule(const glm::vec3& a, const glm::vec3& b,
     AppendMesh(v, generator::CapsuleMesh(radius, halfLen, seg, 1, seg / 2),
                Mat() * ZAlign(a, b));
     UploadMesh(v);
-    UpdateBounding(XformPoint((a + b) * 0.5f), (halfLen + radius) * MatScale());
+    SetHitTube(a, b, radius);
 }
 
 void Torus(const glm::vec3& center, const glm::vec3& axis,
@@ -754,7 +823,14 @@ void Torus(const glm::vec3& center, const glm::vec3& axis,
     AppendMesh(v, generator::TorusMesh(minorR, majorR, seg / 2, seg),
                Mat() * AxisTransform(center, axis));
     UploadMesh(v);
-    UpdateBounding(XformPoint(center), (majorR + minorR) * MatScale());
+    auto n = glm::normalize(axis);
+    auto p = Perpendicular(n);
+    auto s = glm::cross(n, p);
+    float r = majorR + minorR;
+    BeginHitRect();
+    AddHitPoint(XformPoint(center + p * r)); AddHitPoint(XformPoint(center - p * r));
+    AddHitPoint(XformPoint(center + s * r)); AddHitPoint(XformPoint(center - s * r));
+    AddHitPoint(XformPoint(center + n * minorR)); AddHitPoint(XformPoint(center - n * minorR));
 }
 
 void Disk(const glm::vec3& center, const glm::vec3& normal,
@@ -764,7 +840,12 @@ void Disk(const glm::vec3& center, const glm::vec3& normal,
     AppendMesh(v, generator::DiskMesh(radius, 0.0, seg, 1),
                Mat() * AxisTransform(center, normal));
     UploadMesh(v);
-    UpdateBounding(XformPoint(center), radius * MatScale());
+    auto n = glm::normalize(normal);
+    auto p = Perpendicular(n);
+    auto s = glm::cross(n, p);
+    BeginHitRect();
+    AddHitPoint(XformPoint(center + p * radius)); AddHitPoint(XformPoint(center - p * radius));
+    AddHitPoint(XformPoint(center + s * radius)); AddHitPoint(XformPoint(center - s * radius));
 }
 
 void Ring(const glm::vec3& center, const glm::vec3& normal,
@@ -774,7 +855,12 @@ void Ring(const glm::vec3& center, const glm::vec3& normal,
     AppendMesh(v, generator::DiskMesh(outerR, innerR, seg, 1),
                Mat() * AxisTransform(center, normal));
     UploadMesh(v);
-    UpdateBounding(XformPoint(center), outerR * MatScale());
+    auto n = glm::normalize(normal);
+    auto p = Perpendicular(n);
+    auto s = glm::cross(n, p);
+    BeginHitRect();
+    AddHitPoint(XformPoint(center + p * outerR)); AddHitPoint(XformPoint(center - p * outerR));
+    AddHitPoint(XformPoint(center + s * outerR)); AddHitPoint(XformPoint(center - s * outerR));
 }
 
 // ── custom mesh ──────────────────────────────────────────────────────
@@ -786,12 +872,12 @@ void Mesh(const glm::vec3* verts, const glm::vec3* normals,
     auto nmat = glm::transpose(glm::inverse(glm::mat3(m)));
     std::vector<MeshVert> v;
     v.reserve(indexCount);
+    BeginHitRect();
     for (int i = 0; i < indexCount; ++i) {
         uint32_t idx = indices[i];
-        v.push_back({
-            glm::vec3(m * glm::vec4(verts[idx], 1.f)),
-            glm::normalize(nmat * normals[idx])
-        });
+        auto wp = glm::vec3(m * glm::vec4(verts[idx], 1.f));
+        v.push_back({wp, glm::normalize(nmat * normals[idx])});
+        AddHitPoint(wp);
     }
     UploadMesh(v);
 }
@@ -803,11 +889,11 @@ void Mesh(const glm::vec3* verts, const glm::vec3* normals,
     auto nmat = glm::transpose(glm::inverse(glm::mat3(m)));
     std::vector<MeshVert> v;
     v.reserve(vertCount);
+    BeginHitRect();
     for (int i = 0; i < vertCount; ++i) {
-        v.push_back({
-            glm::vec3(m * glm::vec4(verts[i], 1.f)),
-            glm::normalize(nmat * normals[i])
-        });
+        auto wp = glm::vec3(m * glm::vec4(verts[i], 1.f));
+        v.push_back({wp, glm::normalize(nmat * normals[i])});
+        AddHitPoint(wp);
     }
     UploadMesh(v);
 }
@@ -827,13 +913,12 @@ void WireBox(const glm::vec3& center, const glm::vec3& size,
         center + glm::vec3( hs.x,  hs.y,  hs.z),
         center + glm::vec3(-hs.x,  hs.y,  hs.z),
     };
-    Line(c[0],c[1],color,width); Line(c[1],c[2],color,width);
-    Line(c[2],c[3],color,width); Line(c[3],c[0],color,width);
-    Line(c[4],c[5],color,width); Line(c[5],c[6],color,width);
-    Line(c[6],c[7],color,width); Line(c[7],c[4],color,width);
-    Line(c[0],c[4],color,width); Line(c[1],c[5],color,width);
-    Line(c[2],c[6],color,width); Line(c[3],c[7],color,width);
-    UpdateBounding(XformPoint(center), glm::length(size) * 0.5f * MatScale());
+    for (int i = 0; i < 4; ++i) {
+        Line(c[i], c[(i+1)%4], color, width);
+        Line(c[i+4], c[(i+1)%4+4], color, width);
+        Line(c[i], c[i+4], color, width);
+    }
+    SetHitBox(center, hs);
 }
 
 void WireSphere(const glm::vec3& center, float radius,
@@ -841,7 +926,7 @@ void WireSphere(const glm::vec3& center, float radius,
     Circle(center, {1, 0, 0}, radius, color, seg, width);
     Circle(center, {0, 1, 0}, radius, color, seg, width);
     Circle(center, {0, 0, 1}, radius, color, seg, width);
-    UpdateBounding(XformPoint(center), radius * MatScale());
+    SetHitCircle(XformPoint(center), radius * MatScale());
 }
 
 void WireCylinder(const glm::vec3& a, const glm::vec3& b,
@@ -861,8 +946,7 @@ void WireCylinder(const glm::vec3& a, const glm::vec3& b,
         auto d = perp * std::cos(angle) + side * std::sin(angle);
         Line(a + d * radius, b + d * radius, color, width);
     }
-    UpdateBounding(XformPoint((a + b) * 0.5f),
-                   std::sqrt(len * len * 0.25f + radius * radius) * MatScale());
+    SetHitTube(a, b, radius);
 }
 
 void WireCone(const glm::vec3& base, const glm::vec3& tip,
@@ -881,8 +965,7 @@ void WireCone(const glm::vec3& base, const glm::vec3& tip,
         auto d = perp * std::cos(angle) + side * std::sin(angle);
         Line(base + d * radius, tip, color, width);
     }
-    UpdateBounding(XformPoint((base + tip) * 0.5f),
-                   std::sqrt(len * len * 0.25f + radius * radius) * MatScale());
+    SetHitTube(base, tip, radius);
 }
 
 void WireCapsule(const glm::vec3& a, const glm::vec3& b,
@@ -908,7 +991,9 @@ void WireCapsule(const glm::vec3& a, const glm::vec3& b,
     Arc(a, side, -dir, radius, 180.f, color, halfSeg, width);
     Arc(b, perp,  dir, radius, 180.f, color, halfSeg, width);
     Arc(b, side,  dir, radius, 180.f, color, halfSeg, width);
-    UpdateBounding(XformPoint((a + b) * 0.5f), (len * 0.5f + radius) * MatScale());
+    // extend tube by cap radius
+    auto n = dir * radius;
+    SetHitTube(a - n, b + n, radius);
 }
 
 // ── composite ────────────────────────────────────────────────────────
@@ -931,7 +1016,7 @@ void Arrow(const glm::vec3& from, const glm::vec3& to,
     AppendMesh(v, generator::CappedConeMesh(headR, halfHead, 24, 1, 1),
                Mat() * ZAlign(shaftEnd, to));
     UploadMesh(v);
-    UpdateBounding(XformPoint((from + to) * 0.5f), len * 0.5f * MatScale());
+    SetHitTube(from, to, headR);
 }
 
 void Axes(const glm::vec3& origin, float len) {
@@ -939,7 +1024,13 @@ void Axes(const glm::vec3& origin, float len) {
     Arrow(origin, origin + glm::vec3(len, 0, 0), {.95f, .25f, .25f, 1}, s, h);
     Arrow(origin, origin + glm::vec3(0, len, 0), {.35f, .85f, .35f, 1}, s, h);
     Arrow(origin, origin + glm::vec3(0, 0, len), {.35f, .50f, .95f, 1}, s, h);
-    UpdateBounding(XformPoint(origin), len * MatScale());
+    BeginHitRect();
+    AddHitPoint(XformPoint(origin));
+    AddHitPoint(XformPoint(origin + glm::vec3(len, 0, 0)));
+    AddHitPoint(XformPoint(origin + glm::vec3(0, len, 0)));
+    AddHitPoint(XformPoint(origin + glm::vec3(0, 0, len)));
+    PadHitRect(h * MatScale() * sProj[1][1] * sFrame.h * 0.5f /
+               (sProj * sView * glm::vec4(XformPoint(origin), 1.f)).w);
 }
 
 void Frame(const glm::mat4& pose, float len) {
@@ -963,7 +1054,14 @@ void Cross(const glm::vec3& pos, float size,
     Line(pos - glm::vec3(hs, 0, 0), pos + glm::vec3(hs, 0, 0), color, width);
     Line(pos - glm::vec3(0, hs, 0), pos + glm::vec3(0, hs, 0), color, width);
     Line(pos - glm::vec3(0, 0, hs), pos + glm::vec3(0, 0, hs), color, width);
-    UpdateBounding(XformPoint(pos), size * 0.5f * MatScale());
+    BeginHitRect();
+    AddHitPoint(XformPoint(pos + glm::vec3( hs, 0, 0)));
+    AddHitPoint(XformPoint(pos + glm::vec3(-hs, 0, 0)));
+    AddHitPoint(XformPoint(pos + glm::vec3(0,  hs, 0)));
+    AddHitPoint(XformPoint(pos + glm::vec3(0, -hs, 0)));
+    AddHitPoint(XformPoint(pos + glm::vec3(0, 0,  hs)));
+    AddHitPoint(XformPoint(pos + glm::vec3(0, 0, -hs)));
+    PadHitRect(width + 4.f);
 }
 
 void AABB(const glm::vec3& mn, const glm::vec3& mx,
@@ -1014,6 +1112,12 @@ void WireGrid(const glm::vec3& center, const glm::vec3& normal,
         Line(center + u * t - v * half, center + u * t + v * half, color, width);
         Line(center - u * half + v * t, center + u * half + v * t, color, width);
     }
+    BeginHitRect();
+    AddHitPoint(XformPoint(center + (u + v) * half));
+    AddHitPoint(XformPoint(center + (u - v) * half));
+    AddHitPoint(XformPoint(center + (-u + v) * half));
+    AddHitPoint(XformPoint(center + (-u - v) * half));
+    PadHitRect(width + 2.f);
 }
 
 void Frustum(const glm::mat4& viewProj,
@@ -1036,6 +1140,9 @@ void Frustum(const glm::mat4& viewProj,
         Line(f[i], f[(i+1)%4], color, width);
         Line(n[i], f[i], color, width);
     }
+    BeginHitRect();
+    for (int i = 0; i < 4; ++i) { AddHitPoint(n[i]); AddHitPoint(f[i]); }
+    PadHitRect(width + 2.f);
 }
 
 } // namespace Kilo::Render
