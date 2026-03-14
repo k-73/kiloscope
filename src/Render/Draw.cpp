@@ -89,7 +89,7 @@ static GLuint sPointVao = 0, sPointVbo = 0;
 
 // ── per-frame render state ───────────────────────────────────────────
 
-static glm::mat4 sView, sProj;
+static glm::mat4 sView, sProj, sViewProj;
 static glm::vec3 sCamPos, sLightDir;
 static int sVpW = 1, sVpH = 1;
 static std::vector<LineVert>  sLineBatch;
@@ -98,6 +98,7 @@ static std::vector<TextEntry> sTextBatch;
 static float sLineWidth  = 2.5f;
 static float sPointSize  = 4.f;
 static std::vector<glm::mat4> sMatStack = {glm::mat4(1.f)};
+static std::vector<MeshVert>  sMeshScratch;  // reused per-frame, avoids allocations
 
 // ── per-scene state ──────────────────────────────────────────────────
 
@@ -185,15 +186,16 @@ static void SetupVao(GLuint vao, GLuint vbo, GLsizei stride,
     }
 }
 
-static void SetMeshUniforms(const glm::vec4& color, bool unlit = false) {
+static bool sMeshFrameReady = false;
+
+static void SetMeshFrameUniforms() {
+    if (sMeshFrameReady) return;
     sMeshShader.Use();
     sMeshShader.Set("uModel", glm::mat4(1.f));
     sMeshShader.Set("uView", sView);
     sMeshShader.Set("uProj", sProj);
-    sMeshShader.Set("uColor", color);
     sMeshShader.Set("uLightDir", sLightDir);
     sMeshShader.Set("uCamPos", sCamPos);
-    sMeshShader.Set("uUnlit", unlit ? 1 : 0);
     sMeshShader.Set("uBgColor", sEnv->bgColor);
     sMeshShader.Set("uAmbient", sEnv->ambient);
     sMeshShader.Set("uDiffuse", sEnv->diffuse);
@@ -201,6 +203,14 @@ static void SetMeshUniforms(const glm::vec4& color, bool unlit = false) {
     sMeshShader.Set("uSpecular", sEnv->specular);
     sMeshShader.Set("uFresnel", sEnv->fresnel);
     sMeshShader.Set("uFogDensity", sEnv->fogDensity);
+    sMeshFrameReady = true;
+}
+
+static void SetMeshUniforms(const glm::vec4& color, bool unlit = false) {
+    SetMeshFrameUniforms();
+    sMeshShader.Use();
+    sMeshShader.Set("uColor", color);
+    sMeshShader.Set("uUnlit", unlit ? 1 : 0);
 }
 
 // ── pick pass helpers ────────────────────────────────────────────────
@@ -370,7 +380,7 @@ static void FlushPoints() {
 // ── projection helpers ───────────────────────────────────────────────
 
 glm::vec2 WorldToScreen(const glm::vec3& worldPos) {
-    glm::vec4 clip = sProj * sView * glm::vec4(worldPos, 1.f);
+    glm::vec4 clip = sViewProj * glm::vec4(worldPos, 1.f);
     if (clip.w <= 0.f) return {-1.f, -1.f};
     glm::vec3 ndc = glm::vec3(clip) / clip.w;
     return {
@@ -533,6 +543,7 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     float aspect = static_cast<float>(w) / std::max(1, h);
     sView     = cam.View();
     sProj     = cam.Projection(aspect);
+    sViewProj = sProj * sView;
     sCamPos   = cam.Position();
     sLightDir = glm::normalize(sEnv->lightDir);
     sVpW = w; sVpH = h;
@@ -546,10 +557,12 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     sLastPickId = 0;
     sPickIdOverride = 0;
     sPickEnabled = true;
+    sMeshFrameReady = false;
     sLineBatch.clear();
     sPointBatch.clear();
     sTextBatch.clear();
-    sMatStack = {glm::mat4(1.f)};
+    sMatStack.resize(1);
+    sMatStack[0] = glm::mat4(1.f);
 }
 
 static void DrawSun() {
@@ -562,10 +575,10 @@ static void DrawSun() {
     ResetMatrix();
 
     SetMeshUniforms({1.f, .98f, .85f, 1.f}, true);
-    std::vector<MeshVert> sv;
-    AppendMesh(sv, generator::SphereMesh(r, 16, 8),
+    sMeshScratch.clear();
+    AppendMesh(sMeshScratch, generator::SphereMesh(r, 16, 8),
                glm::translate(glm::mat4(1.f), sunPos));
-    UploadMesh(sv);
+    UploadMesh(sMeshScratch);
 
     Circle(sunPos, facing, r * 1.8f, {1.f, .95f, .7f, .45f}, 32, 3.f);
     Circle(sunPos, facing, r * 3.f,  {1.f, .9f,  .5f, .18f}, 32, 2.f);
@@ -834,20 +847,20 @@ void Sphere(const glm::vec3& center, float radius,
             const glm::vec4& color, int seg) {
     sLastPickId = AllocPickId();
     SetMeshUniforms(color);
-    std::vector<MeshVert> v;
-    AppendMesh(v, generator::SphereMesh(radius, seg, seg / 2),
+    sMeshScratch.clear();
+    AppendMesh(sMeshScratch, generator::SphereMesh(radius, seg, seg / 2),
                glm::translate(Mat(), center));
-    UploadMesh(v);
+    UploadMesh(sMeshScratch);
 }
 
 void Box(const glm::vec3& center, const glm::vec3& size,
          const glm::vec4& color) {
     sLastPickId = AllocPickId();
     SetMeshUniforms(color);
-    std::vector<MeshVert> v;
-    AppendMesh(v, generator::BoxMesh({size.x, size.y, size.z}, {1, 1, 1}),
+    sMeshScratch.clear();
+    AppendMesh(sMeshScratch, generator::BoxMesh({size.x, size.y, size.z}, {1, 1, 1}),
                glm::translate(Mat(), center));
-    UploadMesh(v);
+    UploadMesh(sMeshScratch);
 }
 
 void Cube(const glm::vec3& center, float size, const glm::vec4& color) {
@@ -860,10 +873,10 @@ void Cylinder(const glm::vec3& a, const glm::vec3& b,
     if (halfLen < 1e-6f) return;
     sLastPickId = AllocPickId();
     SetMeshUniforms(color);
-    std::vector<MeshVert> v;
-    AppendMesh(v, generator::CappedCylinderMesh(radius, halfLen, seg, 1, 1),
+    sMeshScratch.clear();
+    AppendMesh(sMeshScratch, generator::CappedCylinderMesh(radius, halfLen, seg, 1, 1),
                Mat() * ZAlign(a, b));
-    UploadMesh(v);
+    UploadMesh(sMeshScratch);
 }
 
 void Cone(const glm::vec3& base, const glm::vec3& tip,
@@ -872,10 +885,10 @@ void Cone(const glm::vec3& base, const glm::vec3& tip,
     if (halfLen < 1e-6f) return;
     sLastPickId = AllocPickId();
     SetMeshUniforms(color);
-    std::vector<MeshVert> v;
-    AppendMesh(v, generator::CappedConeMesh(radius, halfLen, seg, 1, 1),
+    sMeshScratch.clear();
+    AppendMesh(sMeshScratch, generator::CappedConeMesh(radius, halfLen, seg, 1, 1),
                Mat() * ZAlign(base, tip));
-    UploadMesh(v);
+    UploadMesh(sMeshScratch);
 }
 
 void Capsule(const glm::vec3& a, const glm::vec3& b,
@@ -884,40 +897,40 @@ void Capsule(const glm::vec3& a, const glm::vec3& b,
     if (halfLen < 1e-6f) { Sphere((a + b) * 0.5f, radius, color, seg); return; }
     sLastPickId = AllocPickId();
     SetMeshUniforms(color);
-    std::vector<MeshVert> v;
-    AppendMesh(v, generator::CapsuleMesh(radius, halfLen, seg, 1, seg / 2),
+    sMeshScratch.clear();
+    AppendMesh(sMeshScratch, generator::CapsuleMesh(radius, halfLen, seg, 1, seg / 2),
                Mat() * ZAlign(a, b));
-    UploadMesh(v);
+    UploadMesh(sMeshScratch);
 }
 
 void Torus(const glm::vec3& center, const glm::vec3& axis,
            float majorR, float minorR, const glm::vec4& color, int seg) {
     sLastPickId = AllocPickId();
     SetMeshUniforms(color);
-    std::vector<MeshVert> v;
-    AppendMesh(v, generator::TorusMesh(minorR, majorR, seg / 2, seg),
+    sMeshScratch.clear();
+    AppendMesh(sMeshScratch, generator::TorusMesh(minorR, majorR, seg / 2, seg),
                Mat() * AxisTransform(center, axis));
-    UploadMesh(v);
+    UploadMesh(sMeshScratch);
 }
 
 void Disk(const glm::vec3& center, const glm::vec3& normal,
           float radius, const glm::vec4& color, int seg) {
     sLastPickId = AllocPickId();
     SetMeshUniforms(color);
-    std::vector<MeshVert> v;
-    AppendMesh(v, generator::DiskMesh(radius, 0.0, seg, 1),
+    sMeshScratch.clear();
+    AppendMesh(sMeshScratch, generator::DiskMesh(radius, 0.0, seg, 1),
                Mat() * AxisTransform(center, normal));
-    UploadMesh(v);
+    UploadMesh(sMeshScratch);
 }
 
 void Ring(const glm::vec3& center, const glm::vec3& normal,
           float innerR, float outerR, const glm::vec4& color, int seg) {
     sLastPickId = AllocPickId();
     SetMeshUniforms(color);
-    std::vector<MeshVert> v;
-    AppendMesh(v, generator::DiskMesh(outerR, innerR, seg, 1),
+    sMeshScratch.clear();
+    AppendMesh(sMeshScratch, generator::DiskMesh(outerR, innerR, seg, 1),
                Mat() * AxisTransform(center, normal));
-    UploadMesh(v);
+    UploadMesh(sMeshScratch);
 }
 
 // ── custom mesh ──────────────────────────────────────────────────────
@@ -928,14 +941,14 @@ void Mesh(const glm::vec3* verts, const glm::vec3* normals,
     SetMeshUniforms(color);
     auto& m = Mat();
     auto nmat = glm::transpose(glm::inverse(glm::mat3(m)));
-    std::vector<MeshVert> v;
-    v.reserve(indexCount);
+    sMeshScratch.clear();
+    sMeshScratch.reserve(indexCount);
     for (int i = 0; i < indexCount; ++i) {
         uint32_t idx = indices[i];
-        v.push_back({glm::vec3(m * glm::vec4(verts[idx], 1.f)),
-                      glm::normalize(nmat * normals[idx])});
+        sMeshScratch.push_back({glm::vec3(m * glm::vec4(verts[idx], 1.f)),
+                                 glm::normalize(nmat * normals[idx])});
     }
-    UploadMesh(v);
+    UploadMesh(sMeshScratch);
 }
 
 void Mesh(const glm::vec3* verts, const glm::vec3* normals,
@@ -944,13 +957,13 @@ void Mesh(const glm::vec3* verts, const glm::vec3* normals,
     SetMeshUniforms(color);
     auto& m = Mat();
     auto nmat = glm::transpose(glm::inverse(glm::mat3(m)));
-    std::vector<MeshVert> v;
-    v.reserve(vertCount);
+    sMeshScratch.clear();
+    sMeshScratch.reserve(vertCount);
     for (int i = 0; i < vertCount; ++i) {
-        v.push_back({glm::vec3(m * glm::vec4(verts[i], 1.f)),
-                      glm::normalize(nmat * normals[i])});
+        sMeshScratch.push_back({glm::vec3(m * glm::vec4(verts[i], 1.f)),
+                                 glm::normalize(nmat * normals[i])});
     }
-    UploadMesh(v);
+    UploadMesh(sMeshScratch);
 }
 
 // ── wireframe ────────────────────────────────────────────────────────
@@ -1062,14 +1075,14 @@ void Arrow(const glm::vec3& from, const glm::vec3& to,
     auto shaftEnd = from + dir * ((len - headLen) / len);
 
     SetMeshUniforms(color);
-    std::vector<MeshVert> v;
+    sMeshScratch.clear();
     float halfShaft = glm::length(shaftEnd - from) * 0.5f;
     float halfHead  = headLen * 0.5f;
-    AppendMesh(v, generator::CappedCylinderMesh(shaftR, halfShaft, 24, 1, 1),
+    AppendMesh(sMeshScratch, generator::CappedCylinderMesh(shaftR, halfShaft, 24, 1, 1),
                Mat() * ZAlign(from, shaftEnd));
-    AppendMesh(v, generator::CappedConeMesh(headR, halfHead, 24, 1, 1),
+    AppendMesh(sMeshScratch, generator::CappedConeMesh(headR, halfHead, 24, 1, 1),
                Mat() * ZAlign(shaftEnd, to));
-    UploadMesh(v);
+    UploadMesh(sMeshScratch);
 }
 
 void Axes(const glm::vec3& origin, float len) {
