@@ -98,6 +98,7 @@ void Example::OnDraw() {
         ImGui::ColorEdit3("Axis X", &grid.axisXColor.x);
         ImGui::ColorEdit3("Axis Y", &grid.axisYColor.x);
         ImGui::DragFloat("Axis Thickness", &grid.axisThickness, 0.001f, 0.001f, 0.1f);
+        ImGui::Checkbox("Axis Scale With Cam", &grid.axisScaleWithCam);
         ImGui::DragFloat("Fade Start", &grid.fadeStart, 0.1f, 0.1f, 20.f);
         ImGui::DragFloat("Fade End",   &grid.fadeEnd,   0.1f, 1.f,  50.f);
     ImGui::End();

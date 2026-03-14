@@ -10,6 +10,7 @@ uniform vec3  uColorFine, uColorMedium, uColorCoarse;
 uniform float uAlphaFine, uAlphaMedium, uAlphaCoarse;
 uniform vec3  uAxisXColor, uAxisYColor;
 uniform float uAxisThickness, uAxisAlpha;
+uniform int   uAxisScaleWithCam;
 uniform float uFadeStart, uFadeEnd;
 
 out vec4 FragColor;
@@ -42,20 +43,23 @@ void main() {
     float g10  = SoftLine(fp.xy, uScaleMedium);
     float g100 = SoftLine(fp.xy, uScaleCoarse);
 
-    vec3 col = uColorFine * g1 + uColorMedium * g10 + uColorCoarse * g100;
+    vec3 gridCol = uColorFine * g1 + uColorMedium * g10 + uColorCoarse * g100;
+    float gridAlpha = max(max(g1 * uAlphaFine, g10 * uAlphaMedium), g100 * uAlphaCoarse);
 
-    // Axis highlights
-    float axThick = uCamDist * uAxisThickness;
+    // Axis highlights — blend over grid, not additive
+    float axThick = (uAxisScaleWithCam != 0) ? uCamDist * uAxisThickness : uAxisThickness;
     float axX = SoftAxis(fp.x, max(axThick, fwidth(fp.x) * 2.0));
     float axY = SoftAxis(fp.y, max(axThick, fwidth(fp.y) * 2.0));
-    col += uAxisYColor * axX + uAxisXColor * axY;
+    float axisBlend = clamp(max(axX, axY), 0.0, 1.0);
+    vec3 axisCol = uAxisYColor * axX + uAxisXColor * axY;
+
+    vec3 col = mix(gridCol, axisCol, axisBlend);
+    float alpha = mix(gridAlpha, uAxisAlpha, axisBlend);
 
     // Distance fade
     float d = length(fp.xy - uCamPos.xy);
     float fade = 1.0 - smoothstep(uCamDist * uFadeStart, uCamDist * uFadeEnd, d);
-
-    float alpha = max(max(g1 * uAlphaFine, g10 * uAlphaMedium), g100 * uAlphaCoarse) * fade;
-    alpha = max(alpha, max(axX, axY) * fade * uAxisAlpha);
+    alpha *= fade;
     if (alpha < 0.003) discard;
 
     FragColor = vec4(col, alpha);
