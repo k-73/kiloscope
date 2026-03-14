@@ -26,6 +26,33 @@ inline constexpr glm::vec4 WithAlpha(glm::vec4 c, float a) {
     return {c.r, c.g, c.b, a};
 }
 
+// Hex color: "#RGB", "#RGBA", "#RRGGBB", "#RRGGBBAA" (# optional)
+inline glm::vec4 Hex(const char* s) {
+    if (*s == '#') ++s;
+    auto hex = [](char c) -> int {
+        if (c >= '0' && c <= '9') return c - '0';
+        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+        return 0;
+    };
+    int len = 0;
+    for (auto p = s; *p; ++p) ++len;
+    if (len == 3) // RGB
+        return {hex(s[0]) / 15.f, hex(s[1]) / 15.f, hex(s[2]) / 15.f, 1.f};
+    if (len == 4) // RGBA
+        return {hex(s[0]) / 15.f, hex(s[1]) / 15.f, hex(s[2]) / 15.f, hex(s[3]) / 15.f};
+    if (len == 6) // RRGGBB
+        return {(hex(s[0]) * 16 + hex(s[1])) / 255.f,
+                (hex(s[2]) * 16 + hex(s[3])) / 255.f,
+                (hex(s[4]) * 16 + hex(s[5])) / 255.f, 1.f};
+    if (len == 8) // RRGGBBAA
+        return {(hex(s[0]) * 16 + hex(s[1])) / 255.f,
+                (hex(s[2]) * 16 + hex(s[3])) / 255.f,
+                (hex(s[4]) * 16 + hex(s[5])) / 255.f,
+                (hex(s[6]) * 16 + hex(s[7])) / 255.f};
+    return {1.f, 0.f, 1.f, 1.f}; // magenta = invalid
+}
+
 inline glm::vec4 Hue(float t) {
     float h = t - std::floor(t);
     float s = h * 6.f;

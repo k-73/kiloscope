@@ -49,23 +49,23 @@ void Example::OnDraw() {
 
         // Orbit 1 — equatorial
         float r1 = 2.2f, a1 = t * 0.8f;
-        Render::Circle({0, 0, 0}, {0, 0, 1}, r1, Render::Color::WithAlpha(Render::Color::Blue, .25f), 64, 1.f);
-        Render::Sphere({r1 * std::cos(a1), r1 * std::sin(a1), 0}, 0.18f, Render::Color::Blue);
+        Render::Circle({0, 0, 0}, {0, 0, 1}, r1, Render::Color::Hex("#5980F240"), 64, 1.f);
+        Render::Sphere({r1 * std::cos(a1), r1 * std::sin(a1), 0}, 0.18f, Render::Color::Hex("#5980F2"));
 
         // Orbit 2 — tilted 65°
         Render::PushMatrix();
         Render::RotateX(65.f);
             float r2 = 3.f, a2 = t * 0.5f;
-            Render::Circle({0, 0, 0}, {0, 0, 1}, r2, Render::Color::WithAlpha(Render::Color::Red, .25f), 64, 1.f);
-            Render::Sphere({r2 * std::cos(a2), r2 * std::sin(a2), 0}, 0.14f, Render::Color::Red);
+            Render::Circle({0, 0, 0}, {0, 0, 1}, r2, Render::Color::Hex("#F2404040"), 64, 1.f);
+            Render::Sphere({r2 * std::cos(a2), r2 * std::sin(a2), 0}, 0.14f, Render::Color::Hex("#F24040"));
         Render::PopMatrix();
 
         // Orbit 3 — opposite tilt
         Render::PushMatrix();
         Render::RotateY(55.f);
             float r3 = 1.6f, a3 = t * 1.2f;
-            Render::Circle({0, 0, 0}, {0, 0, 1}, r3, Render::Color::WithAlpha(Render::Color::Green, .25f), 64, 1.f);
-            Render::Sphere({r3 * std::cos(a3), r3 * std::sin(a3), 0}, 0.11f, Render::Color::Green);
+            Render::Circle({0, 0, 0}, {0, 0, 1}, r3, Render::Color::Hex("#59D95940"), 64, 1.f);
+            Render::Sphere({r3 * std::cos(a3), r3 * std::sin(a3), 0}, 0.11f, Render::Color::Hex("#59D959"));
         Render::PopMatrix();
 
         // Labels
