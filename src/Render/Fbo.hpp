@@ -19,8 +19,9 @@ public:
 
     GLuint Texture() const { return resolvedTex_; }
     GLuint Handle()  const { return msaaFbo_; }
-    int Width() const { return w_; }
-    int Height() const { return h_; }
+    int Width()   const { return w_; }
+    int Height()  const { return h_; }
+    int Samples() const { return samples_; }
 
 private:
     void Destroy();

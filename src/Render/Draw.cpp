@@ -575,7 +575,7 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     sStats = {};
     sStats.viewportW = w;
     sStats.viewportH = h;
-    sStats.msaaSamples = 16;
+    sStats.msaaSamples = scene->fbo.Samples();
     sLineBatch.clear();
     sPointBatch.clear();
     sTextBatch.clear();
