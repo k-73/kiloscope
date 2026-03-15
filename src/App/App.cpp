@@ -37,6 +37,7 @@ App::~App() {
     ui_->SaveWindowState(config_);
     panels_->SaveToFile(config_.panelConfigPath);
     config_.SaveToFile("kiloscope.json");
+    Render::Shutdown();  // release GPU resources before GL context dies
 }
 
 void App::Run() {

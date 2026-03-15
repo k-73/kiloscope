@@ -381,6 +381,13 @@ void Init(const std::string& dir) {
     bindPickAttr(sPointVao, 2, offsetof(PointVert, pickId));
 }
 
+// ── Shutdown ─────────────────────────────────────────────────────────
+
+void Shutdown() {
+    sScenes.clear();  // destroy all SceneData (FBOs, textures) while GL context alive
+    sFrame = {};
+}
+
 // ── scene getters ────────────────────────────────────────────────────
 
 static SceneData& GetScene(uint32_t id) { auto& s = sScenes[id]; if (!s) s = std::make_unique<SceneData>(); return *s; }

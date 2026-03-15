@@ -91,6 +91,7 @@ struct Stats {
 };
 
 void Init(const std::string& shaderDir);
+void Shutdown();
 void Begin(const char* name, const ViewportConfig& cfg = {});
 void End();
 const Stats& GetStats();
