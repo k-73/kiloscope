@@ -1,86 +1,98 @@
+// Infinite ground grid — renders on the XY plane via ray-plane intersection.
+// Three grid layers (fine/medium/coarse) composited with Porter-Duff "over".
+// Axis lines drawn on top. Fades with camera distance.
 #version 450 core
-in vec3 vNear, vFar;
 
-uniform mat4 uViewProj;
-uniform vec3 uCamPos;
+in vec3 vNear, vFar;  // ray endpoints from vertex shader
+
+uniform mat4  uViewProj;
+uniform vec3  uCamPos;
 uniform float uCamDist;
 
+// Grid scales and colors (rgb + alpha = line opacity)
 uniform float uScaleFine, uScaleMedium, uScaleCoarse;
-uniform vec4  uColorFine, uColorMedium, uColorCoarse;  // rgb + alpha
-uniform vec4  uAxisXColor, uAxisYColor;                 // rgb + alpha
+uniform vec4  uColorFine, uColorMedium, uColorCoarse;
+
+// Axis styling
+uniform vec4  uAxisXColor, uAxisYColor;
 uniform float uAxisThickness;
 uniform int   uAxisScaleWithCam;
+
+// Distance fade range (multiplied by camera distance)
 uniform float uFadeStart, uFadeEnd;
 
 out vec4 FragColor;
 
+// ── helpers ──────────────────────────────────────────────────────────
+
+// Antialiased grid line using screen-space derivatives
 float SoftLine(vec2 coord, float scale) {
-    vec2 c = coord / scale;
-    vec2 d = fwidth(c);
-    vec2 a = abs(fract(c - 0.5) - 0.5) / d;
+    vec2 c  = coord / scale;
+    vec2 d  = fwidth(c);
+    vec2 a  = abs(fract(c - 0.5) - 0.5) / d;
     float lx = 1.0 - smoothstep(0.3, 1.5, a.x);
     float ly = 1.0 - smoothstep(0.3, 1.5, a.y);
     return max(lx, ly);
 }
 
+// Antialiased axis line based on distance from axis
 float SoftAxis(float dist, float thickness) {
     return 1.0 - smoothstep(thickness * 0.35, thickness, abs(dist));
 }
 
+// Porter-Duff "over": composites foreground (fg) over background (bg)
+void CompOver(inout vec3 bgCol, inout float bgA, vec3 fgCol, float fgA) {
+    float outA = fgA + bgA * (1.0 - fgA);
+    if (outA > 0.001)
+        bgCol = (fgCol * fgA + bgCol * bgA * (1.0 - fgA)) / outA;
+    bgA = outA;
+}
+
+// ── main ─────────────────────────────────────────────────────────────
+
 void main() {
+    // Ray-plane intersection (Z = 0)
     float t = -vNear.z / (vFar.z - vNear.z);
     if (t < 0.0) discard;
-
     vec3 fp = vNear + t * (vFar - vNear);
 
-    // Layered grid at three scales
+    // Three grid layers
     float g1   = SoftLine(fp.xy, uScaleFine);
     float g10  = SoftLine(fp.xy, uScaleMedium);
     float g100 = SoftLine(fp.xy, uScaleCoarse);
 
-    // Layer compositing: fine → medium over fine → coarse over result
+    // Composite: fine → medium over fine → coarse over result
     vec3  gridCol = uColorFine.rgb;
-    float gridAlpha = g1 * uColorFine.a;
+    float gridA   = g1 * uColorFine.a;
+    CompOver(gridCol, gridA, uColorMedium.rgb, g10 * uColorMedium.a);
+    CompOver(gridCol, gridA, uColorCoarse.rgb, g100 * uColorCoarse.a);
 
-    float medA = g10 * uColorMedium.a;
-    float prevA = gridAlpha;
-    gridAlpha = medA + prevA * (1.0 - medA);
-    if (gridAlpha > 0.001)
-        gridCol = (uColorMedium.rgb * medA + gridCol * prevA * (1.0 - medA)) / gridAlpha;
-
-    float coaA = g100 * uColorCoarse.a;
-    prevA = gridAlpha;
-    gridAlpha = coaA + prevA * (1.0 - coaA);
-    if (gridAlpha > 0.001)
-        gridCol = (uColorCoarse.rgb * coaA + gridCol * prevA * (1.0 - coaA)) / gridAlpha;
-
-    // Axis layer (composited "over" grid)
+    // Axis lines (composited over grid)
     float axThick = (uAxisScaleWithCam != 0) ? uCamDist * uAxisThickness : uAxisThickness;
     float axX = SoftAxis(fp.x, max(axThick, fwidth(fp.x) * 2.0));
     float axY = SoftAxis(fp.y, max(axThick, fwidth(fp.y) * 2.0));
 
-    // Per-axis alpha from vec4.a
-    float axAlphaX = axY * uAxisXColor.a;  // axY = distance from Y=0 = X axis
-    float axAlphaY = axX * uAxisYColor.a;  // axX = distance from X=0 = Y axis
+    float axAlphaX = axY * uAxisXColor.a;  // X axis = line along Y=0
+    float axAlphaY = axX * uAxisYColor.a;  // Y axis = line along X=0
     float axA = clamp(max(axAlphaX, axAlphaY), 0.0, 1.0);
 
-    vec3 axCol = uAxisYColor.rgb * axX + uAxisXColor.rgb * axY;
+    vec3  axCol = uAxisYColor.rgb * axX + uAxisXColor.rgb * axY;
     float axSum = axX + axY;
     if (axSum > 0.001) axCol /= axSum;
 
-    // Porter-Duff "over": axis on top of grid
-    float alpha = axA + gridAlpha * (1.0 - axA);
+    // Final composite: axis over grid
+    float alpha = axA + gridA * (1.0 - axA);
     vec3  col   = alpha > 0.001
-        ? (axCol * axA + gridCol * gridAlpha * (1.0 - axA)) / alpha
+        ? (axCol * axA + gridCol * gridA * (1.0 - axA)) / alpha
         : vec3(0);
 
     // Distance fade
-    float d = length(fp.xy - uCamPos.xy);
+    float d    = length(fp.xy - uCamPos.xy);
     float fade = 1.0 - smoothstep(uCamDist * uFadeStart, uCamDist * uFadeEnd, d);
     alpha *= fade;
     if (alpha < 0.003) discard;
 
-    FragColor = vec4(col, alpha);
-    vec4 cp = uViewProj * vec4(fp, 1);
-    gl_FragDepth = cp.z / cp.w * 0.5 + 0.5;
+    FragColor    = vec4(col, alpha);
+    vec4 cp      = uViewProj * vec4(fp, 1);
+    gl_FragDepth = cp.z / cp.w * 0.5 + 0.5;  // write correct depth for intersection point
 }
