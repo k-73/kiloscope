@@ -613,7 +613,16 @@ void End() {
         SetMeshFrameUniforms();
         sMeshShader.Use();
 
-        // Glow pass (additive)
+        // Solid pass first (populates depth buffer)
+        for (auto& d : dl) {
+            if (d.shadingMode == 3) continue;
+            sMeshShader.Set("uColor", d.color);
+            sMeshShader.Set("uUnlit", d.shadingMode);
+            glDrawArrays(GL_TRIANGLES, d.offset, d.count);
+            ++ctx().stats.drawCalls;
+        }
+
+        // Glow pass last (additive on top of solid, depth-tested but no depth write)
         bool hadGlow = false;
         for (auto& d : dl) {
             if (d.shadingMode != 3) continue;
@@ -633,15 +642,6 @@ void End() {
             glDisable(GL_BLEND);
             glDepthMask(GL_TRUE);
             glEnable(GL_CULL_FACE);
-        }
-
-        // Solid pass (lit, unlit, emissive)
-        for (auto& d : dl) {
-            if (d.shadingMode == 3) continue;
-            sMeshShader.Set("uColor", d.color);
-            sMeshShader.Set("uUnlit", d.shadingMode);
-            glDrawArrays(GL_TRIANGLES, d.offset, d.count);
-            ++ctx().stats.drawCalls;
         }
 
         dl.clear();
