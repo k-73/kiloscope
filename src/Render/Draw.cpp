@@ -1,6 +1,7 @@
 #include "Render/DrawState.hpp"
 #include <GLFW/glfw3.h>
 #include <generator/SphereMesh.hpp>
+#include <generator/BoxMesh.hpp>
 #include <generator/CappedCylinderMesh.hpp>
 #include <generator/CappedConeMesh.hpp>
 
@@ -44,6 +45,35 @@ void PickFbo::Destroy() {
     if (color) { glDeleteTextures(1, &color); color = 0; }
     if (depth) { glDeleteRenderbuffers(1, &depth); depth = 0; }
     w = h = 0;
+}
+
+// ── mesh cache (unit-size meshes, generated on first use) ────────────
+
+static std::unordered_map<int, IndexedMesh> sSphereCache;
+static IndexedMesh sBoxCache;
+
+template <typename GenT>
+static void BuildCache(IndexedMesh& out, const GenT& gen) {
+    for (auto it = gen.vertices(); !it.done(); it.next()) {
+        auto v = it.generate();
+        out.pos.push_back(glm::vec3(v.position));
+        out.nrm.push_back(glm::vec3(v.normal));
+    }
+    for (auto it = gen.triangles(); !it.done(); it.next()) {
+        auto t = it.generate();
+        out.tri.push_back({t.vertices[0], t.vertices[1], t.vertices[2]});
+    }
+}
+
+const IndexedMesh& GetUnitSphere(int seg) {
+    auto& m = sSphereCache[seg];
+    if (m.pos.empty()) BuildCache(m, generator::SphereMesh(1.f, seg, seg / 2));
+    return m;
+}
+
+const IndexedMesh& GetUnitBox() {
+    if (sBoxCache.pos.empty()) BuildCache(sBoxCache, generator::BoxMesh({1, 1, 1}, {1, 1, 1}));
+    return sBoxCache;
 }
 
 // ── cached uniform locations (filled once in Init) ───────────────────
@@ -135,8 +165,8 @@ void UploadMesh(const std::vector<MeshVert>& v) {
         }
 
         sMeshScratch.clear();
-        AppendMesh(sMeshScratch, generator::SphereMesh(glowR, 16, 8),
-                   glm::translate(glm::mat4(1.f), centroid));
+        AppendFromCache(sMeshScratch, GetUnitSphere(16),
+                        glm::scale(glm::translate(glm::mat4(1.f), centroid), glm::vec3(glowR)));
         auto glowOffset = static_cast<GLsizei>(s.vboAccum.size());
         auto glowCount  = static_cast<GLsizei>(sMeshScratch.size());
         s.vboAccum.insert(s.vboAccum.end(), sMeshScratch.begin(), sMeshScratch.end());

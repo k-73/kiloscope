@@ -172,8 +172,8 @@ void Sphere(const glm::vec3& center, float radius,
     ctx().lastPickId = AllocPickId();
     SetMeshUniforms(color);
     sMeshScratch.clear();
-    AppendMesh(sMeshScratch, generator::SphereMesh(radius, seg, seg / 2),
-               glm::translate(Mat(), center));
+    AppendFromCache(sMeshScratch, GetUnitSphere(seg),
+                    glm::scale(glm::translate(Mat(), center), glm::vec3(radius)));
     UploadMesh(sMeshScratch);
 }
 
@@ -182,8 +182,8 @@ void Box(const glm::vec3& center, const glm::vec3& size,
     ctx().lastPickId = AllocPickId();
     SetMeshUniforms(color);
     sMeshScratch.clear();
-    AppendMesh(sMeshScratch, generator::BoxMesh({size.x, size.y, size.z}, {1, 1, 1}),
-               glm::translate(Mat(), center));
+    AppendFromCache(sMeshScratch, GetUnitBox(),
+                    glm::scale(glm::translate(Mat(), center), size));
     UploadMesh(sMeshScratch);
 }
 

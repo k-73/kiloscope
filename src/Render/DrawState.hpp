@@ -9,6 +9,7 @@
 #include <GL/glew.h>
 #include <imgui.h>
 #include <glm/gtc/matrix_transform.hpp>
+#include <array>
 #include <cmath>
 #include <cstdarg>
 #include <memory>
@@ -23,6 +24,29 @@ struct MeshVert  { glm::vec3 pos, normal; };
 struct LineVert  { glm::vec3 pos, otherEnd; glm::vec2 expand; glm::vec4 color; uint32_t pickId; };
 struct PointVert { glm::vec3 pos; glm::vec4 color; uint32_t pickId; };
 struct TextEntry { glm::vec3 worldPos; glm::vec4 color; std::string text; };
+
+// Cached indexed mesh (generated once, transformed per-use)
+struct IndexedMesh {
+    std::vector<glm::vec3> pos, nrm;
+    std::vector<std::array<int, 3>> tri;
+};
+
+const IndexedMesh& GetUnitSphere(int seg);
+const IndexedMesh& GetUnitBox();
+
+inline void AppendFromCache(std::vector<MeshVert>& out,
+                            const IndexedMesh& mesh, const glm::mat4& xform) {
+    auto nmat = glm::transpose(glm::inverse(glm::mat3(xform)));
+    for (auto& tri : mesh.tri) {
+        for (size_t j = 0; j < 3; ++j) {
+            auto idx = tri[j];
+            MeshVert v;
+            v.pos    = glm::vec3(xform * glm::vec4(mesh.pos[idx], 1.f));
+            v.normal = glm::normalize(nmat * mesh.nrm[idx]);
+            out.push_back(v);
+        }
+    }
+}
 
 struct MeshDraw {
     GLsizei offset, count;
