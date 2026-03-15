@@ -53,7 +53,7 @@ inline void AppendFromCache(std::vector<MeshVert>& out,
 struct MeshDraw {
     GLsizei offset, count;
     glm::vec4 color;
-    int unlitMode;          // 0=lit, 1=unlit, 2=emissive, 3=glow
+    int shadingMode;          // 0=lit, 1=unlit, 2=emissive, 3=glow
     uint32_t pickId;
 };
 
@@ -108,7 +108,7 @@ struct SceneData {
     // Pick state
     uint32_t hoveredPickId  = 0;
     uint32_t nextPickId     = 0;
-    uint32_t lastPickId     = 0;
+    uint32_t activePickId     = 0;
     uint32_t pickIdOverride = 0;
     bool     pickEnabled    = true;
     bool     pickConsumed   = false;  // set by Clicked() to block End() overwrite
@@ -116,11 +116,11 @@ struct SceneData {
     // Emissive one-shot flags
     bool  emissive       = false;
     bool  glow           = false;
-    float emissiveGlowRadius = 0.f;
+    float glowRadius = 0.f;
 
     // Per-draw transient
     glm::vec4 currentColor{};
-    int       currentUnlitMode = 0;
+    int       currentShadingMode = 0;
 
     // Frame stats & guard
     Stats stats{};
@@ -210,7 +210,7 @@ inline glm::mat4 AxisTransform(const glm::vec3& center, const glm::vec3& axis) {
 struct PickGroup {
     bool owned;
     PickGroup() : owned(ctx().pickIdOverride == 0) {
-        if (owned) { ctx().pickIdOverride = ++ctx().nextPickId; ctx().lastPickId = ctx().pickIdOverride; }
+        if (owned) { ctx().pickIdOverride = ++ctx().nextPickId; ctx().activePickId = ctx().pickIdOverride; }
     }
     ~PickGroup() { if (owned) ctx().pickIdOverride = 0; }
 };

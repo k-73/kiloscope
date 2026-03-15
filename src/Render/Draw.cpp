@@ -122,7 +122,7 @@ void SetMeshFrameUniforms() {
 void SetMeshUniforms(const glm::vec4& color, bool unlit) {
     ctx().currentColor = color;
     // Encode shading mode: 0=lit, 1=unlit, 2=emissive, 3=glow
-    ctx().currentUnlitMode = ctx().glow ? 3 : (ctx().emissive ? 2 : (unlit ? 1 : 0));
+    ctx().currentShadingMode = ctx().glow ? 3 : (ctx().emissive ? 2 : (unlit ? 1 : 0));
 }
 
 // ── pick pass helpers ────────────────────────────────────────────────
@@ -142,15 +142,15 @@ void UploadMesh(const std::vector<MeshVert>& v) {
     auto count  = static_cast<GLsizei>(v.size());
     auto offset = static_cast<GLsizei>(s.vboAccum.size());
     s.vboAccum.insert(s.vboAccum.end(), v.begin(), v.end());
-    s.drawList.push_back({offset, count, s.currentColor, s.currentUnlitMode, s.lastPickId});
+    s.drawList.push_back({offset, count, s.currentColor, s.currentShadingMode, s.activePickId});
     s.stats.vertices += count;
 
     // Auto-generate glow sphere for emissive meshes
     bool emissive = s.emissive;
-    float glowR   = s.emissiveGlowRadius;
+    float glowR   = s.glowRadius;
     s.emissive = false;
     s.glow     = false;
-    s.emissiveGlowRadius = 0.f;
+    s.glowRadius = 0.f;
 
     if (emissive && count > 0) {
         // Compute centroid + bounding radius in one pass
@@ -223,7 +223,7 @@ void BatchLineGradient(const glm::vec3& a, const glm::vec3& b,
                         const glm::vec4& ca, const glm::vec4& cb, float width) {
     if (!ctx().lineBatch.empty() && width != ctx().lineWidth) FlushLines();
     ctx().lineWidth = width;
-    uint32_t pid = ctx().lastPickId;
+    uint32_t pid = ctx().activePickId;
     auto& batch = ctx().lineBatch;
     batch.push_back({a, b, {-1, 0}, ca, pid});
     batch.push_back({a, b, { 1, 0}, ca, pid});
@@ -307,8 +307,8 @@ bool EventState::Clicked(int button) const {
 EventState Event() {
     EventState state;
     state.hovered_ = sFrame.scene && sFrame.hovered
-                  && ctx().lastPickId != 0
-                  && ctx().lastPickId == ctx().hoveredPickId;
+                  && ctx().activePickId != 0
+                  && ctx().activePickId == ctx().hoveredPickId;
     return state;
 }
 
@@ -416,7 +416,7 @@ PointLightInfo* GetPointLights() { return sFrame.scene ? ctx().pointLights : nul
 
 void SetNextEmissive(float glowRadius) {
     ctx().emissive = true;
-    ctx().emissiveGlowRadius = glowRadius;
+    ctx().glowRadius = glowRadius;
 }
 void SetNextGlow() { ctx().glow = true; }
 
@@ -499,7 +499,7 @@ void Begin(const char* name, const ViewportConfig& cfg) {
 
     // Reset per-scene state
     scene->nextPickId     = 0;
-    scene->lastPickId     = 0;
+    scene->activePickId     = 0;
     scene->pickIdOverride = 0;
     scene->pickEnabled    = true;
     scene->pickConsumed   = false;
@@ -507,7 +507,7 @@ void Begin(const char* name, const ViewportConfig& cfg) {
 
     scene->emissive          = false;
     scene->glow              = false;
-    scene->emissiveGlowRadius = 0.f;
+    scene->glowRadius = 0.f;
     scene->numPointLights    = 0;
 
     scene->drawList.clear();
@@ -602,7 +602,7 @@ void End() {
             sPickMeshShader.Use();
             sPickMeshShader.Set("uViewProj", sViewProj);
             for (auto& d : dl) {
-                if (!d.pickId || d.unlitMode == 3) continue;
+                if (!d.pickId || d.shadingMode == 3) continue;
                 sPickMeshShader.Set("uPickId", d.pickId);
                 glDrawArrays(GL_TRIANGLES, d.offset, d.count);
                 ++ctx().stats.pickDrawCalls;
@@ -616,7 +616,7 @@ void End() {
         // Glow pass (additive)
         bool hadGlow = false;
         for (auto& d : dl) {
-            if (d.unlitMode != 3) continue;
+            if (d.shadingMode != 3) continue;
             if (!hadGlow) {
                 glEnable(GL_BLEND);
                 glBlendFunc(GL_ONE, GL_ONE);
@@ -637,9 +637,9 @@ void End() {
 
         // Solid pass (lit, unlit, emissive)
         for (auto& d : dl) {
-            if (d.unlitMode == 3) continue;
+            if (d.shadingMode == 3) continue;
             sMeshShader.Set("uColor", d.color);
-            sMeshShader.Set("uUnlit", d.unlitMode);
+            sMeshShader.Set("uUnlit", d.shadingMode);
             glDrawArrays(GL_TRIANGLES, d.offset, d.count);
             ++ctx().stats.drawCalls;
         }
