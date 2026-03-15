@@ -89,20 +89,25 @@ void UploadMesh(const std::vector<MeshVert>& v) {
     sStats.vertices += count;
 
     bool wasEmissive = sEmissive;
+    float glowR = sEmissiveGlowRadius;
     sEmissive = false;
     sGlow = false;
+    sEmissiveGlowRadius = 0.f;
 
     if (wasEmissive && count > 0) {
         glm::vec3 centroid(0.f);
         for (GLsizei i = offset; i < offset + count; ++i) centroid += sVboAccum[i].pos;
         centroid /= static_cast<float>(count);
-        float maxR = 0.f;
-        for (GLsizei i = offset; i < offset + count; ++i)
-            maxR = glm::max(maxR, glm::length(sVboAccum[i].pos - centroid));
-        if (maxR < 1e-6f) maxR = 0.05f;
+
+        if (glowR <= 0.f) {
+            float maxR = 0.f;
+            for (GLsizei i = offset; i < offset + count; ++i)
+                maxR = glm::max(maxR, glm::length(sVboAccum[i].pos - centroid));
+            glowR = glm::max(maxR * 2.f, 0.05f);
+        }
 
         sMeshScratch.clear();
-        AppendMesh(sMeshScratch, generator::SphereMesh(maxR * 2.f, 16, 8),
+        AppendMesh(sMeshScratch, generator::SphereMesh(glowR, 16, 8),
                    glm::translate(glm::mat4(1.f), centroid));
         auto glowOffset = static_cast<GLsizei>(sVboAccum.size());
         auto glowCount  = static_cast<GLsizei>(sMeshScratch.size());
@@ -273,7 +278,10 @@ int PointLight(const glm::vec3& pos, const glm::vec3& color, float range) {
 int GetPointLightCount() { return sNumPointLights; }
 PointLightInfo* GetPointLights() { return sPointLights; }
 
-void SetNextEmissive() { sEmissive = true; }
+void SetNextEmissive(float glowRadius) {
+    sEmissive = true;
+    sEmissiveGlowRadius = glowRadius;
+}
 void SetNextGlow() { sGlow = true; }
 
 const Stats& GetStats() { return sStats; }
@@ -349,7 +357,7 @@ void Begin(const char* name, const ViewportConfig& cfg) {
 
     sNextPickId = 0; sLastPickId = 0; sPickIdOverride = 0;
     sPickEnabled = true; sMeshFrameReady = false;
-    sEmissive = false; sGlow = false;
+    sEmissive = false; sGlow = false; sEmissiveGlowRadius = 0.f;
     sNumPointLights = 0;
     sDrawList.clear(); sVboAccum.clear();
     sStats = {}; sStats.viewportW = w; sStats.viewportH = h; sStats.msaaSamples = scene->fbo.Samples();

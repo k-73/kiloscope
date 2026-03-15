@@ -99,6 +99,7 @@ inline uint32_t sPickIdOverride = 0;
 inline bool     sPickEnabled    = true;
 inline bool     sEmissive       = false;
 inline bool     sGlow           = false;
+inline float    sEmissiveGlowRadius = 0.f;
 inline Stats    sStats;
 
 inline bool sMeshFrameReady = false;

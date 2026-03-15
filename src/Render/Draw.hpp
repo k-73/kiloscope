@@ -125,7 +125,7 @@ struct PointLightInfo {
 int  PointLight(const glm::vec3& pos, const glm::vec3& color, float range);  // returns index
 int  GetPointLightCount();
 PointLightInfo* GetPointLights();  // array of current lights, editable
-void SetNextEmissive();
+void SetNextEmissive(float glowRadius = 0.f);
 void SetNextGlow();
 
 // ── grid ────────────────────────────────────────────────────────
@@ -255,6 +255,10 @@ void Axes(const glm::vec3& origin, float len = 1.f);
 void Frame(const glm::mat4& pose, float len = 0.3f);
 void Frame(const glm::vec3& pos, const glm::quat& orient, float len = 0.3f);
 void Point(const glm::vec3& pos, const glm::vec4& color, float size = 0.05f);
+void SphereLight(const glm::vec3& pos, float radius,
+                 const glm::vec4& color, float range);
+void BoxLight(const glm::vec3& center, const glm::vec3& size,
+              const glm::vec4& color, float range);
 void Cross(const glm::vec3& pos, float size,
            const glm::vec4& color, float width = 2.5f);
 void AABB(const glm::vec3& min, const glm::vec3& max,

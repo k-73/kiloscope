@@ -410,6 +410,20 @@ void Point(const glm::vec3& pos, const glm::vec4& color, float size) {
     Sphere(pos, size, color, 8);
 }
 
+void SphereLight(const glm::vec3& pos, float radius,
+                 const glm::vec4& color, float range) {
+    PointLight(pos, glm::vec3(color), range);
+    SetNextEmissive(radius * 2.f);
+    Sphere(pos, radius, color);
+}
+
+void BoxLight(const glm::vec3& center, const glm::vec3& size,
+              const glm::vec4& color, float range) {
+    PointLight(center, glm::vec3(color), range);
+    SetNextEmissive(glm::length(size));
+    Box(center, size, color);
+}
+
 void Cross(const glm::vec3& pos, float size, const glm::vec4& color, float width) {
     PickGroup pg;
     float hs = size * 0.5f;
