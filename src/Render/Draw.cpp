@@ -385,18 +385,12 @@ void Init(const std::string& dir) {
 
 void Shutdown() {
     sScenes.clear();
-
-    // Shaders (trigger glDeleteProgram via move-assignment)
     sMeshShader = {}; sLineShader = {}; sGridShader = {}; sPointShader = {};
     sPickMeshShader = {}; sPickLineShader = {}; sPickPointShader = {};
-
-    // VAOs / VBOs (raw GL handles — no automatic cleanup)
-    auto del = [](GLuint& h, auto fn) { if (h) { fn(1, &h); h = 0; } };
-    del(sMeshVao,  glDeleteVertexArrays); del(sMeshVbo,  glDeleteBuffers);
-    del(sLineVao,  glDeleteVertexArrays); del(sLineVbo,  glDeleteBuffers);
-    del(sGridVao,  glDeleteVertexArrays);
-    del(sPointVao, glDeleteVertexArrays); del(sPointVbo, glDeleteBuffers);
-
+    GLuint vaos[] = {sMeshVao, sLineVao, sGridVao, sPointVao};
+    GLuint vbos[] = {sMeshVbo, sLineVbo, sPointVbo};
+    glDeleteVertexArrays(4, vaos);
+    glDeleteBuffers(3, vbos);
     sFrame = {};
 }
 
