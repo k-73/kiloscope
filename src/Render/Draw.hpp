@@ -138,8 +138,8 @@ struct GridConfig {
     glm::vec4 colorCoarse = {.48f, .52f, .58f, .65f};
     glm::vec4 axisXColor  = {.8f, .2f, .2f, 1.f};
     glm::vec4 axisYColor  = {.2f, .8f, .2f, 1.f};
-    float     axisThickness = 0.006f;
-    bool      axisScaleWithCam = true;
+    float     axisThickness = 0.001f;
+    bool      axisScaleWithCam = false;
     float     fadeStart   = 2.5f;
     float     fadeEnd     = 10.f;
 };
