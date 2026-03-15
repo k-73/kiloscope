@@ -24,7 +24,7 @@ struct LineVert  { glm::vec3 pos, otherEnd; glm::vec2 expand; glm::vec4 color; u
 struct PointVert { glm::vec3 pos; glm::vec4 color; uint32_t pickId; };
 struct TextEntry { glm::vec3 worldPos; glm::vec4 color; std::string text; };
 
-struct PointLightData { glm::vec3 pos, color; float range; };
+using PointLightData = PointLightInfo;
 
 struct MeshDraw {
     GLsizei offset, count;

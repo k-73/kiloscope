@@ -296,9 +296,15 @@ Camera& GetCamera(const char* name) { return GetScene(name).cam; }
 Environment& GetEnvironment() { return sFrame.scene->env; }
 Environment& GetEnvironment(const char* name) { return GetScene(name).env; }
 
-void PointLight(const glm::vec3& pos, const glm::vec3& color, float range) {
-    if (sNumPointLights < kMaxPointLights) sPointLights[sNumPointLights++] = {pos, color, range};
+int PointLight(const glm::vec3& pos, const glm::vec3& color, float range) {
+    if (sNumPointLights >= kMaxPointLights) return -1;
+    int idx = sNumPointLights++;
+    sPointLights[idx] = {pos, color, range};
+    return idx;
 }
+
+int GetPointLightCount() { return sNumPointLights; }
+PointLightInfo* GetPointLights() { return sPointLights; }
 
 void SetNextEmissive() { sEmissive = true; sShadowCasting = false; }
 

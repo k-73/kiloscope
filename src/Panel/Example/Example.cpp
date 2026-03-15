@@ -125,6 +125,7 @@ void Example::OnDraw() {
         ImGui::DragFloat("Fade End",   &grid.fadeEnd,   0.1f, 1.f,  50.f);
     ImGui::End();
 
+
     ImGui::Begin("Camera", nullptr);
         auto& cam = Render::GetCamera("scene");
         auto eye = cam.Position();
@@ -155,9 +156,25 @@ void Example::OnDraw() {
             Render::Cylinder({-2.f, 0, 0}, {-2.f, 0, 1.5f}, 0.3f, Hex("#50C070"));
             Render::Cylinder({0, 2.5f, 0}, {0, 2.5f, 2.f}, 0.2f, Hex("#D0A040"));
             Render::Sphere({0, 2.5f, 2.2f}, 0.3f, Hex("#D0A040"));
-            Render::Sphere({1.f, 1.f, 0.2f}, 0.2f, Hex("#C060C0"));
+            Render::PointLight({0.7f, 1.f, 0.2f}, Hex("#C060C0"), 1006.f);
+            Render::SetNextEmissive();
+            Render::Sphere({0.7f, 1.f, 0.2f}, 0.2f, Hex("#C060C0"));
             Render::Cube({-1.f, -1.5f, 0.3f}, 0.6f, Hex("#60C0C0"));
         Render::End();
+    ImGui::End();
+
+    ImGui::Begin("Lights", nullptr);
+        auto* lights = Render::GetPointLights();
+        int lightCount = Render::GetPointLightCount();
+        ImGui::Text("Point Lights: %d / 8", lightCount);
+        for (int i = 0; i < lightCount; ++i) {
+            ImGui::PushID(i);
+            ImGui::SeparatorText(i == 0 ? "Star Light" : "Light");
+            ImGui::DragFloat3("Position", &lights[i].pos.x, 0.05f);
+            ImGui::ColorEdit3("Color", &lights[i].color.x);
+            ImGui::DragFloat("Range", &lights[i].range, 0.1f, 0.1f, 50.f);
+            ImGui::PopID();
+        }
     ImGui::End();
 
     ImGui::Begin("Signals", nullptr);

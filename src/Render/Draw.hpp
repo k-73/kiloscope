@@ -117,7 +117,15 @@ Environment& GetEnvironment();
 Environment& GetEnvironment(const char* name);
 
 // ── lights ──────────────────────────────────────────────────────
-void PointLight(const glm::vec3& pos, const glm::vec3& color, float range);
+struct PointLightInfo {
+    glm::vec3 pos{0.f};
+    glm::vec3 color{1.f};
+    float range = 5.f;
+};
+
+int  PointLight(const glm::vec3& pos, const glm::vec3& color, float range);  // returns index
+int  GetPointLightCount();
+PointLightInfo* GetPointLights();  // array of current lights, editable
 void SetNextEmissive();
 
 // ── grid ────────────────────────────────────────────────────────
