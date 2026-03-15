@@ -82,11 +82,12 @@ void main() {
     }
 
     // Mode 3: additive glow — rendered with GL_BLEND(ONE, ONE)
+    // Sharp falloff (pow 4): bright core, fast fade to edges
     if (uUnlit == 3) {
         vec3  N   = normalize(vNormal);
         vec3  V   = normalize(uCamPos - vWorldPos);
         float NdV = max(dot(N, V), 0.0);
-        float intensity = pow(NdV, 2.0) * uColor.a;  // alpha = glow strength
+        float intensity = NdV * NdV * NdV * NdV * uColor.a;
         FragColor = vec4(uColor.rgb * intensity, 0.0);
         return;
     }
