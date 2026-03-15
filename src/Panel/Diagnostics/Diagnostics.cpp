@@ -22,7 +22,7 @@ void Diagnostics::OnDraw() {
 
     ImGui::SeparatorText("Render");
     auto& s = Render::GetStats();
-    ImGui::Text("Draw Calls: %d (+%d pick +%d shadow)", s.drawCalls, s.pickDrawCalls, s.shadowDrawCalls);
+    ImGui::Text("Draw Calls: %d (+%d pick)", s.drawCalls, s.pickDrawCalls);
     ImGui::Text("Vertices: %d  Lines: %d  Points: %d", s.vertices, s.lineSegments, s.points);
     ImGui::Text("Lights: %d  Text: %d", s.pointLights, s.textLabels);
     ImGui::Text("Viewport: %dx%d  MSAA: %dx", s.viewportW, s.viewportH, s.msaaSamples);

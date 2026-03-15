@@ -31,7 +31,6 @@ struct MeshDraw {
     glm::vec4 color;
     bool unlit;
     uint32_t pickId;
-    bool castShadow;
 };
 
 // ── FBO types ────────────────────────────────────────────────────────
@@ -50,25 +49,10 @@ struct PickFbo {
     PickFbo& operator=(const PickFbo&) = delete;
 };
 
-struct ShadowFbo {
-    GLuint fbo = 0, depth = 0;
-    int w = 0, h = 0;
-    void Resize(int nw, int nh);
-    void Bind();
-    void Clear();
-    void Destroy();
-    ~ShadowFbo() { Destroy(); }
-    ShadowFbo() = default;
-    ShadowFbo(const ShadowFbo&) = delete;
-    ShadowFbo& operator=(const ShadowFbo&) = delete;
-    ShadowFbo(ShadowFbo&& o) noexcept;
-    ShadowFbo& operator=(ShadowFbo&& o) noexcept;
-};
-
 // ── per-scene state ──────────────────────────────────────────────────
 
 struct SceneData {
-    Fbo fbo; PickFbo pickFbo; ShadowFbo shadowFbo;
+    Fbo fbo; PickFbo pickFbo;
     Camera cam; Environment env; GridConfig gridCfg;
     uint32_t hoveredPickId = 0;
 };
@@ -83,7 +67,6 @@ struct FrameState {
 
 inline Shader sMeshShader, sLineShader, sGridShader, sPointShader;
 inline Shader sPickMeshShader, sPickLineShader, sPickPointShader;
-inline Shader sShadowShader;
 inline GLuint sMeshVao = 0, sMeshVbo = 0;
 inline GLuint sLineVao = 0, sLineVbo = 0;
 inline GLuint sGridVao = 0;
@@ -101,8 +84,6 @@ inline std::vector<glm::mat4> sMatStack = {glm::mat4(1.f)};
 inline std::vector<MeshVert>  sMeshScratch;
 inline std::vector<MeshVert>  sIndexedScratch;
 
-inline glm::mat4 sLightVP;
-inline bool sShadowReady = false;
 inline constexpr int kMaxPointLights = 8;
 inline int sNumPointLights = 0;
 inline PointLightData sPointLights[kMaxPointLights];
@@ -119,7 +100,6 @@ inline uint32_t sLastPickId     = 0;
 inline uint32_t sPickIdOverride = 0;
 inline bool     sPickEnabled    = true;
 inline bool     sEmissive       = false;
-inline bool     sShadowCasting  = true;
 inline Stats    sStats;
 
 inline bool sMeshFrameReady = false;

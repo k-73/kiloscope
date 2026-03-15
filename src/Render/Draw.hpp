@@ -80,7 +80,6 @@ struct ViewportConfig {
 struct Stats {
     int drawCalls       = 0;
     int pickDrawCalls   = 0;
-    int shadowDrawCalls = 0;
     int vertices        = 0;
     int lineSegments    = 0;
     int points          = 0;
