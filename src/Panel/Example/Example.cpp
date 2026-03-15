@@ -148,7 +148,6 @@ void Example::OnDraw() {
     // ── Lighting demo ───────────────────────────────────────────
     constexpr int   kLights = 4;
     constexpr int   kCubes  = 8;
-    constexpr int   kCones  = 12;
     constexpr float kTau    = glm::two_pi<float>();
 
     ImGui::SetNextWindowSize({500, 500}, ImGuiCond_FirstUseEver);

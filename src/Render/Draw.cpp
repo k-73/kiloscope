@@ -24,10 +24,11 @@ void PickFbo::Clear() {
     Bind(); GLuint zero = 0; glClearBufferuiv(GL_COLOR, 0, &zero);
     float one = 1.f; glClearBufferfv(GL_DEPTH, 0, &one);
 }
-uint32_t PickFbo::ReadPixel(int x, int y) const {
-    if (x < 0 || x >= w || y < 0 || y >= h) return 0;
+uint32_t PickFbo::ReadPixel(int screenX, int screenY) const {
+    int fy = h - 1 - screenY;
+    if (screenX < 0 || screenX >= w || fy < 0 || fy >= h) return 0;
     uint32_t id = 0; glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
-    glReadPixels(x, y, 1, 1, GL_RED_INTEGER, GL_UNSIGNED_INT, &id); return id;
+    glReadPixels(screenX, fy, 1, 1, GL_RED_INTEGER, GL_UNSIGNED_INT, &id); return id;
 }
 void PickFbo::Destroy() {
     if (fbo) { glDeleteFramebuffers(1, &fbo); fbo = 0; }
@@ -469,7 +470,7 @@ void End() {
     if (sFrame.hovered) {
         auto& io = ImGui::GetIO();
         int mx = static_cast<int>(io.MousePos.x - sFrame.cx);
-        int my = static_cast<int>(sFrame.h - 1.f - (io.MousePos.y - sFrame.cy));
+        int my = static_cast<int>(io.MousePos.y - sFrame.cy);
         sFrame.scene->hoveredPickId = sFrame.scene->pickFbo.ReadPixel(mx, my);
     }
 

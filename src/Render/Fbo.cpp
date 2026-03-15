@@ -1,5 +1,7 @@
 #include "Fbo.hpp"
 #include <algorithm>
+#include <stdexcept>
+#include <string>
 #include <utility>
 
 namespace Kilo::Render {
@@ -60,6 +62,13 @@ void Fbo::Resize(int w, int h, int samples) {
     glTextureParameteri(resolvedTex_, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTextureParameteri(resolvedTex_, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glNamedFramebufferTexture(resolveFbo_, GL_COLOR_ATTACHMENT0, resolvedTex_, 0);
+
+    auto check = [](GLuint fbo, const char* name) {
+        if (glCheckNamedFramebufferStatus(fbo, GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+            throw std::runtime_error(std::string("FBO incomplete: ") + name);
+    };
+    check(msaaFbo_, "msaa");
+    check(resolveFbo_, "resolve");
 }
 
 void Fbo::Bind(float clearR, float clearG, float clearB) {

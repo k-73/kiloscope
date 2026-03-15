@@ -81,7 +81,7 @@ void main() {
     vec3 lit = uColor.rgb * (hemi + diff + fresnel) + spec;
 
     // Point lights
-    for (int i = 0; i < uNumPointLights; i++) {
+    for (int i = 0; i < min(uNumPointLights, MAX_POINT_LIGHTS); i++) {
         vec3 toLight = uPLPos[i] - vWorldPos;
         float d = length(toLight);
         float atten = clamp(1.0 - d / max(uPLRange[i], 0.001), 0.0, 1.0);
