@@ -92,13 +92,14 @@ void UploadMesh(const std::vector<MeshVert>& v) {
     sEmissive = false;
     sGlow = false;
 
-    if (wasEmissive) {
+    if (wasEmissive && count > 0) {
         glm::vec3 centroid(0.f);
         for (GLsizei i = offset; i < offset + count; ++i) centroid += sVboAccum[i].pos;
         centroid /= static_cast<float>(count);
         float maxR = 0.f;
         for (GLsizei i = offset; i < offset + count; ++i)
             maxR = glm::max(maxR, glm::length(sVboAccum[i].pos - centroid));
+        if (maxR < 1e-6f) maxR = 0.05f;
 
         sMeshScratch.clear();
         AppendMesh(sMeshScratch, generator::SphereMesh(maxR * 2.f, 16, 8),
@@ -348,6 +349,7 @@ void Begin(const char* name, const ViewportConfig& cfg) {
 
     sNextPickId = 0; sLastPickId = 0; sPickIdOverride = 0;
     sPickEnabled = true; sMeshFrameReady = false;
+    sEmissive = false; sGlow = false;
     sNumPointLights = 0;
     sDrawList.clear(); sVboAccum.clear();
     sStats = {}; sStats.viewportW = w; sStats.viewportH = h; sStats.msaaSamples = scene->fbo.Samples();

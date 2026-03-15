@@ -27,7 +27,7 @@ struct TextEntry { glm::vec3 worldPos; glm::vec4 color; std::string text; };
 struct MeshDraw {
     GLsizei offset, count;
     glm::vec4 color;
-    int unlitMode;      // 0=lit, 1=unlit, 2=emissive
+    int unlitMode;      // 0=lit, 1=unlit, 2=emissive, 3=glow
     uint32_t pickId;
 };
 

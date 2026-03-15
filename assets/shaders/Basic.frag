@@ -38,7 +38,7 @@ void main() {
         vec3 N = normalize(vNormal);
         vec3 V = normalize(uCamPos - vWorldPos);
         float NdV = max(dot(N, V), 0.0);
-        float core = smoothstep(0.0, 1.0, NdV);
+        float core = NdV;
         float rim  = pow(1.0 - NdV, 2.5);
         vec3 hot   = mix(uColor.rgb, vec3(1.0), core * 0.3);
         vec3 glow  = hot * (1.0 + rim * 1.5);
@@ -84,11 +84,13 @@ void main() {
     for (int i = 0; i < uNumPointLights; i++) {
         vec3 toLight = uPLPos[i] - vWorldPos;
         float d = length(toLight);
-        float atten = clamp(1.0 - d / uPLRange[i], 0.0, 1.0);
+        float atten = clamp(1.0 - d / max(uPLRange[i], 0.001), 0.0, 1.0);
         atten *= atten;
 
         vec3 PL = normalize(toLight);
-        float pDiff = max(dot(N, PL), 0.0) * uDiffuse;
+        float pNdL = dot(N, PL);
+        float pDiff = max(pNdL * 0.5 + 0.5, 0.0);
+        pDiff = pDiff * pDiff * uDiffuse;
 
         vec3 PH = normalize(PL + V);
         float pNdH = max(dot(N, PH), 0.0);
