@@ -10,7 +10,8 @@ namespace Kilo::Render {
 
 void PickFbo::Resize(int nw, int nh) {
     if (nw == w && nh == h) return;
-    Destroy(); w = nw; h = nh;
+    Destroy();
+    w = nw; h = nh;
     glCreateFramebuffers(1, &fbo);
     glCreateTextures(GL_TEXTURE_2D, 1, &color);
     glTextureStorage2D(color, 1, GL_R32UI, w, h);
@@ -105,39 +106,42 @@ static void EndPickPass() {
 }
 
 void UploadMesh(const std::vector<MeshVert>& v) {
-    auto count = static_cast<GLsizei>(v.size());
-    auto offset = static_cast<GLsizei>(ctx().vboAccum.size());
-    ctx().vboAccum.insert(ctx().vboAccum.end(), v.begin(), v.end());
-    ctx().drawList.push_back({offset, count, ctx().currentColor, ctx().currentUnlitMode, ctx().lastPickId, 0});
-    ctx().stats.vertices += count;
+    auto& s = ctx();
+    auto count  = static_cast<GLsizei>(v.size());
+    auto offset = static_cast<GLsizei>(s.vboAccum.size());
+    s.vboAccum.insert(s.vboAccum.end(), v.begin(), v.end());
+    s.drawList.push_back({offset, count, s.currentColor, s.currentUnlitMode, s.lastPickId, 0});
+    s.stats.vertices += count;
 
-    bool wasEmissive = ctx().emissive;
-    float glowR = ctx().emissiveGlowRadius;
-    ctx().emissive = false;
-    ctx().glow = false;
-    ctx().emissiveGlowRadius = 0.f;
+    bool wasEmissive = s.emissive;
+    float glowR = s.emissiveGlowRadius;
+    s.emissive = false;
+    s.glow = false;
+    s.emissiveGlowRadius = 0.f;
 
     if (wasEmissive && count > 0) {
+        // Compute centroid + bounding radius in one pass
         glm::vec3 centroid(0.f);
-        for (GLsizei i = offset; i < offset + count; ++i) centroid += ctx().vboAccum[i].pos;
+        for (GLsizei i = offset; i < offset + count; ++i)
+            centroid += s.vboAccum[i].pos;
         centroid /= static_cast<float>(count);
 
         if (glowR <= 0.f) {
             float maxR = 0.f;
             for (GLsizei i = offset; i < offset + count; ++i)
-                maxR = glm::max(maxR, glm::length(ctx().vboAccum[i].pos - centroid));
+                maxR = glm::max(maxR, glm::length(s.vboAccum[i].pos - centroid));
             glowR = glm::max(maxR * 2.f, 0.05f);
         }
 
         sMeshScratch.clear();
         AppendMesh(sMeshScratch, generator::SphereMesh(glowR, 16, 8),
                    glm::translate(glm::mat4(1.f), centroid));
-        auto glowOffset = static_cast<GLsizei>(ctx().vboAccum.size());
+        auto glowOffset = static_cast<GLsizei>(s.vboAccum.size());
         auto glowCount  = static_cast<GLsizei>(sMeshScratch.size());
-        ctx().vboAccum.insert(ctx().vboAccum.end(), sMeshScratch.begin(), sMeshScratch.end());
-        ctx().drawList.push_back({glowOffset, glowCount,
-            {ctx().currentColor.r, ctx().currentColor.g, ctx().currentColor.b, 0.35f}, 3, 0, 0});
-        ctx().stats.vertices += glowCount;
+        s.vboAccum.insert(s.vboAccum.end(), sMeshScratch.begin(), sMeshScratch.end());
+        s.drawList.push_back({glowOffset, glowCount,
+            {s.currentColor.r, s.currentColor.g, s.currentColor.b, 0.35f}, 3, 0, 0});
+        s.stats.vertices += glowCount;
     }
 }
 
@@ -306,11 +310,13 @@ void Init(const std::string& dir) {
         sLightLocs[i].range = glGetUniformLocation(prog, buf);
     }
 
-    glCreateVertexArrays(1, &sMeshVao); glCreateBuffers(1, &sMeshVbo);
+    glCreateVertexArrays(1, &sMeshVao);
+    glCreateBuffers(1, &sMeshVbo);
     SetupVao(sMeshVao, sMeshVbo, sizeof(MeshVert), {
         {0, {3, offsetof(MeshVert, pos)}}, {1, {3, offsetof(MeshVert, normal)}}});
 
-    glCreateVertexArrays(1, &sLineVao); glCreateBuffers(1, &sLineVbo);
+    glCreateVertexArrays(1, &sLineVao);
+    glCreateBuffers(1, &sLineVbo);
     SetupVao(sLineVao, sLineVbo, sizeof(LineVert), {
         {0, {3, offsetof(LineVert, pos)}}, {1, {3, offsetof(LineVert, otherEnd)}},
         {2, {2, offsetof(LineVert, expand)}}, {3, {4, offsetof(LineVert, color)}}});
@@ -417,7 +423,8 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     sFrame = {scene.get(), cursor.x, cursor.y, size.x, size.y, hovered, fly};
 
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-    scene->fbo.Bind(scene->env.bgColor.r, scene->env.bgColor.g, scene->env.bgColor.b);
+    auto& bg = scene->env.bgColor;
+    scene->fbo.Bind(bg.r, bg.g, bg.b);
     glDisable(GL_BLEND);
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE);
 
@@ -465,11 +472,13 @@ void Begin(const char* name, const ViewportConfig& cfg) {
 static void DrawSun() {
     ctx().pickEnabled = false;
     glm::vec3 sunPos = glm::normalize(ctx().env.lightDir) * ctx().env.sunDistance;
-    PushMatrix(); ResetMatrix();
+    PushMatrix();
+    ResetMatrix();
     SetNextEmissive();
     Sphere(sunPos, ctx().env.sunRadius, {1.f, .98f, .85f, 1.f}, 24);
-    Line({0,0,0}, sunPos, {1,.95f,.7f,.12f}, 1.f);
-    PopMatrix(); ctx().pickEnabled = true;
+    Line({0, 0, 0}, sunPos, {1, .95f, .7f, .12f}, 1.f);
+    PopMatrix();
+    ctx().pickEnabled = true;
 }
 
 static void DrawGrid(const GridConfig& cfg, float camDist) {
@@ -580,7 +589,8 @@ void End() {
         dl.clear();
         ctx().vboAccum.clear();
     }
-    FlushPoints(); FlushLines();
+    FlushPoints();
+    FlushLines();
     if (ctx().gridCfg.enabled) DrawGrid(ctx().gridCfg, ctx().cam.Distance());
 
     if (sFrame.hovered) {
