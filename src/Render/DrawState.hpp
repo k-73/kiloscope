@@ -250,7 +250,7 @@ void AppendMesh(std::vector<MeshVert>& out, const MeshT& mesh,
 
 // ── Jacobi eigensolver ───────────────────────────────────────────────
 
-// Jacobi eigensolver for 3x3 symmetric matrices (max 50 iterations, 1e-8 tolerance)
+// Diagonalize 3x3 symmetric matrix into eigenvalues and eigenvectors
 inline void Eigen3(const glm::mat3& A, glm::vec3& eigenvalues, glm::mat3& eigenvectors) {
     glm::mat3 D = A;
     eigenvectors = glm::mat3(1.f);
