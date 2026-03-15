@@ -73,7 +73,7 @@ void SetMeshFrameUniforms() {
 
 void SetMeshUniforms(const glm::vec4& color, bool unlit) {
     sCurrentColor = color;
-    sCurrentUnlit = unlit || sEmissive;
+    sCurrentUnlitMode = sGlow ? 3 : (sEmissive ? 2 : (unlit ? 1 : 0));
 }
 
 // ── pick pass helpers ────────────────────────────────────────────────
@@ -85,7 +85,7 @@ void UploadMesh(const std::vector<MeshVert>& v) {
     auto count = static_cast<GLsizei>(v.size());
     auto offset = static_cast<GLsizei>(sVboAccum.size());
     sVboAccum.insert(sVboAccum.end(), v.begin(), v.end());
-    sDrawList.push_back({offset, count, sCurrentColor, sCurrentUnlit, sLastPickId});
+    sDrawList.push_back({offset, count, sCurrentColor, sCurrentUnlitMode, sLastPickId});
 
     if (sPickEnabled && sLastPickId) {
         glNamedBufferData(sMeshVbo, GLsizeiptr(sVboAccum.size() * sizeof(MeshVert)),
@@ -101,7 +101,30 @@ void UploadMesh(const std::vector<MeshVert>& v) {
         EndPickPass();
     }
     sStats.vertices += count;
+
+    // Auto-generate glow for emissive objects
+    bool wasEmissive = sEmissive;
     sEmissive = false;
+    sGlow = false;
+
+    if (wasEmissive) {
+        glm::vec3 centroid(0.f);
+        for (GLsizei i = offset; i < offset + count; ++i) centroid += sVboAccum[i].pos;
+        centroid /= static_cast<float>(count);
+        float maxR = 0.f;
+        for (GLsizei i = offset; i < offset + count; ++i)
+            maxR = glm::max(maxR, glm::length(sVboAccum[i].pos - centroid));
+
+        auto glowColor = glm::vec4(sCurrentColor.r, sCurrentColor.g, sCurrentColor.b, 0.35f);
+        sMeshScratch.clear();
+        AppendMesh(sMeshScratch, generator::SphereMesh(maxR * 3.f, 16, 8),
+                   glm::translate(glm::mat4(1.f), centroid));
+        auto glowOffset = static_cast<GLsizei>(sVboAccum.size());
+        auto glowCount  = static_cast<GLsizei>(sMeshScratch.size());
+        sVboAccum.insert(sVboAccum.end(), sMeshScratch.begin(), sMeshScratch.end());
+        sDrawList.push_back({glowOffset, glowCount, glowColor, 3, 0});
+        sStats.vertices += glowCount;
+    }
 }
 
 // ── line batching ────────────────────────────────────────────────────
@@ -265,6 +288,7 @@ int GetPointLightCount() { return sNumPointLights; }
 PointLightInfo* GetPointLights() { return sPointLights; }
 
 void SetNextEmissive() { sEmissive = true; }
+void SetNextGlow() { sGlow = true; }
 
 const Stats& GetStats() { return sStats; }
 
@@ -350,17 +374,10 @@ void Begin(const char* name, const ViewportConfig& cfg) {
 
 static void DrawSun() {
     sPickEnabled = false;
-    float r = sEnv->sunRadius;
     glm::vec3 sunPos = glm::normalize(sEnv->lightDir) * sEnv->sunDistance;
-    glm::vec3 facing = glm::normalize(sCamPos - sunPos);
     PushMatrix(); ResetMatrix();
-    SetMeshUniforms({1,.98f,.85f,1}, true);
-    sMeshScratch.clear();
-    AppendMesh(sMeshScratch, generator::SphereMesh(r, 16, 8), glm::translate(glm::mat4(1.f), sunPos));
-    UploadMesh(sMeshScratch);
-    Circle(sunPos, facing, r*1.8f, {1,.95f,.7f,.45f}, 32, 3.f);
-    Circle(sunPos, facing, r*3.f,  {1,.9f,.5f,.18f},  32, 2.f);
-    Circle(sunPos, facing, r*5.f,  {1,.85f,.4f,.07f}, 32, 1.5f);
+    SetNextEmissive();
+    Sphere(sunPos, sEnv->sunRadius, {1.f, .98f, .85f, 1.f}, 24);
     Line({0,0,0}, sunPos, {1,.95f,.7f,.12f}, 1.f);
     PopMatrix(); sPickEnabled = true;
 }
@@ -399,20 +416,43 @@ void End() {
         sPickEnabled = true;
     }
 
+    if (sEnv->showSun) DrawSun();
+
     sStats.pointLights = sNumPointLights;
 
     if (!sDrawList.empty()) {
         glNamedBufferData(sMeshVbo, GLsizeiptr(sVboAccum.size() * sizeof(MeshVert)),
                           sVboAccum.data(), GL_DYNAMIC_DRAW);
         SetMeshFrameUniforms(); sMeshShader.Use(); glBindVertexArray(sMeshVao);
+
+        // Pass 1: glow layers (additive blending, no depth write)
+        bool hasGlow = false;
         for (auto& d : sDrawList) {
-            sMeshShader.Set("uColor", d.color); sMeshShader.Set("uUnlit", d.unlit ? 1 : 0);
+            if (d.unlitMode != 3) continue;
+            if (!hasGlow) {
+                glEnable(GL_BLEND);
+                glBlendFunc(GL_ONE, GL_ONE);
+                glDepthMask(GL_FALSE);
+                glDisable(GL_CULL_FACE);
+                hasGlow = true;
+            }
+            sMeshShader.Set("uColor", d.color); sMeshShader.Set("uUnlit", 3);
+            glDrawArrays(GL_TRIANGLES, d.offset, d.count); ++sStats.drawCalls;
+        }
+        if (hasGlow) {
+            glDisable(GL_BLEND);
+            glDepthMask(GL_TRUE);
+            glEnable(GL_CULL_FACE);
+        }
+
+        // Pass 2: solid geometry (lit, unlit, emissive)
+        for (auto& d : sDrawList) {
+            if (d.unlitMode == 3) continue;
+            sMeshShader.Set("uColor", d.color); sMeshShader.Set("uUnlit", d.unlitMode);
             glDrawArrays(GL_TRIANGLES, d.offset, d.count); ++sStats.drawCalls;
         }
         sDrawList.clear(); sVboAccum.clear();
     }
-
-    if (sEnv->showSun) DrawSun();
     FlushPoints(); FlushLines();
     if (sFrame.scene->gridCfg.enabled) DrawGrid(sFrame.scene->gridCfg, sFrame.scene->cam.Distance());
 

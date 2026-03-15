@@ -27,7 +27,7 @@ struct TextEntry { glm::vec3 worldPos; glm::vec4 color; std::string text; };
 struct MeshDraw {
     GLsizei offset, count;
     glm::vec4 color;
-    bool unlit;
+    int unlitMode;      // 0=lit, 1=unlit, 2=emissive
     uint32_t pickId;
 };
 
@@ -98,12 +98,13 @@ inline uint32_t sLastPickId     = 0;
 inline uint32_t sPickIdOverride = 0;
 inline bool     sPickEnabled    = true;
 inline bool     sEmissive       = false;
+inline bool     sGlow           = false;
 inline Stats    sStats;
 
 inline bool sMeshFrameReady = false;
 inline bool sPickMeshReady  = false;
 inline glm::vec4 sCurrentColor;
-inline bool sCurrentUnlit = false;
+inline int sCurrentUnlitMode = 0;
 
 // ── inline helpers ───────────────────────────────────────────────────
 

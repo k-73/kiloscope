@@ -29,8 +29,29 @@ void main() {
     float dist = length(uCamPos - vWorldPos);
     float fog = Fog(dist);
 
-    if (uUnlit != 0) {
+    if (uUnlit == 1) {
         FragColor = vec4(mix(uBgColor, uColor.rgb, fog), uColor.a);
+        return;
+    }
+
+    if (uUnlit == 2) {
+        vec3 N = normalize(vNormal);
+        vec3 V = normalize(uCamPos - vWorldPos);
+        float NdV = max(dot(N, V), 0.0);
+        float core = smoothstep(0.0, 1.0, NdV);
+        float rim  = pow(1.0 - NdV, 2.5);
+        vec3 hot   = mix(uColor.rgb, vec3(1.0), core * 0.3);
+        vec3 glow  = hot * (1.0 + rim * 1.5);
+        FragColor = vec4(mix(uBgColor, glow, fog), uColor.a);
+        return;
+    }
+
+    if (uUnlit == 3) {
+        vec3 N = normalize(vNormal);
+        vec3 V = normalize(uCamPos - vWorldPos);
+        float NdV = max(dot(N, V), 0.0);
+        float intensity = pow(NdV, 2.0) * uColor.a;
+        FragColor = vec4(uColor.rgb * intensity, 0.0);
         return;
     }
 

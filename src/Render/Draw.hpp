@@ -126,6 +126,7 @@ int  PointLight(const glm::vec3& pos, const glm::vec3& color, float range);  // 
 int  GetPointLightCount();
 PointLightInfo* GetPointLights();  // array of current lights, editable
 void SetNextEmissive();
+void SetNextGlow();
 
 // ── grid ────────────────────────────────────────────────────────
 struct GridConfig {
