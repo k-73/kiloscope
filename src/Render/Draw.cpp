@@ -465,9 +465,12 @@ void End() {
         sFrame.scene->shadowFbo.Clear();
         BeginShadowPass();
         sShadowShader.Use(); sShadowShader.Set("uLightVP", sLightVP);
-        glEnable(GL_CULL_FACE); glCullFace(GL_FRONT); glBindVertexArray(sMeshVao);
+        glEnable(GL_CULL_FACE);
+        glEnable(GL_POLYGON_OFFSET_FILL);
+        glPolygonOffset(1.0f, 1.0f);
+        glBindVertexArray(sMeshVao);
         for (auto& d : sDrawList) if (d.castShadow) glDrawArrays(GL_TRIANGLES, d.offset, d.count);
-        glCullFace(GL_BACK); sStats.shadowDrawCalls += static_cast<int>(sDrawList.size());
+        glDisable(GL_POLYGON_OFFSET_FILL); sStats.shadowDrawCalls += static_cast<int>(sDrawList.size());
         EndShadowPass();
         // Color pass
         SetMeshFrameUniforms(); sMeshShader.Use(); glBindVertexArray(sMeshVao);

@@ -156,9 +156,9 @@ void Example::OnDraw() {
             Render::Cylinder({-2.f, 0, 0}, {-2.f, 0, 1.5f}, 0.3f, Hex("#50C070"));
             Render::Cylinder({0, 2.5f, 0}, {0, 2.5f, 2.f}, 0.2f, Hex("#D0A040"));
             Render::Sphere({0, 2.5f, 2.2f}, 0.3f, Hex("#D0A040"));
-            Render::PointLight({0.7f, 1.f, 0.2f}, Hex("#C060C0"), 1006.f);
+            Render::PointLight({0.7f, 1.f, 0.2f}, Hex("#C060C0"), 1.f);
             Render::SetNextEmissive();
-            Render::Sphere({0.7f, 1.f, 0.2f}, 0.2f, Hex("#C060C0"));
+            Render::Sphere({0.7f, 1.f, 0.2f}, 0.1f, Hex("#ee78eeff"));
             Render::Cube({-1.f, -1.5f, 0.3f}, 0.6f, Hex("#60C0C0"));
         Render::End();
     ImGui::End();

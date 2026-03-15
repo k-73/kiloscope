@@ -29,13 +29,11 @@ out vec4 FragColor;
 
 float Fog(float d) { return clamp(exp(-uFogDensity * d * d), 0.0, 1.0); }
 
-float Shadow(vec3 worldPos, vec3 N, vec3 L) {
+float Shadow(vec3 worldPos) {
     vec4 ls = uLightVP * vec4(worldPos, 1.0);
     vec3 proj = ls.xyz / ls.w * 0.5 + 0.5;
     if (proj.z > 1.0) return 1.0;
-
-    float cosTheta = clamp(dot(N, L), 0.0, 1.0);
-    proj.z += mix(0.0006, 0.00005, cosTheta);
+    proj.z -= 0.00015;
 
     // 5x5 PCF for smooth shadow edges
     float shadow = 0.0;
@@ -62,7 +60,7 @@ void main() {
     float NdL = dot(N, L);
     float NdV = dot(N, V);
 
-    float shadow = Shadow(vWorldPos, N, L);
+    float shadow = Shadow(vWorldPos);
 
     // Wrap diffuse
     float diff = max(NdL * 0.5 + 0.5, 0.0);
