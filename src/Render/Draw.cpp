@@ -355,7 +355,7 @@ int PointLight(const glm::vec3& pos, const glm::vec3& color, float range) {
     return idx;
 }
 
-int GetPointLightCount() { return sFrame.scene ? ctx().numPointLights : 0; }
+int  GetPointLightCount() { return sFrame.scene ? ctx().numPointLights : 0; }
 PointLightInfo* GetPointLights() { return sFrame.scene ? ctx().pointLights : nullptr; }
 
 void SetNextEmissive(float glowRadius) {
@@ -594,6 +594,7 @@ void End() {
     FlushLines();
     if (ctx().gridCfg.enabled) DrawGrid(ctx().gridCfg, ctx().cam.Distance());
 
+    // Update pick target (persists from previous frame if not hovered)
     if (sFrame.hovered) {
         auto& io = ImGui::GetIO();
         int mx = static_cast<int>(io.MousePos.x - sFrame.cx);

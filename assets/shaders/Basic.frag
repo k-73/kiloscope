@@ -92,7 +92,7 @@ void main() {
 
     vec3 lit = uColor.rgb * (hemi + diff + fresnel) + spec;
 
-    // Point lights (same shading model as directional)
+    // Point lights (same shading model as directional; min() guards against CPU overflow)
     for (int i = 0; i < min(uNumPointLights, MAX_POINT_LIGHTS); i++) {
         vec3 toLight = uPLPos[i] - vWorldPos;
         float d = length(toLight);
