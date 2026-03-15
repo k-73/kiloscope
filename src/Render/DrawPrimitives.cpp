@@ -100,20 +100,24 @@ void Spline(const glm::vec3* cp, int count,
 
 void Points(const glm::vec3* positions, int count,
             const glm::vec4& color, float size) {
-    ctx().lastPickId = AllocPickId();
-    if (!ctx().pointBatch.empty() && size != ctx().pointSize) FlushPoints();
-    ctx().pointSize = size;
+    auto& s = ctx();
+    s.lastPickId = AllocPickId();
+    if (!s.pointBatch.empty() && size != s.pointSize) FlushPoints();
+    s.pointSize = size;
+    uint32_t pid = s.lastPickId;
     for (int i = 0; i < count; ++i)
-        ctx().pointBatch.push_back({XformPoint(positions[i]), color, ctx().lastPickId});
+        s.pointBatch.push_back({XformPoint(positions[i]), color, pid});
 }
 
 void Points(const glm::vec3* positions, const glm::vec4* colors,
             int count, float size) {
-    ctx().lastPickId = AllocPickId();
-    if (!ctx().pointBatch.empty() && size != ctx().pointSize) FlushPoints();
-    ctx().pointSize = size;
+    auto& s = ctx();
+    s.lastPickId = AllocPickId();
+    if (!s.pointBatch.empty() && size != s.pointSize) FlushPoints();
+    s.pointSize = size;
+    uint32_t pid = s.lastPickId;
     for (int i = 0; i < count; ++i)
-        ctx().pointBatch.push_back({XformPoint(positions[i]), colors[i], ctx().lastPickId});
+        s.pointBatch.push_back({XformPoint(positions[i]), colors[i], pid});
 }
 
 // ── text ─────────────────────────────────────────────────────────────

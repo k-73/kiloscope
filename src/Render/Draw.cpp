@@ -87,7 +87,7 @@ void UploadMesh(const std::vector<MeshVert>& v) {
     auto count = static_cast<GLsizei>(v.size());
     auto offset = static_cast<GLsizei>(ctx().vboAccum.size());
     ctx().vboAccum.insert(ctx().vboAccum.end(), v.begin(), v.end());
-    ctx().drawList.push_back({offset, count, ctx().currentColor, ctx().currentUnlitMode, ctx().lastPickId});
+    ctx().drawList.push_back({offset, count, ctx().currentColor, ctx().currentUnlitMode, ctx().lastPickId, 0});
     ctx().stats.vertices += count;
 
     bool wasEmissive = ctx().emissive;
@@ -115,7 +115,7 @@ void UploadMesh(const std::vector<MeshVert>& v) {
         auto glowCount  = static_cast<GLsizei>(sMeshScratch.size());
         ctx().vboAccum.insert(ctx().vboAccum.end(), sMeshScratch.begin(), sMeshScratch.end());
         ctx().drawList.push_back({glowOffset, glowCount,
-            {ctx().currentColor.r, ctx().currentColor.g, ctx().currentColor.b, 0.35f}, 3, 0});
+            {ctx().currentColor.r, ctx().currentColor.g, ctx().currentColor.b, 0.35f}, 3, 0, 0});
         ctx().stats.vertices += glowCount;
     }
 }
@@ -206,8 +206,8 @@ bool EventState::Clicked(int button) const { return hovered_ && ImGui::IsMouseCl
 
 EventState Event() {
     EventState state;
-    state.hovered_ = sFrame.hovered && ctx().lastPickId != 0
-                  && sFrame.scene && ctx().lastPickId == ctx().hoveredPickId;
+    state.hovered_ = sFrame.scene && sFrame.hovered
+                  && ctx().lastPickId != 0 && ctx().lastPickId == ctx().hoveredPickId;
     return state;
 }
 
@@ -278,8 +278,8 @@ int PointLight(const glm::vec3& pos, const glm::vec3& color, float range) {
     return idx;
 }
 
-int GetPointLightCount() { return ctx().numPointLights; }
-PointLightInfo* GetPointLights() { return ctx().pointLights; }
+int GetPointLightCount() { return sFrame.scene ? ctx().numPointLights : 0; }
+PointLightInfo* GetPointLights() { return sFrame.scene ? ctx().pointLights : nullptr; }
 
 void SetNextEmissive(float glowRadius) {
     ctx().emissive = true;
@@ -287,7 +287,10 @@ void SetNextEmissive(float glowRadius) {
 }
 void SetNextGlow() { ctx().glow = true; }
 
-const Stats& GetStats() { return ctx().stats; }
+const Stats& GetStats() {
+    static const Stats empty{};
+    return sFrame.scene ? ctx().stats : empty;
+}
 
 void Grid() { ctx().gridCfg.enabled = true; }
 void Grid(const GridConfig& cfg) { ctx().gridCfg = cfg; }
@@ -486,19 +489,19 @@ void End() {
 
 // ── transform stack ──────────────────────────────────────────────────
 
-void PushMatrix()  { ctx().matStack.push_back(Mat()); }
-void PopMatrix()   { if (ctx().matStack.size() > 1) ctx().matStack.pop_back(); }
+void PushMatrix()  { auto& stk = ctx().matStack; stk.push_back(stk.back()); }
+void PopMatrix()   { auto& stk = ctx().matStack; if (stk.size() > 1) stk.pop_back(); }
 void ResetMatrix() { ctx().matStack.back() = glm::mat4(1.f); }
 void SetMatrix(const glm::mat4& m)  { ctx().matStack.back() = m; }
 void Transform(const glm::mat4& m)  { ctx().matStack.back() *= m; }
-void Translate(const glm::vec3& offset) { ctx().matStack.back() = glm::translate(ctx().matStack.back(), offset); }
+void Translate(const glm::vec3& v)  { auto& m = ctx().matStack.back(); m = glm::translate(m, v); }
 void Translate(float x, float y, float z) { Translate({x, y, z}); }
-void Rotate(float angleDeg, const glm::vec3& axis) { ctx().matStack.back() = glm::rotate(ctx().matStack.back(), glm::radians(angleDeg), axis); }
+void Rotate(float deg, const glm::vec3& axis) { auto& m = ctx().matStack.back(); m = glm::rotate(m, glm::radians(deg), axis); }
 void Rotate(const glm::quat& q) { ctx().matStack.back() *= glm::mat4_cast(q); }
 void RotateX(float deg) { Rotate(deg, {1, 0, 0}); }
 void RotateY(float deg) { Rotate(deg, {0, 1, 0}); }
 void RotateZ(float deg) { Rotate(deg, {0, 0, 1}); }
-void Scale(const glm::vec3& s) { ctx().matStack.back() = glm::scale(ctx().matStack.back(), s); }
+void Scale(const glm::vec3& s) { auto& m = ctx().matStack.back(); m = glm::scale(m, s); }
 void Scale(float s) { Scale({s, s, s}); }
 
 } // namespace Kilo::Render
