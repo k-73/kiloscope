@@ -34,12 +34,14 @@ void Example::OnDraw() {
     Render::Begin("scene", {.width = 600, .height = 600});
         Render::Grid();
 
-        // Origin frame
+        // Origin frame (click to dismiss)
         static bool showFrame = true;
         if (showFrame) {
             Render::Frame(glm::mat4(1.f), 1.f);
             if (Render::Event().Clicked())
                 showFrame = false;
+            if (Render::Event().Hovered())
+                Render::Text({0, 0, 0.7f}, White, "origin");
         }
 
         // Star

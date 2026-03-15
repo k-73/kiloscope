@@ -145,6 +145,20 @@ void UploadMesh(const std::vector<MeshVert>& v) {
     s.drawList.push_back({offset, count, s.currentColor, s.currentUnlitMode, s.lastPickId});
     s.stats.vertices += count;
 
+    // Immediate pick rendering (current mesh only → same-frame Event)
+    if (s.pickEnabled && s.lastPickId) {
+        glNamedBufferData(sMeshVbo, GLsizeiptr(count * sizeof(MeshVert)),
+                          v.data(), GL_DYNAMIC_DRAW);
+        BeginPickPass();
+        sPickMeshShader.Use();
+        sPickMeshShader.Set("uViewProj", sViewProj);
+        sPickMeshShader.Set("uPickId", s.lastPickId);
+        glBindVertexArray(sMeshVao);
+        glDrawArrays(GL_TRIANGLES, 0, count);
+        ++s.stats.pickDrawCalls;
+        EndPickPass();
+    }
+
     bool wasEmissive = s.emissive;
     float glowR = s.emissiveGlowRadius;
     s.emissive = false;
@@ -296,8 +310,11 @@ bool EventState::Clicked(int button) const { return hovered_ && ImGui::IsMouseCl
 
 EventState Event() {
     EventState state;
-    state.hovered_ = sFrame.scene && sFrame.hovered
-                  && ctx().lastPickId != 0 && ctx().lastPickId == ctx().hoveredPickId;
+    if (!sFrame.scene || !sFrame.hovered || ctx().lastPickId == 0) return state;
+    auto& io = ImGui::GetIO();
+    int mx = static_cast<int>(io.MousePos.x - sFrame.cx);
+    int my = static_cast<int>(io.MousePos.y - sFrame.cy);
+    state.hovered_ = ctx().pickFbo.ReadPixel(mx, my) == ctx().lastPickId;
     return state;
 }
 
@@ -571,20 +588,6 @@ void End() {
                           ctx().vboAccum.data(), GL_DYNAMIC_DRAW);
         glBindVertexArray(sMeshVao);
 
-        // Pick pass
-        if (ctx().pickEnabled) {
-            BeginPickPass();
-            sPickMeshShader.Use();
-            sPickMeshShader.Set("uViewProj", sViewProj);
-            for (auto& d : dl) {
-                if (!d.pickId || d.unlitMode == 3) continue; // skip non-pickable and glow
-                sPickMeshShader.Set("uPickId", d.pickId);
-                glDrawArrays(GL_TRIANGLES, d.offset, d.count);
-                ++ctx().stats.pickDrawCalls;
-            }
-            EndPickPass();
-        }
-
         SetMeshFrameUniforms();
         sMeshShader.Use();
 
@@ -625,14 +628,6 @@ void End() {
     FlushPoints();
     FlushLines();
     if (ctx().gridCfg.enabled) DrawGrid(ctx().gridCfg, ctx().cam.Distance());
-
-    // Update pick target (persists from previous frame if not hovered)
-    if (sFrame.hovered) {
-        auto& io = ImGui::GetIO();
-        int mx = static_cast<int>(io.MousePos.x - sFrame.cx);
-        int my = static_cast<int>(io.MousePos.y - sFrame.cy);
-        ctx().hoveredPickId = ctx().pickFbo.ReadPixel(mx, my);
-    }
 
     ctx().fbo.Resolve();
     ImGui::SetCursorScreenPos({sFrame.cx, sFrame.cy});
