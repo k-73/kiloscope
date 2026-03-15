@@ -150,28 +150,44 @@ void Example::OnDraw() {
     ImGui::Begin("Lighting Demo", nullptr);
         Render::Begin("lighting");
             Render::Grid();
-            Render::Sphere({0, 0, 0.5f}, 0.5f, Hex("#E05050"));
-            Render::Box({2.f, 0, 0.5f}, {1.f, 1.f, 1.f}, Hex("#5090E0"));
-            Render::Cylinder({-2.f, 0, 0}, {-2.f, 0, 1.5f}, 0.3f, Hex("#50C070"));
-            Render::Cylinder({0, 2.5f, 0}, {0, 2.5f, 2.f}, 0.2f, Hex("#D0A040"));
-            Render::Sphere({0, 2.5f, 2.2f}, 0.3f, Hex("#D0A040"));
-            Render::SphereLight({0.7f, 1.f, 0.2f}, 0.1f, Hex("#ee78ee"), 10.f);
-            Render::Cube({-1.f, -1.5f, 0.3f}, 0.6f, Hex("#60C0C0"));
-        Render::End();
-    ImGui::End();
+            Render::Box({0, 0, -0.05f}, {12, 12, 0.1f}, Hex("#333333"));
 
-    ImGui::Begin("Lights", nullptr);
-        auto* lights = Render::GetPointLights();
-        int lightCount = Render::GetPointLightCount();
-        ImGui::Text("Point Lights: %d / 8", lightCount);
-        for (int i = 0; i < lightCount; ++i) {
-            ImGui::PushID(i);
-            ImGui::SeparatorText(i == 0 ? "Star Light" : "Light");
-            ImGui::DragFloat3("Position", &lights[i].pos.x, 0.05f);
-            ImGui::ColorEdit3("Color", &lights[i].color.x);
-            ImGui::DragFloat("Range", &lights[i].range, 0.1f, 0.1f, 50.f);
-            ImGui::PopID();
-        }
+            // Central tower — rainbow torus stack
+            Render::Cylinder({0, 0, 0}, {0, 0, 2.f}, 0.1f, Hex("#606060"));
+            for (int i = 0; i < 5; ++i) {
+                float z = 0.3f + i * 0.4f, r = 0.5f - i * 0.04f;
+                Render::Torus({0, 0, z}, {0, 0, 1}, r, 0.035f, Hue(i / 5.f));
+            }
+            Render::SetNextEmissive();
+            Render::Sphere({0, 0, 2.15f}, 0.15f, Hex("#FFD700"));
+
+            // Animated hexagonal pillars
+            for (int i = 0; i < 6; ++i) {
+                float a = i * glm::pi<float>() / 3.f;
+                float x = 3.f * std::cos(a), y = 3.f * std::sin(a);
+                float h = 0.6f + 0.3f * std::sin(time * 0.8f + a);
+                Render::Cylinder({x, y, 0}, {x, y, h}, 0.08f, Hue(i / 6.f + 0.1f));
+                Render::Sphere({x, y, h + 0.08f}, 0.11f, Hue(i / 6.f + 0.1f));
+            }
+
+            // Orbiting lights
+            for (int i = 0; i < 4; ++i) {
+                float p = i * glm::two_pi<float>() / 4.f;
+                float a = time * 0.8f + p;
+                glm::vec3 lp = {1.6f * std::cos(a), 1.6f * std::sin(a),
+                                0.8f + 0.4f * std::sin(time + p)};
+                Render::SphereLight(lp, 0.04f, Hue(i / 4.f + time * 0.1f), 6.f);
+            }
+
+            // Ascending spiral of spheres
+            for (int i = 0; i < 18; ++i) {
+                float t = i / 18.f;
+                float a = t * glm::two_pi<float>() * 2.5f + time * 0.3f;
+                float r = 0.8f + t * 1.8f, z = t * 2.f;
+                Render::Sphere({r * std::cos(a), r * std::sin(a), z},
+                               0.04f + t * 0.04f, Hue(t + time * 0.05f));
+            }
+        Render::End();
     ImGui::End();
 
     ImGui::Begin("Signals", nullptr);
