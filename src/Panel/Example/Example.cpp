@@ -174,7 +174,7 @@ void Example::OnDraw() {
                     Render::Translate(2.2f * std::cos(angle), 2.2f * std::sin(angle), z);
                     Render::RotateZ(glm::degrees(angle));
                     Render::RotateX(time * 30.f + i * 45.f);
-                    Render::Cube({0, 0, 0}, 0.13f, Hue(i / float(kCubes) + time * 0.08f));
+                    Render::Cube({0, 0, 0}, 0.13f, Hex("#FFFFFF"));
                 Render::PopMatrix();
             }
         Render::End();
