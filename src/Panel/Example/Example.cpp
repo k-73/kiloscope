@@ -145,47 +145,40 @@ void Example::OnDraw() {
         }
     ImGui::End();
 
-    // ── Scene 2: Lighting demo ──────────────────────────────────
+    // ── Lighting demo ───────────────────────────────────────────
+    constexpr int   kLights = 4;
+    constexpr int   kCubes  = 8;
+    constexpr int   kCones  = 12;
+    constexpr float kTau    = glm::two_pi<float>();
+
     ImGui::SetNextWindowSize({500, 500}, ImGuiCond_FirstUseEver);
     ImGui::Begin("Lighting Demo", nullptr);
         Render::Begin("lighting");
             Render::Grid();
-            Render::Box({0, 0, -0.05f}, {12, 12, 0.1f}, Hex("#333333"));
+            Render::Box({0, 0, -0.05f}, {10, 10, 0.1f}, Hex("#2A2A2A"));
 
-            // Central tower — rainbow torus stack
-            Render::Cylinder({0, 0, 0}, {0, 0, 2.f}, 0.1f, Hex("#606060"));
-            for (int i = 0; i < 5; ++i) {
-                float z = 0.3f + i * 0.4f, r = 0.5f - i * 0.04f;
-                Render::Torus({0, 0, z}, {0, 0, 1}, r, 0.035f, Hue(i / 5.f));
-            }
-            Render::SetNextEmissive();
-            Render::Sphere({0, 0, 2.15f}, 0.15f, Hex("#FFD700"));
-
-            // Animated hexagonal pillars
-            for (int i = 0; i < 6; ++i) {
-                float a = i * glm::pi<float>() / 3.f;
-                float x = 3.f * std::cos(a), y = 3.f * std::sin(a);
-                float h = 0.6f + 0.3f * std::sin(time * 0.8f + a);
-                Render::Cylinder({x, y, 0}, {x, y, h}, 0.08f, Hue(i / 6.f + 0.1f));
-                Render::Sphere({x, y, h + 0.08f}, 0.11f, Hue(i / 6.f + 0.1f));
-            }
+            // Center — emissive sphere
+            Render::SphereLight({0, 0, 1.f}, 0.2f, Hex("#F2EB4D"), 8.f);
 
             // Orbiting lights
-            for (int i = 0; i < 4; ++i) {
-                float p = i * glm::two_pi<float>() / 4.f;
-                float a = time * 0.8f + p;
-                glm::vec3 lp = {1.6f * std::cos(a), 1.6f * std::sin(a),
-                                0.8f + 0.4f * std::sin(time + p)};
-                Render::SphereLight(lp, 0.04f, Hue(i / 4.f + time * 0.1f), 6.f);
+            for (int i = 0; i < kLights; ++i) {
+                float phase = i * kTau / kLights;
+                float angle = time * 0.8f + phase;
+                float z     = 0.8f + 0.4f * std::sin(time + phase);
+                glm::vec3 pos = {1.8f * std::cos(angle), 1.8f * std::sin(angle), z};
+                Render::SphereLight(pos, 0.04f, Hue(i / float(kLights) + time * 0.1f), 6.f);
             }
 
-            // Ascending spiral of spheres
-            for (int i = 0; i < 18; ++i) {
-                float t = i / 18.f;
-                float a = t * glm::two_pi<float>() * 2.5f + time * 0.3f;
-                float r = 0.8f + t * 1.8f, z = t * 2.f;
-                Render::Sphere({r * std::cos(a), r * std::sin(a), z},
-                               0.04f + t * 0.04f, Hue(t + time * 0.05f));
+            // Spinning cubes
+            for (int i = 0; i < kCubes; ++i) {
+                float angle = i * kTau / kCubes + time * 0.4f;
+                float z     = 0.5f + 0.15f * std::sin(time * 1.5f + angle * 2.f);
+                Render::PushMatrix();
+                    Render::Translate(2.2f * std::cos(angle), 2.2f * std::sin(angle), z);
+                    Render::RotateZ(glm::degrees(angle));
+                    Render::RotateX(time * 30.f + i * 45.f);
+                    Render::Cube({0, 0, 0}, 0.13f, Hue(i / float(kCubes) + time * 0.08f));
+                Render::PopMatrix();
             }
         Render::End();
     ImGui::End();
