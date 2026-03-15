@@ -19,16 +19,24 @@ void PickFbo::Resize(int nw, int nh) {
     glNamedRenderbufferStorage(depth, GL_DEPTH_COMPONENT32F, w, h);
     glNamedFramebufferRenderbuffer(fbo, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depth);
 }
-void PickFbo::Bind() { glBindFramebuffer(GL_FRAMEBUFFER, fbo); glViewport(0, 0, w, h); }
-void PickFbo::Clear() {
-    Bind(); GLuint zero = 0; glClearBufferuiv(GL_COLOR, 0, &zero);
-    float one = 1.f; glClearBufferfv(GL_DEPTH, 0, &one);
+void PickFbo::Bind() {
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glViewport(0, 0, w, h);
 }
+
+void PickFbo::Clear() {
+    Bind();
+    GLuint zero = 0;  glClearBufferuiv(GL_COLOR, 0, &zero);
+    float  one  = 1.f; glClearBufferfv(GL_DEPTH, 0, &one);
+}
+
 uint32_t PickFbo::ReadPixel(int screenX, int screenY) const {
     int fy = h - 1 - screenY;
     if (screenX < 0 || screenX >= w || fy < 0 || fy >= h) return 0;
-    uint32_t id = 0; glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
-    glReadPixels(screenX, fy, 1, 1, GL_RED_INTEGER, GL_UNSIGNED_INT, &id); return id;
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
+    uint32_t id = 0;
+    glReadPixels(screenX, fy, 1, 1, GL_RED_INTEGER, GL_UNSIGNED_INT, &id);
+    return id;
 }
 void PickFbo::Destroy() {
     if (fbo) { glDeleteFramebuffers(1, &fbo); fbo = 0; }
@@ -64,11 +72,12 @@ void SetMeshFrameUniforms() {
     sMeshShader.Set("uFresnel", env.fresnel);
     sMeshShader.Set("uFogDensity", env.fogDensity);
     sMeshShader.Set("uNumPointLights", ctx().numPointLights);
+    char buf[48];
     for (int i = 0; i < ctx().numPointLights; ++i) {
-        char buf[48];
-        std::snprintf(buf, sizeof(buf), "uPLPos[%d]",   i); sMeshShader.Set(buf, ctx().pointLights[i].pos);
-        std::snprintf(buf, sizeof(buf), "uPLColor[%d]", i); sMeshShader.Set(buf, ctx().pointLights[i].color);
-        std::snprintf(buf, sizeof(buf), "uPLRange[%d]", i); sMeshShader.Set(buf, ctx().pointLights[i].range);
+        auto& light = ctx().pointLights[i];
+        std::snprintf(buf, sizeof(buf), "uPLPos[%d]", i);   sMeshShader.Set(buf, light.pos);
+        std::snprintf(buf, sizeof(buf), "uPLColor[%d]", i); sMeshShader.Set(buf, light.color);
+        std::snprintf(buf, sizeof(buf), "uPLRange[%d]", i); sMeshShader.Set(buf, light.range);
     }
     ctx().meshFrameReady = true;
 }
@@ -80,8 +89,15 @@ void SetMeshUniforms(const glm::vec4& color, bool unlit) {
 
 // ── pick pass helpers ────────────────────────────────────────────────
 
-static void BeginPickPass() { ctx().pickFbo.Bind(); glDepthMask(GL_TRUE); }
-static void EndPickPass() { glBindFramebuffer(GL_FRAMEBUFFER, ctx().fbo.Handle()); glViewport(0, 0, sVpW, sVpH); }
+static void BeginPickPass() {
+    ctx().pickFbo.Bind();
+    glDepthMask(GL_TRUE);
+}
+
+static void EndPickPass() {
+    glBindFramebuffer(GL_FRAMEBUFFER, ctx().fbo.Handle());
+    glViewport(0, 0, sVpW, sVpH);
+}
 
 void UploadMesh(const std::vector<MeshVert>& v) {
     auto count = static_cast<GLsizei>(v.size());
@@ -126,24 +142,37 @@ void FlushLines() {
     if (ctx().lineBatch.empty()) return;
     auto count = static_cast<GLsizei>(ctx().lineBatch.size());
     glNamedBufferData(sLineVbo, GLsizeiptr(count * sizeof(LineVert)), ctx().lineBatch.data(), GL_DYNAMIC_DRAW);
-    ++ctx().stats.drawCalls; ctx().stats.lineSegments += count / 6;
+    ++ctx().stats.drawCalls;
+    ctx().stats.lineSegments += count / 6;
 
     sLineShader.Use();
-    sLineShader.Set("uView", sView); sLineShader.Set("uProj", sProj);
+    sLineShader.Set("uView", sView);
+    sLineShader.Set("uProj", sProj);
     sLineShader.Set("uViewportSize", glm::vec2(sVpW, sVpH));
     sLineShader.Set("uLineWidth", ctx().lineWidth);
-    glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE); glDepthMask(GL_FALSE); glDisable(GL_CULL_FACE);
-    glBindVertexArray(sLineVao); glDrawArrays(GL_TRIANGLES, 0, count);
-    glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE); glDepthMask(GL_TRUE); glEnable(GL_CULL_FACE);
+
+    glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
+    glDepthMask(GL_FALSE);
+    glDisable(GL_CULL_FACE);
+    glBindVertexArray(sLineVao);
+    glDrawArrays(GL_TRIANGLES, 0, count);
+    glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
+    glDepthMask(GL_TRUE);
+    glEnable(GL_CULL_FACE);
 
     if (ctx().pickEnabled) {
-        BeginPickPass(); sPickLineShader.Use();
-        sPickLineShader.Set("uView", sView); sPickLineShader.Set("uProj", sProj);
+        BeginPickPass();
+        sPickLineShader.Use();
+        sPickLineShader.Set("uView", sView);
+        sPickLineShader.Set("uProj", sProj);
         sPickLineShader.Set("uViewportSize", glm::vec2(sVpW, sVpH));
         sPickLineShader.Set("uLineWidth", ctx().lineWidth);
-        glDisable(GL_CULL_FACE); glBindVertexArray(sLineVao);
-        glDrawArrays(GL_TRIANGLES, 0, count); glEnable(GL_CULL_FACE);
-        ++ctx().stats.pickDrawCalls; EndPickPass();
+        glDisable(GL_CULL_FACE);
+        glBindVertexArray(sLineVao);
+        glDrawArrays(GL_TRIANGLES, 0, count);
+        glEnable(GL_CULL_FACE);
+        ++ctx().stats.pickDrawCalls;
+        EndPickPass();
     }
     ctx().lineBatch.clear();
 }
@@ -153,9 +182,13 @@ void BatchLineGradient(const glm::vec3& a, const glm::vec3& b,
     if (!ctx().lineBatch.empty() && width != ctx().lineWidth) FlushLines();
     ctx().lineWidth = width;
     uint32_t pid = ctx().lastPickId;
-    ctx().lineBatch.push_back({a, b, {-1, 0}, ca, pid}); ctx().lineBatch.push_back({a, b, { 1, 0}, ca, pid});
-    ctx().lineBatch.push_back({a, b, { 1, 1}, cb, pid}); ctx().lineBatch.push_back({a, b, {-1, 0}, ca, pid});
-    ctx().lineBatch.push_back({a, b, { 1, 1}, cb, pid}); ctx().lineBatch.push_back({a, b, {-1, 1}, cb, pid});
+    auto& batch = ctx().lineBatch;
+    batch.push_back({a, b, {-1, 0}, ca, pid});
+    batch.push_back({a, b, { 1, 0}, ca, pid});
+    batch.push_back({a, b, { 1, 1}, cb, pid});
+    batch.push_back({a, b, {-1, 0}, ca, pid});
+    batch.push_back({a, b, { 1, 1}, cb, pid});
+    batch.push_back({a, b, {-1, 1}, cb, pid});
 }
 
 void BatchLine(const glm::vec3& a, const glm::vec3& b,
@@ -169,25 +202,41 @@ void FlushPoints() {
     if (ctx().pointBatch.empty()) return;
     auto count = static_cast<GLsizei>(ctx().pointBatch.size());
     glNamedBufferData(sPointVbo, GLsizeiptr(count * sizeof(PointVert)), ctx().pointBatch.data(), GL_DYNAMIC_DRAW);
-    ++ctx().stats.drawCalls; ctx().stats.points += count;
+    ++ctx().stats.drawCalls;
+    ctx().stats.points += count;
 
     sPointShader.Use();
-    sPointShader.Set("uView", sView); sPointShader.Set("uProj", sProj);
-    sPointShader.Set("uPointSize", ctx().pointSize); sPointShader.Set("uViewportSize", glm::vec2(sVpW, sVpH));
-    glEnable(GL_PROGRAM_POINT_SIZE); glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
-    glDepthMask(GL_FALSE); glDisable(GL_CULL_FACE);
-    glBindVertexArray(sPointVao); glDrawArrays(GL_POINTS, 0, count);
-    glDisable(GL_PROGRAM_POINT_SIZE); glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
-    glDepthMask(GL_TRUE); glEnable(GL_CULL_FACE);
+    sPointShader.Set("uView", sView);
+    sPointShader.Set("uProj", sProj);
+    sPointShader.Set("uPointSize", ctx().pointSize);
+    sPointShader.Set("uViewportSize", glm::vec2(sVpW, sVpH));
+
+    glEnable(GL_PROGRAM_POINT_SIZE);
+    glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
+    glDepthMask(GL_FALSE);
+    glDisable(GL_CULL_FACE);
+    glBindVertexArray(sPointVao);
+    glDrawArrays(GL_POINTS, 0, count);
+    glDisable(GL_PROGRAM_POINT_SIZE);
+    glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
+    glDepthMask(GL_TRUE);
+    glEnable(GL_CULL_FACE);
 
     if (ctx().pickEnabled) {
-        BeginPickPass(); sPickPointShader.Use();
-        sPickPointShader.Set("uView", sView); sPickPointShader.Set("uProj", sProj);
-        sPickPointShader.Set("uPointSize", ctx().pointSize); sPickPointShader.Set("uViewportSize", glm::vec2(sVpW, sVpH));
-        glEnable(GL_PROGRAM_POINT_SIZE); glDisable(GL_CULL_FACE);
-        glBindVertexArray(sPointVao); glDrawArrays(GL_POINTS, 0, count);
-        glDisable(GL_PROGRAM_POINT_SIZE); glEnable(GL_CULL_FACE);
-        ++ctx().stats.pickDrawCalls; EndPickPass();
+        BeginPickPass();
+        sPickPointShader.Use();
+        sPickPointShader.Set("uView", sView);
+        sPickPointShader.Set("uProj", sProj);
+        sPickPointShader.Set("uPointSize", ctx().pointSize);
+        sPickPointShader.Set("uViewportSize", glm::vec2(sVpW, sVpH));
+        glEnable(GL_PROGRAM_POINT_SIZE);
+        glDisable(GL_CULL_FACE);
+        glBindVertexArray(sPointVao);
+        glDrawArrays(GL_POINTS, 0, count);
+        glDisable(GL_PROGRAM_POINT_SIZE);
+        glEnable(GL_CULL_FACE);
+        ++ctx().stats.pickDrawCalls;
+        EndPickPass();
     }
     ctx().pointBatch.clear();
 }
@@ -352,8 +401,11 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE);
 
     float aspect = static_cast<float>(w) / std::max(1, h);
-    sView = cam.View(); sProj = cam.Projection(aspect); sViewProj = sProj * sView;
-    sCamPos = cam.Position(); sLightDir = glm::normalize(scene->env.lightDir);
+    sView = cam.View();
+    sProj  = cam.Projection(aspect);
+    sViewProj = sProj * sView;
+    sCamPos   = cam.Position();
+    sLightDir = glm::normalize(scene->env.lightDir);
     sVpW = w; sVpH = h;
 
     scene->pickFbo.Clear();
@@ -361,15 +413,30 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     glViewport(0, 0, w, h);
 
     // Reset per-scene state
-    scene->nextPickId = 0; scene->lastPickId = 0; scene->pickIdOverride = 0;
-    scene->pickEnabled = true; scene->meshFrameReady = false;
-    scene->emissive = false; scene->glow = false; scene->emissiveGlowRadius = 0.f;
-    scene->numPointLights = 0;
-    scene->drawList.clear(); scene->vboAccum.clear();
-    scene->stats = {}; scene->stats.viewportW = w; scene->stats.viewportH = h;
-    scene->stats.msaaSamples = scene->fbo.Samples();
-    scene->lineBatch.clear(); scene->pointBatch.clear(); scene->textBatch.clear();
-    scene->matStack.resize(1); scene->matStack[0] = glm::mat4(1.f);
+    scene->nextPickId     = 0;
+    scene->lastPickId     = 0;
+    scene->pickIdOverride = 0;
+    scene->pickEnabled    = true;
+    scene->meshFrameReady = false;
+
+    scene->emissive          = false;
+    scene->glow              = false;
+    scene->emissiveGlowRadius = 0.f;
+    scene->numPointLights    = 0;
+
+    scene->drawList.clear();
+    scene->vboAccum.clear();
+    scene->lineBatch.clear();
+    scene->pointBatch.clear();
+    scene->textBatch.clear();
+
+    scene->stats = {};
+    scene->stats.viewportW    = w;
+    scene->stats.viewportH    = h;
+    scene->stats.msaaSamples  = scene->fbo.Samples();
+
+    scene->matStack.resize(1);
+    scene->matStack[0] = glm::mat4(1.f);
 }
 
 // ── DrawSun / DrawGrid ───────────────────────────────────────────────
@@ -386,20 +453,31 @@ static void DrawSun() {
 
 static void DrawGrid(const GridConfig& cfg, float camDist) {
     sGridShader.Use();
-    sGridShader.Set("uView", sView); sGridShader.Set("uProj", sProj);
-    sGridShader.Set("uViewProj", sViewProj); sGridShader.Set("uCamPos", sCamPos);
+    sGridShader.Set("uView", sView);
+    sGridShader.Set("uProj", sProj);
+    sGridShader.Set("uViewProj", sViewProj);
+    sGridShader.Set("uCamPos", sCamPos);
     sGridShader.Set("uCamDist", camDist);
-    sGridShader.Set("uScaleFine", cfg.scaleFine); sGridShader.Set("uScaleMedium", cfg.scaleMedium);
+    sGridShader.Set("uScaleFine",   cfg.scaleFine);
+    sGridShader.Set("uScaleMedium", cfg.scaleMedium);
     sGridShader.Set("uScaleCoarse", cfg.scaleCoarse);
-    sGridShader.Set("uColorFine", cfg.colorFine); sGridShader.Set("uColorMedium", cfg.colorMedium);
+    sGridShader.Set("uColorFine",   cfg.colorFine);
+    sGridShader.Set("uColorMedium", cfg.colorMedium);
     sGridShader.Set("uColorCoarse", cfg.colorCoarse);
-    sGridShader.Set("uAxisXColor", cfg.axisXColor); sGridShader.Set("uAxisYColor", cfg.axisYColor);
-    sGridShader.Set("uAxisThickness", cfg.axisThickness);
+    sGridShader.Set("uAxisXColor",  cfg.axisXColor);
+    sGridShader.Set("uAxisYColor",  cfg.axisYColor);
+    sGridShader.Set("uAxisThickness",    cfg.axisThickness);
     sGridShader.Set("uAxisScaleWithCam", cfg.axisScaleWithCam ? 1 : 0);
-    sGridShader.Set("uFadeStart", cfg.fadeStart); sGridShader.Set("uFadeEnd", cfg.fadeEnd);
-    glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE); glDepthMask(GL_TRUE); glDisable(GL_CULL_FACE);
-    glBindVertexArray(sGridVao); glDrawArrays(GL_TRIANGLES, 0, 6);
-    glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE); glEnable(GL_CULL_FACE);
+    sGridShader.Set("uFadeStart", cfg.fadeStart);
+    sGridShader.Set("uFadeEnd",   cfg.fadeEnd);
+
+    glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
+    glDepthMask(GL_TRUE);
+    glDisable(GL_CULL_FACE);
+    glBindVertexArray(sGridVao);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
+    glEnable(GL_CULL_FACE);
     ++ctx().stats.drawCalls;
 }
 

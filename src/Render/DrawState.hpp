@@ -100,7 +100,8 @@ struct SceneData {
 
 struct FrameState {
     SceneData* scene{};
-    float cx{}, cy{}, w{}, h{};
+    float cx{}, cy{};       // viewport origin (screen coords)
+    float w{}, h{};          // viewport size
     bool hovered{}, fly{};
 };
 
