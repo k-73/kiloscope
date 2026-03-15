@@ -106,10 +106,12 @@ struct SceneData {
     PointLightInfo pointLights[kMaxPointLights]{};
 
     // Pick state
+    uint32_t hoveredPickId  = 0;
     uint32_t nextPickId     = 0;
     uint32_t lastPickId     = 0;
     uint32_t pickIdOverride = 0;
     bool     pickEnabled    = true;
+    bool     pickConsumed   = false;  // set by Clicked() to block End() overwrite
 
     // Emissive one-shot flags
     bool  emissive       = false;
