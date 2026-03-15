@@ -20,7 +20,7 @@ namespace Kilo::Render {
 
 // ── types ────────────────────────────────────────────────────────────
 
-struct MeshVert  { glm::vec3 pos, normal; };
+struct MeshVert  { glm::vec3 pos, normal; glm::vec2 uv{0.f, 0.f}; };
 struct LineVert  { glm::vec3 pos, otherEnd; glm::vec2 expand; glm::vec4 color; uint32_t pickId; };
 struct PointVert { glm::vec3 pos; glm::vec4 color; uint32_t pickId; };
 struct TextEntry { glm::vec3 worldPos; glm::vec4 color; std::string text; };
@@ -28,6 +28,7 @@ struct TextEntry { glm::vec3 worldPos; glm::vec4 color; std::string text; };
 // Cached indexed mesh (generated once, transformed per-use)
 struct IndexedMesh {
     std::vector<glm::vec3> pos, nrm;
+    std::vector<glm::vec2> uv;
     std::vector<std::array<int, 3>> tri;
 };
 
@@ -43,6 +44,7 @@ inline void AppendFromCache(std::vector<MeshVert>& out,
             MeshVert v;
             v.pos    = glm::vec3(xform * glm::vec4(mesh.pos[idx], 1.f));
             v.normal = glm::normalize(nmat * mesh.nrm[idx]);
+            if (!mesh.uv.empty()) v.uv = mesh.uv[idx];
             out.push_back(v);
         }
     }
@@ -234,7 +236,8 @@ void AppendMesh(std::vector<MeshVert>& out, const MeshT& mesh,
         auto v = it.generate();
         sIndexedScratch.push_back({
             glm::vec3(xform * glm::vec4(glm::vec3(v.position), 1.f)),
-            glm::normalize(nmat * glm::vec3(v.normal))
+            glm::normalize(nmat * glm::vec3(v.normal)),
+            glm::vec2(v.texCoord)
         });
     }
     for (auto it = mesh.triangles(); !it.done(); it.next()) {

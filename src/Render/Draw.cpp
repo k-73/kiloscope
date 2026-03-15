@@ -58,6 +58,7 @@ static void BuildCache(IndexedMesh& out, const GenT& gen) {
         auto v = it.generate();
         out.pos.push_back(glm::vec3(v.position));
         out.nrm.push_back(glm::vec3(v.normal));
+        out.uv.push_back(glm::vec2(v.texCoord));
     }
     for (auto it = gen.triangles(); !it.done(); it.next()) {
         auto t = it.generate();
@@ -344,7 +345,8 @@ void Init(const std::string& dir) {
     glCreateVertexArrays(1, &sMeshVao);
     glCreateBuffers(1, &sMeshVbo);
     SetupVao(sMeshVao, sMeshVbo, sizeof(MeshVert), {
-        {0, {3, offsetof(MeshVert, pos)}}, {1, {3, offsetof(MeshVert, normal)}}});
+        {0, {3, offsetof(MeshVert, pos)}}, {1, {3, offsetof(MeshVert, normal)}},
+        {2, {2, offsetof(MeshVert, uv)}}});
 
     glCreateVertexArrays(1, &sLineVao);
     glCreateBuffers(1, &sLineVbo);

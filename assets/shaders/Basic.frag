@@ -1,6 +1,7 @@
 #version 450 core
 in vec3 vWorldPos;
 in vec3 vNormal;
+in vec2 vTexCoord;
 
 uniform vec4 uColor;
 uniform vec3 uLightDir, uCamPos;
