@@ -29,7 +29,6 @@ struct MeshDraw {
     glm::vec4 color;
     int unlitMode;          // 0=lit, 1=unlit, 2=emissive, 3=glow
     uint32_t pickId;
-    uint32_t materialId = 0;
 };
 
 // ── FBO types ────────────────────────────────────────────────────────

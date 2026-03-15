@@ -110,7 +110,7 @@ void UploadMesh(const std::vector<MeshVert>& v) {
     auto count  = static_cast<GLsizei>(v.size());
     auto offset = static_cast<GLsizei>(s.vboAccum.size());
     s.vboAccum.insert(s.vboAccum.end(), v.begin(), v.end());
-    s.drawList.push_back({offset, count, s.currentColor, s.currentUnlitMode, s.lastPickId, 0});
+    s.drawList.push_back({offset, count, s.currentColor, s.currentUnlitMode, s.lastPickId});
     s.stats.vertices += count;
 
     bool wasEmissive = s.emissive;
@@ -140,7 +140,7 @@ void UploadMesh(const std::vector<MeshVert>& v) {
         auto glowCount  = static_cast<GLsizei>(sMeshScratch.size());
         s.vboAccum.insert(s.vboAccum.end(), sMeshScratch.begin(), sMeshScratch.end());
         s.drawList.push_back({glowOffset, glowCount,
-            {s.currentColor.r, s.currentColor.g, s.currentColor.b, 0.35f}, 3, 0, 0});
+            {s.currentColor.r, s.currentColor.g, s.currentColor.b, 0.35f}, 3, 0});
         s.stats.vertices += glowCount;
     }
 }
