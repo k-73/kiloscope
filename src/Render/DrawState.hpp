@@ -49,7 +49,10 @@ struct PickFbo {
 
 // ── per-scene state ──────────────────────────────────────────────────
 
-inline constexpr int kMaxPointLights = 32;
+inline constexpr int   kMaxPointLights   = 32;    // must match MAX_POINT_LIGHTS in Basic.frag
+inline constexpr float kGlowRadiusScale = 2.f;    // auto glow sphere = bounding radius * this
+inline constexpr float kGlowRadiusMin   = 0.05f;  // minimum glow sphere radius
+inline constexpr float kGlowAlpha       = 0.35f;  // glow sphere opacity
 
 struct SceneData {
     // GPU resources
@@ -151,8 +154,9 @@ inline glm::vec3 XformDir(const glm::vec3& d) {
 
 inline glm::vec3 Perpendicular(const glm::vec3& v) {
     auto n = glm::normalize(v);
-    return glm::normalize(glm::cross(n, std::abs(n.y) < 0.99f
-                                        ? glm::vec3(0, 1, 0) : glm::vec3(1, 0, 0)));
+    // Use X-axis fallback when v is nearly aligned with Y to avoid degenerate cross product
+    auto up = (std::abs(n.y) < 0.99f) ? glm::vec3(0, 1, 0) : glm::vec3(1, 0, 0);
+    return glm::normalize(glm::cross(n, up));
 }
 
 inline glm::mat4 AxisRotation(const glm::vec3& dir) {
@@ -219,6 +223,7 @@ void AppendMesh(std::vector<MeshVert>& out, const MeshT& mesh,
 
 // ── Jacobi eigensolver ───────────────────────────────────────────────
 
+// Jacobi eigensolver for 3x3 symmetric matrices (max 50 iterations, 1e-8 tolerance)
 inline void Eigen3(const glm::mat3& A, glm::vec3& eigenvalues, glm::mat3& eigenvectors) {
     glm::mat3 D = A;
     eigenvectors = glm::mat3(1.f);

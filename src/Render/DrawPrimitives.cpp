@@ -73,6 +73,7 @@ void Spline(const glm::vec3* cp, int count,
     if (count == 2) { Line(cp[0], cp[1], color, width); return; }
 
     ctx().lastPickId = AllocPickId();
+    // Catmull-Rom: C1-continuous interpolation through control points
     auto catmullRom = [](const glm::vec3& p0, const glm::vec3& p1,
                          const glm::vec3& p2, const glm::vec3& p3, float t) {
         return 0.5f * ((2.f * p1) +
@@ -193,7 +194,7 @@ void Cube(const glm::vec3& center, float size, const glm::vec4& color) {
 void Cylinder(const glm::vec3& a, const glm::vec3& b,
               float radius, const glm::vec4& color, int seg) {
     float halfLen = glm::length(b - a) * 0.5f;
-    if (halfLen < 1e-6f) return;
+    if (halfLen < 1e-6f) return; // degenerate: endpoints coincide
     ctx().lastPickId = AllocPickId();
     SetMeshUniforms(color);
     sMeshScratch.clear();
@@ -217,7 +218,7 @@ void Cone(const glm::vec3& base, const glm::vec3& tip,
 void Capsule(const glm::vec3& a, const glm::vec3& b,
              float radius, const glm::vec4& color, int seg) {
     float halfLen = glm::length(b - a) * 0.5f;
-    if (halfLen < 1e-6f) { Sphere((a + b) * 0.5f, radius, color, seg); return; }
+    if (halfLen < 1e-6f) { Sphere((a + b) * 0.5f, radius, color, seg); return; } // degenerate → sphere
     ctx().lastPickId = AllocPickId();
     SetMeshUniforms(color);
     sMeshScratch.clear();
@@ -416,8 +417,8 @@ void Point(const glm::vec3& pos, const glm::vec4& color, float size) {
 
 void SphereLight(const glm::vec3& pos, float radius,
                  const glm::vec4& color, float range) {
-    PointLight(pos, glm::vec3(color), range);
-    SetNextEmissive(radius * 2.f);
+    PointLight(pos, glm::vec3(color), range); // illuminate scene
+    SetNextEmissive(radius * kGlowRadiusScale);
     Sphere(pos, radius, color);
 }
 

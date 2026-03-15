@@ -90,6 +90,7 @@ void SetMeshFrameUniforms() {
 
 void SetMeshUniforms(const glm::vec4& color, bool unlit) {
     ctx().currentColor = color;
+    // Encode shading mode: 0=lit, 1=unlit, 2=emissive, 3=glow
     ctx().currentUnlitMode = ctx().glow ? 3 : (ctx().emissive ? 2 : (unlit ? 1 : 0));
 }
 
@@ -130,7 +131,7 @@ void UploadMesh(const std::vector<MeshVert>& v) {
             float maxR = 0.f;
             for (GLsizei i = offset; i < offset + count; ++i)
                 maxR = glm::max(maxR, glm::length(s.vboAccum[i].pos - centroid));
-            glowR = glm::max(maxR * 2.f, 0.05f);
+            glowR = glm::max(maxR * kGlowRadiusScale, kGlowRadiusMin);
         }
 
         sMeshScratch.clear();
@@ -140,7 +141,7 @@ void UploadMesh(const std::vector<MeshVert>& v) {
         auto glowCount  = static_cast<GLsizei>(sMeshScratch.size());
         s.vboAccum.insert(s.vboAccum.end(), sMeshScratch.begin(), sMeshScratch.end());
         s.drawList.push_back({glowOffset, glowCount,
-            {s.currentColor.r, s.currentColor.g, s.currentColor.b, 0.35f}, 3, 0});
+            {s.currentColor.r, s.currentColor.g, s.currentColor.b, kGlowAlpha}, 3, 0});
         s.stats.vertices += glowCount;
     }
 }
@@ -152,7 +153,7 @@ void FlushLines() {
     auto count = static_cast<GLsizei>(ctx().lineBatch.size());
     glNamedBufferData(sLineVbo, GLsizeiptr(count * sizeof(LineVert)), ctx().lineBatch.data(), GL_DYNAMIC_DRAW);
     ++ctx().stats.drawCalls;
-    ctx().stats.lineSegments += count / 6;
+    ctx().stats.lineSegments += count / 6; // 6 verts = 2 triangles per line segment
 
     sLineShader.Use();
     sLineShader.Set("uView", sView);
@@ -518,7 +519,7 @@ void End() {
         ctx().pickEnabled = false;
         auto& cam = ctx().cam;
         auto pivot = cam.Pivot();
-        float s = cam.Distance() * 0.03f;
+        float s = cam.Distance() * 0.03f; // crosshair scale relative to distance
         Line(pivot, pivot+glm::vec3(s,0,0), {.95f,.25f,.25f,.7f}, 2.f);
         Line(pivot, pivot+glm::vec3(0,s,0), {.35f,.85f,.35f,.7f}, 2.f);
         Line(pivot, pivot+glm::vec3(0,0,s), {.35f,.50f,.95f,.7f}, 2.f);
@@ -544,7 +545,7 @@ void End() {
             sPickMeshShader.Use();
             sPickMeshShader.Set("uViewProj", sViewProj);
             for (auto& d : dl) {
-                if (!d.pickId || d.unlitMode == 3) continue;
+                if (!d.pickId || d.unlitMode == 3) continue; // skip non-pickable and glow
                 sPickMeshShader.Set("uPickId", d.pickId);
                 glDrawArrays(GL_TRIANGLES, d.offset, d.count);
                 ++ctx().stats.pickDrawCalls;
