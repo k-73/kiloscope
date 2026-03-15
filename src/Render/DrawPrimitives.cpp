@@ -182,8 +182,8 @@ void Box(const glm::vec3& center, const glm::vec3& size,
     ctx().lastPickId = AllocPickId();
     SetMeshUniforms(color);
     sMeshScratch.clear();
-    AppendFromCache(sMeshScratch, GetUnitBox(),
-                    glm::scale(glm::translate(Mat(), center), size));
+    auto xform = glm::translate(Mat(), center) * glm::scale(glm::mat4(1.f), size);
+    AppendFromCache(sMeshScratch, GetUnitBox(), xform);
     UploadMesh(sMeshScratch);
 }
 

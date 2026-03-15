@@ -72,7 +72,7 @@ const IndexedMesh& GetUnitSphere(int seg) {
 }
 
 const IndexedMesh& GetUnitBox() {
-    if (sBoxCache.pos.empty()) BuildCache(sBoxCache, generator::BoxMesh({1, 1, 1}, {1, 1, 1}));
+    if (sBoxCache.pos.empty()) BuildCache(sBoxCache, generator::BoxMesh({.5f, .5f, .5f}, {1, 1, 1}));
     return sBoxCache;
 }
 
