@@ -399,6 +399,8 @@ void End() {
         sPickEnabled = true;
     }
 
+    sStats.pointLights = sNumPointLights;
+
     if (!sDrawList.empty()) {
         glNamedBufferData(sMeshVbo, GLsizeiptr(sVboAccum.size() * sizeof(MeshVert)),
                           sVboAccum.data(), GL_DYNAMIC_DRAW);

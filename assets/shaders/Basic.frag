@@ -57,9 +57,7 @@ void main() {
     // Fresnel rim
     float fresnel = pow(1.0 - max(NdV, 0.0), 4.0) * uFresnel;
 
-    vec3 lit = uColor.rgb * (hemi + diff)
-             + vec3(1.0) * spec
-             + uColor.rgb * fresnel;
+    vec3 lit = uColor.rgb * (hemi + diff + fresnel) + spec;
 
     // Point lights
     for (int i = 0; i < uNumPointLights; i++) {
