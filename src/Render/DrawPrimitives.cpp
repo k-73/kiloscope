@@ -13,14 +13,14 @@ namespace Kilo::Render {
 
 void Line(const glm::vec3& a, const glm::vec3& b,
           const glm::vec4& color, float width) {
-    sLastPickId = AllocPickId();
+    ctx().lastPickId = AllocPickId();
     BatchLine(XformPoint(a), XformPoint(b), color, width);
 }
 
 void Polyline(const glm::vec3* points, int count,
               const glm::vec4& color, float width, bool closed) {
     if (count < 2) return;
-    sLastPickId = AllocPickId();
+    ctx().lastPickId = AllocPickId();
     auto first = XformPoint(points[0]);
     auto prev = first;
     for (int i = 1; i < count; ++i) {
@@ -34,7 +34,7 @@ void Polyline(const glm::vec3* points, int count,
 void Path(const glm::vec3* points, const glm::vec4* colors,
           int count, float width, bool closed) {
     if (count < 2) return;
-    sLastPickId = AllocPickId();
+    ctx().lastPickId = AllocPickId();
     auto first = XformPoint(points[0]);
     auto prev = first;
     for (int i = 1; i < count; ++i) {
@@ -48,7 +48,7 @@ void Path(const glm::vec3* points, const glm::vec4* colors,
 void Arc(const glm::vec3& center, const glm::vec3& axis,
          const glm::vec3& startDir, float radius,
          float angleDeg, const glm::vec4& color, int seg, float width) {
-    sLastPickId = AllocPickId();
+    ctx().lastPickId = AllocPickId();
     auto tc = XformPoint(center);
     auto ta = glm::normalize(XformDir(axis));
     auto ts = glm::normalize(XformDir(startDir));
@@ -72,7 +72,7 @@ void Spline(const glm::vec3* cp, int count,
     if (count < 2) return;
     if (count == 2) { Line(cp[0], cp[1], color, width); return; }
 
-    sLastPickId = AllocPickId();
+    ctx().lastPickId = AllocPickId();
     auto catmullRom = [](const glm::vec3& p0, const glm::vec3& p1,
                          const glm::vec3& p2, const glm::vec3& p3, float t) {
         return 0.5f * ((2.f * p1) +
@@ -100,20 +100,20 @@ void Spline(const glm::vec3* cp, int count,
 
 void Points(const glm::vec3* positions, int count,
             const glm::vec4& color, float size) {
-    sLastPickId = AllocPickId();
-    if (!sPointBatch.empty() && size != sPointSize) FlushPoints();
-    sPointSize = size;
+    ctx().lastPickId = AllocPickId();
+    if (!ctx().pointBatch.empty() && size != ctx().pointSize) FlushPoints();
+    ctx().pointSize = size;
     for (int i = 0; i < count; ++i)
-        sPointBatch.push_back({XformPoint(positions[i]), color, sLastPickId});
+        ctx().pointBatch.push_back({XformPoint(positions[i]), color, ctx().lastPickId});
 }
 
 void Points(const glm::vec3* positions, const glm::vec4* colors,
             int count, float size) {
-    sLastPickId = AllocPickId();
-    if (!sPointBatch.empty() && size != sPointSize) FlushPoints();
-    sPointSize = size;
+    ctx().lastPickId = AllocPickId();
+    if (!ctx().pointBatch.empty() && size != ctx().pointSize) FlushPoints();
+    ctx().pointSize = size;
     for (int i = 0; i < count; ++i)
-        sPointBatch.push_back({XformPoint(positions[i]), colors[i], sLastPickId});
+        ctx().pointBatch.push_back({XformPoint(positions[i]), colors[i], ctx().lastPickId});
 }
 
 // ── text ─────────────────────────────────────────────────────────────
@@ -124,15 +124,15 @@ void Text(const glm::vec3& pos, const glm::vec4& color, const char* fmt, ...) {
     va_start(args, fmt);
     vsnprintf(buf, sizeof(buf), fmt, args);
     va_end(args);
-    sTextBatch.push_back({XformPoint(pos), color, buf});
-    ++sStats.textLabels;
+    ctx().textBatch.push_back({XformPoint(pos), color, buf});
+    ++ctx().stats.textLabels;
 }
 
 // ── basic geometry ───────────────────────────────────────────────────
 
 void Triangle(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c,
               const glm::vec4& color) {
-    sLastPickId = AllocPickId();
+    ctx().lastPickId = AllocPickId();
     auto ta = XformPoint(a), tb = XformPoint(b), tc = XformPoint(c);
     auto normal = glm::normalize(glm::cross(tb - ta, tc - ta));
     SetMeshUniforms(color);
@@ -141,7 +141,7 @@ void Triangle(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c,
 
 void Quad(const glm::vec3& a, const glm::vec3& b,
           const glm::vec3& c, const glm::vec3& d, const glm::vec4& color) {
-    sLastPickId = AllocPickId();
+    ctx().lastPickId = AllocPickId();
     auto ta = XformPoint(a), tb = XformPoint(b), tc = XformPoint(c), td = XformPoint(d);
     auto normal = glm::normalize(glm::cross(tb - ta, td - ta));
     SetMeshUniforms(color);
@@ -164,7 +164,7 @@ void Plane(const glm::vec3& center, const glm::vec3& normal,
 
 void Sphere(const glm::vec3& center, float radius,
             const glm::vec4& color, int seg) {
-    sLastPickId = AllocPickId();
+    ctx().lastPickId = AllocPickId();
     SetMeshUniforms(color);
     sMeshScratch.clear();
     AppendMesh(sMeshScratch, generator::SphereMesh(radius, seg, seg / 2),
@@ -174,7 +174,7 @@ void Sphere(const glm::vec3& center, float radius,
 
 void Box(const glm::vec3& center, const glm::vec3& size,
          const glm::vec4& color) {
-    sLastPickId = AllocPickId();
+    ctx().lastPickId = AllocPickId();
     SetMeshUniforms(color);
     sMeshScratch.clear();
     AppendMesh(sMeshScratch, generator::BoxMesh({size.x, size.y, size.z}, {1, 1, 1}),
@@ -190,7 +190,7 @@ void Cylinder(const glm::vec3& a, const glm::vec3& b,
               float radius, const glm::vec4& color, int seg) {
     float halfLen = glm::length(b - a) * 0.5f;
     if (halfLen < 1e-6f) return;
-    sLastPickId = AllocPickId();
+    ctx().lastPickId = AllocPickId();
     SetMeshUniforms(color);
     sMeshScratch.clear();
     AppendMesh(sMeshScratch, generator::CappedCylinderMesh(radius, halfLen, seg, 1, 1),
@@ -202,7 +202,7 @@ void Cone(const glm::vec3& base, const glm::vec3& tip,
           float radius, const glm::vec4& color, int seg) {
     float halfLen = glm::length(tip - base) * 0.5f;
     if (halfLen < 1e-6f) return;
-    sLastPickId = AllocPickId();
+    ctx().lastPickId = AllocPickId();
     SetMeshUniforms(color);
     sMeshScratch.clear();
     AppendMesh(sMeshScratch, generator::CappedConeMesh(radius, halfLen, seg, 1, 1),
@@ -214,7 +214,7 @@ void Capsule(const glm::vec3& a, const glm::vec3& b,
              float radius, const glm::vec4& color, int seg) {
     float halfLen = glm::length(b - a) * 0.5f;
     if (halfLen < 1e-6f) { Sphere((a + b) * 0.5f, radius, color, seg); return; }
-    sLastPickId = AllocPickId();
+    ctx().lastPickId = AllocPickId();
     SetMeshUniforms(color);
     sMeshScratch.clear();
     AppendMesh(sMeshScratch, generator::CapsuleMesh(radius, halfLen, seg, 1, seg / 2),
@@ -224,7 +224,7 @@ void Capsule(const glm::vec3& a, const glm::vec3& b,
 
 void Torus(const glm::vec3& center, const glm::vec3& axis,
            float majorR, float minorR, const glm::vec4& color, int seg) {
-    sLastPickId = AllocPickId();
+    ctx().lastPickId = AllocPickId();
     SetMeshUniforms(color);
     sMeshScratch.clear();
     AppendMesh(sMeshScratch, generator::TorusMesh(minorR, majorR, seg / 2, seg),
@@ -234,7 +234,7 @@ void Torus(const glm::vec3& center, const glm::vec3& axis,
 
 void Disk(const glm::vec3& center, const glm::vec3& normal,
           float radius, const glm::vec4& color, int seg) {
-    sLastPickId = AllocPickId();
+    ctx().lastPickId = AllocPickId();
     SetMeshUniforms(color);
     sMeshScratch.clear();
     AppendMesh(sMeshScratch, generator::DiskMesh(radius, 0.0, seg, 1),
@@ -244,7 +244,7 @@ void Disk(const glm::vec3& center, const glm::vec3& normal,
 
 void Ring(const glm::vec3& center, const glm::vec3& normal,
           float innerR, float outerR, const glm::vec4& color, int seg) {
-    sLastPickId = AllocPickId();
+    ctx().lastPickId = AllocPickId();
     SetMeshUniforms(color);
     sMeshScratch.clear();
     AppendMesh(sMeshScratch, generator::DiskMesh(outerR, innerR, seg, 1),
@@ -256,7 +256,7 @@ void Ring(const glm::vec3& center, const glm::vec3& normal,
 
 void Mesh(const glm::vec3* verts, const glm::vec3* normals,
           const uint32_t* indices, int indexCount, const glm::vec4& color) {
-    sLastPickId = AllocPickId();
+    ctx().lastPickId = AllocPickId();
     SetMeshUniforms(color);
     auto& m = Mat();
     auto nmat = glm::transpose(glm::inverse(glm::mat3(m)));
@@ -272,7 +272,7 @@ void Mesh(const glm::vec3* verts, const glm::vec3* normals,
 
 void Mesh(const glm::vec3* verts, const glm::vec3* normals,
           int vertCount, const glm::vec4& color) {
-    sLastPickId = AllocPickId();
+    ctx().lastPickId = AllocPickId();
     SetMeshUniforms(color);
     auto& m = Mat();
     auto nmat = glm::transpose(glm::inverse(glm::mat3(m)));
@@ -377,7 +377,7 @@ void Arrow(const glm::vec3& from, const glm::vec3& to,
     auto dir = to - from;
     float len = glm::length(dir);
     if (len < 1e-6f) return;
-    sLastPickId = AllocPickId();
+    ctx().lastPickId = AllocPickId();
     float headLen = std::min(len * 0.25f, headR * 2.5f);
     auto shaftEnd = from + dir * ((len - headLen) / len);
     SetMeshUniforms(color);

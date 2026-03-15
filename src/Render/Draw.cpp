@@ -50,111 +50,112 @@ static void SetupVao(GLuint vao, GLuint vbo, GLsizei stride,
 }
 
 void SetMeshFrameUniforms() {
-    if (sMeshFrameReady) return;
+    if (ctx().meshFrameReady) return;
+    auto& env = ctx().env;
     sMeshShader.Use();
     sMeshShader.Set("uViewProj", sViewProj);
     sMeshShader.Set("uLightDir", sLightDir);
     sMeshShader.Set("uCamPos", sCamPos);
-    sMeshShader.Set("uBgColor", sEnv->bgColor);
-    sMeshShader.Set("uAmbient", sEnv->ambient);
-    sMeshShader.Set("uDiffuse", sEnv->diffuse);
-    sMeshShader.Set("uRoughness", sEnv->roughness);
-    sMeshShader.Set("uSpecular", sEnv->specular);
-    sMeshShader.Set("uFresnel", sEnv->fresnel);
-    sMeshShader.Set("uFogDensity", sEnv->fogDensity);
-    sMeshShader.Set("uNumPointLights", sNumPointLights);
-    for (int i = 0; i < sNumPointLights; ++i) {
+    sMeshShader.Set("uBgColor", env.bgColor);
+    sMeshShader.Set("uAmbient", env.ambient);
+    sMeshShader.Set("uDiffuse", env.diffuse);
+    sMeshShader.Set("uRoughness", env.roughness);
+    sMeshShader.Set("uSpecular", env.specular);
+    sMeshShader.Set("uFresnel", env.fresnel);
+    sMeshShader.Set("uFogDensity", env.fogDensity);
+    sMeshShader.Set("uNumPointLights", ctx().numPointLights);
+    for (int i = 0; i < ctx().numPointLights; ++i) {
         char buf[48];
-        std::snprintf(buf, sizeof(buf), "uPLPos[%d]",   i); sMeshShader.Set(buf, sPointLights[i].pos);
-        std::snprintf(buf, sizeof(buf), "uPLColor[%d]", i); sMeshShader.Set(buf, sPointLights[i].color);
-        std::snprintf(buf, sizeof(buf), "uPLRange[%d]", i); sMeshShader.Set(buf, sPointLights[i].range);
+        std::snprintf(buf, sizeof(buf), "uPLPos[%d]",   i); sMeshShader.Set(buf, ctx().pointLights[i].pos);
+        std::snprintf(buf, sizeof(buf), "uPLColor[%d]", i); sMeshShader.Set(buf, ctx().pointLights[i].color);
+        std::snprintf(buf, sizeof(buf), "uPLRange[%d]", i); sMeshShader.Set(buf, ctx().pointLights[i].range);
     }
-    sMeshFrameReady = true;
+    ctx().meshFrameReady = true;
 }
 
 void SetMeshUniforms(const glm::vec4& color, bool unlit) {
-    sCurrentColor = color;
-    sCurrentUnlitMode = sGlow ? 3 : (sEmissive ? 2 : (unlit ? 1 : 0));
+    ctx().currentColor = color;
+    ctx().currentUnlitMode = ctx().glow ? 3 : (ctx().emissive ? 2 : (unlit ? 1 : 0));
 }
 
 // ── pick pass helpers ────────────────────────────────────────────────
 
-static void BeginPickPass() { sFrame.scene->pickFbo.Bind(); glDepthMask(GL_TRUE); }
-static void EndPickPass() { glBindFramebuffer(GL_FRAMEBUFFER, sFrame.scene->fbo.Handle()); glViewport(0, 0, sVpW, sVpH); }
+static void BeginPickPass() { ctx().pickFbo.Bind(); glDepthMask(GL_TRUE); }
+static void EndPickPass() { glBindFramebuffer(GL_FRAMEBUFFER, ctx().fbo.Handle()); glViewport(0, 0, sVpW, sVpH); }
 
 void UploadMesh(const std::vector<MeshVert>& v) {
     auto count = static_cast<GLsizei>(v.size());
-    auto offset = static_cast<GLsizei>(sVboAccum.size());
-    sVboAccum.insert(sVboAccum.end(), v.begin(), v.end());
-    sDrawList.push_back({offset, count, sCurrentColor, sCurrentUnlitMode, sLastPickId});
-    sStats.vertices += count;
+    auto offset = static_cast<GLsizei>(ctx().vboAccum.size());
+    ctx().vboAccum.insert(ctx().vboAccum.end(), v.begin(), v.end());
+    ctx().drawList.push_back({offset, count, ctx().currentColor, ctx().currentUnlitMode, ctx().lastPickId});
+    ctx().stats.vertices += count;
 
-    bool wasEmissive = sEmissive;
-    float glowR = sEmissiveGlowRadius;
-    sEmissive = false;
-    sGlow = false;
-    sEmissiveGlowRadius = 0.f;
+    bool wasEmissive = ctx().emissive;
+    float glowR = ctx().emissiveGlowRadius;
+    ctx().emissive = false;
+    ctx().glow = false;
+    ctx().emissiveGlowRadius = 0.f;
 
     if (wasEmissive && count > 0) {
         glm::vec3 centroid(0.f);
-        for (GLsizei i = offset; i < offset + count; ++i) centroid += sVboAccum[i].pos;
+        for (GLsizei i = offset; i < offset + count; ++i) centroid += ctx().vboAccum[i].pos;
         centroid /= static_cast<float>(count);
 
         if (glowR <= 0.f) {
             float maxR = 0.f;
             for (GLsizei i = offset; i < offset + count; ++i)
-                maxR = glm::max(maxR, glm::length(sVboAccum[i].pos - centroid));
+                maxR = glm::max(maxR, glm::length(ctx().vboAccum[i].pos - centroid));
             glowR = glm::max(maxR * 2.f, 0.05f);
         }
 
         sMeshScratch.clear();
         AppendMesh(sMeshScratch, generator::SphereMesh(glowR, 16, 8),
                    glm::translate(glm::mat4(1.f), centroid));
-        auto glowOffset = static_cast<GLsizei>(sVboAccum.size());
+        auto glowOffset = static_cast<GLsizei>(ctx().vboAccum.size());
         auto glowCount  = static_cast<GLsizei>(sMeshScratch.size());
-        sVboAccum.insert(sVboAccum.end(), sMeshScratch.begin(), sMeshScratch.end());
-        sDrawList.push_back({glowOffset, glowCount,
-            {sCurrentColor.r, sCurrentColor.g, sCurrentColor.b, 0.35f}, 3, 0});
-        sStats.vertices += glowCount;
+        ctx().vboAccum.insert(ctx().vboAccum.end(), sMeshScratch.begin(), sMeshScratch.end());
+        ctx().drawList.push_back({glowOffset, glowCount,
+            {ctx().currentColor.r, ctx().currentColor.g, ctx().currentColor.b, 0.35f}, 3, 0});
+        ctx().stats.vertices += glowCount;
     }
 }
 
 // ── line batching ────────────────────────────────────────────────────
 
 void FlushLines() {
-    if (sLineBatch.empty()) return;
-    auto count = static_cast<GLsizei>(sLineBatch.size());
-    glNamedBufferData(sLineVbo, GLsizeiptr(count * sizeof(LineVert)), sLineBatch.data(), GL_DYNAMIC_DRAW);
-    ++sStats.drawCalls; sStats.lineSegments += count / 6;
+    if (ctx().lineBatch.empty()) return;
+    auto count = static_cast<GLsizei>(ctx().lineBatch.size());
+    glNamedBufferData(sLineVbo, GLsizeiptr(count * sizeof(LineVert)), ctx().lineBatch.data(), GL_DYNAMIC_DRAW);
+    ++ctx().stats.drawCalls; ctx().stats.lineSegments += count / 6;
 
     sLineShader.Use();
     sLineShader.Set("uView", sView); sLineShader.Set("uProj", sProj);
     sLineShader.Set("uViewportSize", glm::vec2(sVpW, sVpH));
-    sLineShader.Set("uLineWidth", sLineWidth);
+    sLineShader.Set("uLineWidth", ctx().lineWidth);
     glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE); glDepthMask(GL_FALSE); glDisable(GL_CULL_FACE);
     glBindVertexArray(sLineVao); glDrawArrays(GL_TRIANGLES, 0, count);
     glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE); glDepthMask(GL_TRUE); glEnable(GL_CULL_FACE);
 
-    if (sPickEnabled) {
+    if (ctx().pickEnabled) {
         BeginPickPass(); sPickLineShader.Use();
         sPickLineShader.Set("uView", sView); sPickLineShader.Set("uProj", sProj);
         sPickLineShader.Set("uViewportSize", glm::vec2(sVpW, sVpH));
-        sPickLineShader.Set("uLineWidth", sLineWidth);
+        sPickLineShader.Set("uLineWidth", ctx().lineWidth);
         glDisable(GL_CULL_FACE); glBindVertexArray(sLineVao);
         glDrawArrays(GL_TRIANGLES, 0, count); glEnable(GL_CULL_FACE);
-        ++sStats.pickDrawCalls; EndPickPass();
+        ++ctx().stats.pickDrawCalls; EndPickPass();
     }
-    sLineBatch.clear();
+    ctx().lineBatch.clear();
 }
 
 void BatchLineGradient(const glm::vec3& a, const glm::vec3& b,
                         const glm::vec4& ca, const glm::vec4& cb, float width) {
-    if (!sLineBatch.empty() && width != sLineWidth) FlushLines();
-    sLineWidth = width;
-    uint32_t pid = sLastPickId;
-    sLineBatch.push_back({a, b, {-1, 0}, ca, pid}); sLineBatch.push_back({a, b, { 1, 0}, ca, pid});
-    sLineBatch.push_back({a, b, { 1, 1}, cb, pid}); sLineBatch.push_back({a, b, {-1, 0}, ca, pid});
-    sLineBatch.push_back({a, b, { 1, 1}, cb, pid}); sLineBatch.push_back({a, b, {-1, 1}, cb, pid});
+    if (!ctx().lineBatch.empty() && width != ctx().lineWidth) FlushLines();
+    ctx().lineWidth = width;
+    uint32_t pid = ctx().lastPickId;
+    ctx().lineBatch.push_back({a, b, {-1, 0}, ca, pid}); ctx().lineBatch.push_back({a, b, { 1, 0}, ca, pid});
+    ctx().lineBatch.push_back({a, b, { 1, 1}, cb, pid}); ctx().lineBatch.push_back({a, b, {-1, 0}, ca, pid});
+    ctx().lineBatch.push_back({a, b, { 1, 1}, cb, pid}); ctx().lineBatch.push_back({a, b, {-1, 1}, cb, pid});
 }
 
 void BatchLine(const glm::vec3& a, const glm::vec3& b,
@@ -165,30 +166,30 @@ void BatchLine(const glm::vec3& a, const glm::vec3& b,
 // ── point batching ───────────────────────────────────────────────────
 
 void FlushPoints() {
-    if (sPointBatch.empty()) return;
-    auto count = static_cast<GLsizei>(sPointBatch.size());
-    glNamedBufferData(sPointVbo, GLsizeiptr(count * sizeof(PointVert)), sPointBatch.data(), GL_DYNAMIC_DRAW);
-    ++sStats.drawCalls; sStats.points += count;
+    if (ctx().pointBatch.empty()) return;
+    auto count = static_cast<GLsizei>(ctx().pointBatch.size());
+    glNamedBufferData(sPointVbo, GLsizeiptr(count * sizeof(PointVert)), ctx().pointBatch.data(), GL_DYNAMIC_DRAW);
+    ++ctx().stats.drawCalls; ctx().stats.points += count;
 
     sPointShader.Use();
     sPointShader.Set("uView", sView); sPointShader.Set("uProj", sProj);
-    sPointShader.Set("uPointSize", sPointSize); sPointShader.Set("uViewportSize", glm::vec2(sVpW, sVpH));
+    sPointShader.Set("uPointSize", ctx().pointSize); sPointShader.Set("uViewportSize", glm::vec2(sVpW, sVpH));
     glEnable(GL_PROGRAM_POINT_SIZE); glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
     glDepthMask(GL_FALSE); glDisable(GL_CULL_FACE);
     glBindVertexArray(sPointVao); glDrawArrays(GL_POINTS, 0, count);
     glDisable(GL_PROGRAM_POINT_SIZE); glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
     glDepthMask(GL_TRUE); glEnable(GL_CULL_FACE);
 
-    if (sPickEnabled) {
+    if (ctx().pickEnabled) {
         BeginPickPass(); sPickPointShader.Use();
         sPickPointShader.Set("uView", sView); sPickPointShader.Set("uProj", sProj);
-        sPickPointShader.Set("uPointSize", sPointSize); sPickPointShader.Set("uViewportSize", glm::vec2(sVpW, sVpH));
+        sPickPointShader.Set("uPointSize", ctx().pointSize); sPickPointShader.Set("uViewportSize", glm::vec2(sVpW, sVpH));
         glEnable(GL_PROGRAM_POINT_SIZE); glDisable(GL_CULL_FACE);
         glBindVertexArray(sPointVao); glDrawArrays(GL_POINTS, 0, count);
         glDisable(GL_PROGRAM_POINT_SIZE); glEnable(GL_CULL_FACE);
-        ++sStats.pickDrawCalls; EndPickPass();
+        ++ctx().stats.pickDrawCalls; EndPickPass();
     }
-    sPointBatch.clear();
+    ctx().pointBatch.clear();
 }
 
 // ── projection + interaction ─────────────────────────────────────────
@@ -205,18 +206,18 @@ bool EventState::Clicked(int button) const { return hovered_ && ImGui::IsMouseCl
 
 EventState Event() {
     EventState state;
-    state.hovered_ = sFrame.hovered && sLastPickId != 0
-                  && sFrame.scene && sLastPickId == sFrame.scene->hoveredPickId;
+    state.hovered_ = sFrame.hovered && ctx().lastPickId != 0
+                  && sFrame.scene && ctx().lastPickId == ctx().hoveredPickId;
     return state;
 }
 
 // ── text overlay ─────────────────────────────────────────────────────
 
 static void FlushText() {
-    if (sTextBatch.empty()) return;
+    if (ctx().textBatch.empty()) return;
     auto* dl = ImGui::GetWindowDrawList();
     ImGui::PushClipRect({sFrame.cx, sFrame.cy}, {sFrame.cx + sFrame.w, sFrame.cy + sFrame.h}, true);
-    for (auto& e : sTextBatch) {
+    for (auto& e : ctx().textBatch) {
         auto screen = WorldToScreen(e.worldPos);
         if (screen.x < 0.f) continue;
         dl->AddText({screen.x, screen.y},
@@ -224,7 +225,7 @@ static void FlushText() {
             e.text.c_str());
     }
     ImGui::PopClipRect();
-    sTextBatch.clear();
+    ctx().textBatch.clear();
 }
 
 // ── Init ─────────────────────────────────────────────────────────────
@@ -237,6 +238,7 @@ void Init(const std::string& dir) {
     sPickMeshShader  = Shader(dir + "/Pick.vert",      dir + "/Pick.frag");
     sPickLineShader  = Shader(dir + "/PickLine.vert",  dir + "/PickLine.frag");
     sPickPointShader = Shader(dir + "/PickPoint.vert", dir + "/PickPoint.frag");
+
     glCreateVertexArrays(1, &sMeshVao); glCreateBuffers(1, &sMeshVbo);
     SetupVao(sMeshVao, sMeshVbo, sizeof(MeshVert), {
         {0, {3, offsetof(MeshVert, pos)}}, {1, {3, offsetof(MeshVert, normal)}}});
@@ -264,32 +266,32 @@ void Init(const std::string& dir) {
 static SceneData& GetScene(uint32_t id) { auto& s = sScenes[id]; if (!s) s = std::make_unique<SceneData>(); return *s; }
 static SceneData& GetScene(const char* name) { return GetScene(HashName(name)); }
 
-Camera& GetCamera() { return sFrame.scene->cam; }
+Camera& GetCamera() { return ctx().cam; }
 Camera& GetCamera(const char* name) { return GetScene(name).cam; }
-Environment& GetEnvironment() { return sFrame.scene->env; }
+Environment& GetEnvironment() { return ctx().env; }
 Environment& GetEnvironment(const char* name) { return GetScene(name).env; }
 
 int PointLight(const glm::vec3& pos, const glm::vec3& color, float range) {
-    if (sNumPointLights >= kMaxPointLights) return -1;
-    int idx = sNumPointLights++;
-    sPointLights[idx] = {pos, color, range};
+    if (ctx().numPointLights >= kMaxPointLights) return -1;
+    int idx = ctx().numPointLights++;
+    ctx().pointLights[idx] = {pos, color, range};
     return idx;
 }
 
-int GetPointLightCount() { return sNumPointLights; }
-PointLightInfo* GetPointLights() { return sPointLights; }
+int GetPointLightCount() { return ctx().numPointLights; }
+PointLightInfo* GetPointLights() { return ctx().pointLights; }
 
 void SetNextEmissive(float glowRadius) {
-    sEmissive = true;
-    sEmissiveGlowRadius = glowRadius;
+    ctx().emissive = true;
+    ctx().emissiveGlowRadius = glowRadius;
 }
-void SetNextGlow() { sGlow = true; }
+void SetNextGlow() { ctx().glow = true; }
 
-const Stats& GetStats() { return sStats; }
+const Stats& GetStats() { return ctx().stats; }
 
-void Grid() { sFrame.scene->gridCfg.enabled = true; }
-void Grid(const GridConfig& cfg) { sFrame.scene->gridCfg = cfg; }
-GridConfig& GetGrid() { return sFrame.scene->gridCfg; }
+void Grid() { ctx().gridCfg.enabled = true; }
+void Grid(const GridConfig& cfg) { ctx().gridCfg = cfg; }
+GridConfig& GetGrid() { return ctx().gridCfg; }
 GridConfig& GetGrid(const char* name) { return GetScene(name).gridCfg; }
 
 // ── Begin ────────────────────────────────────────────────────────────
@@ -340,42 +342,43 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     }
 
     sFrame = {scene.get(), cursor.x, cursor.y, size.x, size.y, hovered, fly};
-    sEnv = &scene->env;
 
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-    scene->fbo.Bind(sEnv->bgColor.r, sEnv->bgColor.g, sEnv->bgColor.b);
+    scene->fbo.Bind(scene->env.bgColor.r, scene->env.bgColor.g, scene->env.bgColor.b);
     glDisable(GL_BLEND);
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE);
 
     float aspect = static_cast<float>(w) / std::max(1, h);
     sView = cam.View(); sProj = cam.Projection(aspect); sViewProj = sProj * sView;
-    sCamPos = cam.Position(); sLightDir = glm::normalize(sEnv->lightDir);
+    sCamPos = cam.Position(); sLightDir = glm::normalize(scene->env.lightDir);
     sVpW = w; sVpH = h;
 
     scene->pickFbo.Clear();
     glBindFramebuffer(GL_FRAMEBUFFER, scene->fbo.Handle());
     glViewport(0, 0, w, h);
 
-    sNextPickId = 0; sLastPickId = 0; sPickIdOverride = 0;
-    sPickEnabled = true; sMeshFrameReady = false;
-    sEmissive = false; sGlow = false; sEmissiveGlowRadius = 0.f;
-    sNumPointLights = 0;
-    sDrawList.clear(); sVboAccum.clear();
-    sStats = {}; sStats.viewportW = w; sStats.viewportH = h; sStats.msaaSamples = scene->fbo.Samples();
-    sLineBatch.clear(); sPointBatch.clear(); sTextBatch.clear();
-    sMatStack.resize(1); sMatStack[0] = glm::mat4(1.f);
+    // Reset per-scene state
+    scene->nextPickId = 0; scene->lastPickId = 0; scene->pickIdOverride = 0;
+    scene->pickEnabled = true; scene->meshFrameReady = false;
+    scene->emissive = false; scene->glow = false; scene->emissiveGlowRadius = 0.f;
+    scene->numPointLights = 0;
+    scene->drawList.clear(); scene->vboAccum.clear();
+    scene->stats = {}; scene->stats.viewportW = w; scene->stats.viewportH = h;
+    scene->stats.msaaSamples = scene->fbo.Samples();
+    scene->lineBatch.clear(); scene->pointBatch.clear(); scene->textBatch.clear();
+    scene->matStack.resize(1); scene->matStack[0] = glm::mat4(1.f);
 }
 
 // ── DrawSun / DrawGrid ───────────────────────────────────────────────
 
 static void DrawSun() {
-    sPickEnabled = false;
-    glm::vec3 sunPos = glm::normalize(sEnv->lightDir) * sEnv->sunDistance;
+    ctx().pickEnabled = false;
+    glm::vec3 sunPos = glm::normalize(ctx().env.lightDir) * ctx().env.sunDistance;
     PushMatrix(); ResetMatrix();
     SetNextEmissive();
-    Sphere(sunPos, sEnv->sunRadius, {1.f, .98f, .85f, 1.f}, 24);
+    Sphere(sunPos, ctx().env.sunRadius, {1.f, .98f, .85f, 1.f}, 24);
     Line({0,0,0}, sunPos, {1,.95f,.7f,.12f}, 1.f);
-    PopMatrix(); sPickEnabled = true;
+    PopMatrix(); ctx().pickEnabled = true;
 }
 
 static void DrawGrid(const GridConfig& cfg, float camDist) {
@@ -394,43 +397,43 @@ static void DrawGrid(const GridConfig& cfg, float camDist) {
     glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE); glDepthMask(GL_TRUE); glDisable(GL_CULL_FACE);
     glBindVertexArray(sGridVao); glDrawArrays(GL_TRIANGLES, 0, 6);
     glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE); glEnable(GL_CULL_FACE);
-    ++sStats.drawCalls;
+    ++ctx().stats.drawCalls;
 }
 
 // ── End ──────────────────────────────────────────────────────────────
 
 void End() {
     if (sFrame.fly) {
-        sPickEnabled = false;
-        auto& cam = sFrame.scene->cam;
+        ctx().pickEnabled = false;
+        auto& cam = ctx().cam;
         auto pivot = cam.Pivot(); float s = cam.Distance() * 0.03f;
         Line(pivot, pivot+glm::vec3(s,0,0), {.95f,.25f,.25f,.7f}, 2.f);
         Line(pivot, pivot+glm::vec3(0,s,0), {.35f,.85f,.35f,.7f}, 2.f);
         Line(pivot, pivot+glm::vec3(0,0,s), {.35f,.50f,.95f,.7f}, 2.f);
         Line(cam.Eye(), pivot, {1,1,1,.15f}, 1.f);
         Text(pivot+glm::vec3(s*.5f,s*.5f,s), {1,1,1,.6f}, "%.1f", cam.Distance());
-        sPickEnabled = true;
+        ctx().pickEnabled = true;
     }
 
-    if (sEnv->showSun) DrawSun();
+    if (ctx().env.showSun) DrawSun();
 
-    sStats.pointLights = sNumPointLights;
+    ctx().stats.pointLights = ctx().numPointLights;
 
-    if (!sDrawList.empty()) {
-        glNamedBufferData(sMeshVbo, GLsizeiptr(sVboAccum.size() * sizeof(MeshVert)),
-                          sVboAccum.data(), GL_DYNAMIC_DRAW);
+    if (!ctx().drawList.empty()) {
+        glNamedBufferData(sMeshVbo, GLsizeiptr(ctx().vboAccum.size() * sizeof(MeshVert)),
+                          ctx().vboAccum.data(), GL_DYNAMIC_DRAW);
         glBindVertexArray(sMeshVao);
 
-        // Pick pass (all pickable meshes)
-        if (sPickEnabled) {
+        // Pick pass
+        if (ctx().pickEnabled) {
             BeginPickPass();
             sPickMeshShader.Use();
             sPickMeshShader.Set("uViewProj", sViewProj);
-            for (auto& d : sDrawList) {
+            for (auto& d : ctx().drawList) {
                 if (!d.pickId || d.unlitMode == 3) continue;
                 sPickMeshShader.Set("uPickId", d.pickId);
                 glDrawArrays(GL_TRIANGLES, d.offset, d.count);
-                ++sStats.pickDrawCalls;
+                ++ctx().stats.pickDrawCalls;
             }
             EndPickPass();
         }
@@ -438,7 +441,7 @@ void End() {
         // Glow pass (additive blending, no depth write)
         SetMeshFrameUniforms(); sMeshShader.Use();
         bool hasGlow = false;
-        for (auto& d : sDrawList) {
+        for (auto& d : ctx().drawList) {
             if (d.unlitMode != 3) continue;
             if (!hasGlow) {
                 glEnable(GL_BLEND);
@@ -448,7 +451,7 @@ void End() {
                 hasGlow = true;
             }
             sMeshShader.Set("uColor", d.color); sMeshShader.Set("uUnlit", 3);
-            glDrawArrays(GL_TRIANGLES, d.offset, d.count); ++sStats.drawCalls;
+            glDrawArrays(GL_TRIANGLES, d.offset, d.count); ++ctx().stats.drawCalls;
         }
         if (hasGlow) {
             glDisable(GL_BLEND);
@@ -457,45 +460,45 @@ void End() {
         }
 
         // Solid pass (lit, unlit, emissive)
-        for (auto& d : sDrawList) {
+        for (auto& d : ctx().drawList) {
             if (d.unlitMode == 3) continue;
             sMeshShader.Set("uColor", d.color); sMeshShader.Set("uUnlit", d.unlitMode);
-            glDrawArrays(GL_TRIANGLES, d.offset, d.count); ++sStats.drawCalls;
+            glDrawArrays(GL_TRIANGLES, d.offset, d.count); ++ctx().stats.drawCalls;
         }
-        sDrawList.clear(); sVboAccum.clear();
+        ctx().drawList.clear(); ctx().vboAccum.clear();
     }
     FlushPoints(); FlushLines();
-    if (sFrame.scene->gridCfg.enabled) DrawGrid(sFrame.scene->gridCfg, sFrame.scene->cam.Distance());
+    if (ctx().gridCfg.enabled) DrawGrid(ctx().gridCfg, ctx().cam.Distance());
 
     if (sFrame.hovered) {
         auto& io = ImGui::GetIO();
         int mx = static_cast<int>(io.MousePos.x - sFrame.cx);
         int my = static_cast<int>(io.MousePos.y - sFrame.cy);
-        sFrame.scene->hoveredPickId = sFrame.scene->pickFbo.ReadPixel(mx, my);
+        ctx().hoveredPickId = ctx().pickFbo.ReadPixel(mx, my);
     }
 
-    sFrame.scene->fbo.Resolve();
+    ctx().fbo.Resolve();
     ImGui::SetCursorScreenPos({sFrame.cx, sFrame.cy});
-    ImGui::Image(static_cast<ImTextureID>(static_cast<uintptr_t>(sFrame.scene->fbo.Texture())),
+    ImGui::Image(static_cast<ImTextureID>(static_cast<uintptr_t>(ctx().fbo.Texture())),
                  {sFrame.w, sFrame.h}, {0, 1}, {1, 0});
     FlushText();
 }
 
 // ── transform stack ──────────────────────────────────────────────────
 
-void PushMatrix()  { sMatStack.push_back(Mat()); }
-void PopMatrix()   { if (sMatStack.size() > 1) sMatStack.pop_back(); }
-void ResetMatrix() { sMatStack.back() = glm::mat4(1.f); }
-void SetMatrix(const glm::mat4& m)  { sMatStack.back() = m; }
-void Transform(const glm::mat4& m)  { sMatStack.back() *= m; }
-void Translate(const glm::vec3& offset) { sMatStack.back() = glm::translate(sMatStack.back(), offset); }
+void PushMatrix()  { ctx().matStack.push_back(Mat()); }
+void PopMatrix()   { if (ctx().matStack.size() > 1) ctx().matStack.pop_back(); }
+void ResetMatrix() { ctx().matStack.back() = glm::mat4(1.f); }
+void SetMatrix(const glm::mat4& m)  { ctx().matStack.back() = m; }
+void Transform(const glm::mat4& m)  { ctx().matStack.back() *= m; }
+void Translate(const glm::vec3& offset) { ctx().matStack.back() = glm::translate(ctx().matStack.back(), offset); }
 void Translate(float x, float y, float z) { Translate({x, y, z}); }
-void Rotate(float angleDeg, const glm::vec3& axis) { sMatStack.back() = glm::rotate(sMatStack.back(), glm::radians(angleDeg), axis); }
-void Rotate(const glm::quat& q) { sMatStack.back() *= glm::mat4_cast(q); }
+void Rotate(float angleDeg, const glm::vec3& axis) { ctx().matStack.back() = glm::rotate(ctx().matStack.back(), glm::radians(angleDeg), axis); }
+void Rotate(const glm::quat& q) { ctx().matStack.back() *= glm::mat4_cast(q); }
 void RotateX(float deg) { Rotate(deg, {1, 0, 0}); }
 void RotateY(float deg) { Rotate(deg, {0, 1, 0}); }
 void RotateZ(float deg) { Rotate(deg, {0, 0, 1}); }
-void Scale(const glm::vec3& s) { sMatStack.back() = glm::scale(sMatStack.back(), s); }
+void Scale(const glm::vec3& s) { ctx().matStack.back() = glm::scale(ctx().matStack.back(), s); }
 void Scale(float s) { Scale({s, s, s}); }
 
 } // namespace Kilo::Render

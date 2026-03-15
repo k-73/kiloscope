@@ -15,7 +15,7 @@ uniform float uFresnel;
 uniform float uFogDensity;
 
 // Point lights
-#define MAX_POINT_LIGHTS 8
+#define MAX_POINT_LIGHTS 32
 uniform int   uNumPointLights;
 uniform vec3  uPLPos[MAX_POINT_LIGHTS];
 uniform vec3  uPLColor[MAX_POINT_LIGHTS];

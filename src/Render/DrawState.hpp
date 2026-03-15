@@ -27,8 +27,9 @@ struct TextEntry { glm::vec3 worldPos; glm::vec4 color; std::string text; };
 struct MeshDraw {
     GLsizei offset, count;
     glm::vec4 color;
-    int unlitMode;      // 0=lit, 1=unlit, 2=emissive, 3=glow
+    int unlitMode;          // 0=lit, 1=unlit, 2=emissive, 3=glow
     uint32_t pickId;
+    uint32_t materialId = 0;
 };
 
 // ── FBO types ────────────────────────────────────────────────────────
@@ -39,7 +40,7 @@ struct PickFbo {
     void Resize(int nw, int nh);
     void Bind();
     void Clear();
-    uint32_t ReadPixel(int x, int y) const;
+    uint32_t ReadPixel(int screenX, int screenY) const;
     void Destroy();
     ~PickFbo() { Destroy(); }
     PickFbo() = default;
@@ -49,10 +50,52 @@ struct PickFbo {
 
 // ── per-scene state ──────────────────────────────────────────────────
 
+inline constexpr int kMaxPointLights = 32;
+
 struct SceneData {
+    // GPU resources
     Fbo fbo; PickFbo pickFbo;
+
+    // Configuration
     Camera cam; Environment env; GridConfig gridCfg;
-    uint32_t hoveredPickId = 0;
+
+    // Mesh batching
+    std::vector<MeshDraw> drawList;
+    std::vector<MeshVert> vboAccum;
+
+    // Line / point / text batching
+    std::vector<LineVert>  lineBatch;
+    std::vector<PointVert> pointBatch;
+    std::vector<TextEntry> textBatch;
+    float lineWidth  = 2.5f;
+    float pointSize  = 4.f;
+
+    // Transform stack
+    std::vector<glm::mat4> matStack = {glm::mat4(1.f)};
+
+    // Lights
+    int numPointLights = 0;
+    PointLightInfo pointLights[kMaxPointLights]{};
+
+    // Pick state
+    uint32_t hoveredPickId  = 0;
+    uint32_t nextPickId     = 0;
+    uint32_t lastPickId     = 0;
+    uint32_t pickIdOverride = 0;
+    bool     pickEnabled    = true;
+
+    // Emissive one-shot flags
+    bool  emissive       = false;
+    bool  glow           = false;
+    float emissiveGlowRadius = 0.f;
+
+    // Per-draw transient
+    glm::vec4 currentColor{};
+    int       currentUnlitMode = 0;
+
+    // Frame stats & guard
+    Stats stats{};
+    bool  meshFrameReady = false;
 };
 
 struct FrameState {
@@ -61,7 +104,7 @@ struct FrameState {
     bool hovered{}, fly{};
 };
 
-// ── shared state (inline — single instance across TUs) ──────────────
+// ── shared state (GPU resources + per-frame derived) ─────────────────
 
 inline Shader sMeshShader, sLineShader, sGridShader, sPointShader;
 inline Shader sPickMeshShader, sPickLineShader, sPickPointShader;
@@ -73,38 +116,16 @@ inline GLuint sPointVao = 0, sPointVbo = 0;
 inline glm::mat4 sView, sProj, sViewProj;
 inline glm::vec3 sCamPos, sLightDir;
 inline int sVpW = 1, sVpH = 1;
-inline std::vector<LineVert>  sLineBatch;
-inline std::vector<PointVert> sPointBatch;
-inline std::vector<TextEntry> sTextBatch;
-inline float sLineWidth  = 2.5f;
-inline float sPointSize  = 4.f;
-inline std::vector<glm::mat4> sMatStack = {glm::mat4(1.f)};
-inline std::vector<MeshVert>  sMeshScratch;
-inline std::vector<MeshVert>  sIndexedScratch;
 
-inline constexpr int kMaxPointLights = 8;
-inline int sNumPointLights = 0;
-inline PointLightInfo sPointLights[kMaxPointLights];
-
-inline std::vector<MeshDraw> sDrawList;
-inline std::vector<MeshVert> sVboAccum;
+inline std::vector<MeshVert> sMeshScratch;
+inline std::vector<MeshVert> sIndexedScratch;
 
 inline std::unordered_map<uint32_t, std::unique_ptr<SceneData>> sScenes;
 inline FrameState sFrame;
-inline Environment* sEnv = nullptr;
 
-inline uint32_t sNextPickId     = 0;
-inline uint32_t sLastPickId     = 0;
-inline uint32_t sPickIdOverride = 0;
-inline bool     sPickEnabled    = true;
-inline bool     sEmissive       = false;
-inline bool     sGlow           = false;
-inline float    sEmissiveGlowRadius = 0.f;
-inline Stats    sStats;
+// ── scene accessor ───────────────────────────────────────────────────
 
-inline bool sMeshFrameReady = false;
-inline glm::vec4 sCurrentColor;
-inline int sCurrentUnlitMode = 0;
+inline SceneData& ctx() { return *sFrame.scene; }
 
 // ── inline helpers ───────────────────────────────────────────────────
 
@@ -115,10 +136,10 @@ inline uint32_t HashName(const char* s) {
 }
 
 inline uint32_t AllocPickId() {
-    return sPickIdOverride ? sPickIdOverride : ++sNextPickId;
+    return ctx().pickIdOverride ? ctx().pickIdOverride : ++ctx().nextPickId;
 }
 
-inline const glm::mat4& Mat() { return sMatStack.back(); }
+inline const glm::mat4& Mat() { return ctx().matStack.back(); }
 
 inline glm::vec3 XformPoint(const glm::vec3& p) {
     return glm::vec3(Mat() * glm::vec4(p, 1.f));
@@ -157,10 +178,10 @@ inline glm::mat4 AxisTransform(const glm::vec3& center, const glm::vec3& axis) {
 
 struct PickGroup {
     bool owned;
-    PickGroup() : owned(sPickIdOverride == 0) {
-        if (owned) { sPickIdOverride = ++sNextPickId; sLastPickId = sPickIdOverride; }
+    PickGroup() : owned(ctx().pickIdOverride == 0) {
+        if (owned) { ctx().pickIdOverride = ++ctx().nextPickId; ctx().lastPickId = ctx().pickIdOverride; }
     }
-    ~PickGroup() { if (owned) sPickIdOverride = 0; }
+    ~PickGroup() { if (owned) ctx().pickIdOverride = 0; }
 };
 
 // ── function declarations (defined in Draw.cpp, called by DrawPrimitives.cpp)
