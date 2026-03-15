@@ -1,11 +1,14 @@
+// Point pick vertex shader — same perspective scaling as Point.vert,
+// outputs pick ID for object selection.
 #version 450 core
+
 layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec4 aColor;
 layout(location = 2) in uint aPickId;
 
-uniform mat4 uView, uProj;
+uniform mat4  uView, uProj;
 uniform float uPointSize;
-uniform vec2 uViewportSize;
+uniform vec2  uViewportSize;
 
 flat out uint vPickId;
 

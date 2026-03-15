@@ -1,4 +1,6 @@
+// Point pick fragment shader — clips to circle, writes pick ID.
 #version 450 core
+
 flat in uint vPickId;
 
 layout(location = 0) out uint FragId;
