@@ -259,35 +259,32 @@ void Ring(const glm::vec3& center, const glm::vec3& normal,
 
 // ── custom mesh ──────────────────────────────────────────────────────
 
-void Mesh(const glm::vec3* verts, const glm::vec3* normals,
-          const uint32_t* indices, int indexCount, const glm::vec4& color) {
+static void MeshImpl(const glm::vec3* verts, const glm::vec3* normals,
+                     int count, const uint32_t* indices, const glm::vec4& color) {
     ctx().lastPickId = AllocPickId();
     SetMeshUniforms(color);
     auto& m = Mat();
     auto nmat = glm::transpose(glm::inverse(glm::mat3(m)));
     sMeshScratch.clear();
-    sMeshScratch.reserve(indexCount);
-    for (int i = 0; i < indexCount; ++i) {
-        uint32_t idx = indices[i];
-        sMeshScratch.push_back({glm::vec3(m * glm::vec4(verts[idx], 1.f)),
-                                 glm::normalize(nmat * normals[idx])});
+    sMeshScratch.reserve(count);
+    for (int i = 0; i < count; ++i) {
+        int idx = indices ? static_cast<int>(indices[i]) : i;
+        MeshVert v;
+        v.pos    = glm::vec3(m * glm::vec4(verts[idx], 1.f));
+        v.normal = glm::normalize(nmat * normals[idx]);
+        sMeshScratch.push_back(v);
     }
     UploadMesh(sMeshScratch);
 }
 
 void Mesh(const glm::vec3* verts, const glm::vec3* normals,
+          const uint32_t* indices, int indexCount, const glm::vec4& color) {
+    MeshImpl(verts, normals, indexCount, indices, color);
+}
+
+void Mesh(const glm::vec3* verts, const glm::vec3* normals,
           int vertCount, const glm::vec4& color) {
-    ctx().lastPickId = AllocPickId();
-    SetMeshUniforms(color);
-    auto& m = Mat();
-    auto nmat = glm::transpose(glm::inverse(glm::mat3(m)));
-    sMeshScratch.clear();
-    sMeshScratch.reserve(vertCount);
-    for (int i = 0; i < vertCount; ++i) {
-        sMeshScratch.push_back({glm::vec3(m * glm::vec4(verts[i], 1.f)),
-                                 glm::normalize(nmat * normals[i])});
-    }
-    UploadMesh(sMeshScratch);
+    MeshImpl(verts, normals, vertCount, nullptr, color);
 }
 
 // ── wireframe ────────────────────────────────────────────────────────
