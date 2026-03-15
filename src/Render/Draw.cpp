@@ -1,6 +1,5 @@
 #include "Render/DrawState.hpp"
 #include <GLFW/glfw3.h>
-#include <algorithm>
 #include <generator/SphereMesh.hpp>
 #include <generator/CappedCylinderMesh.hpp>
 #include <generator/CappedConeMesh.hpp>
@@ -46,6 +45,12 @@ void PickFbo::Destroy() {
     w = h = 0;
 }
 
+// ── cached uniform locations (filled once in Init) ───────────────────
+
+struct LightLocs { GLint pos, color, range; };
+static LightLocs sLightLocs[kMaxPointLights];
+static GLint sNumLightsLoc = -1;
+
 // ── GPU setup ────────────────────────────────────────────────────────
 
 static void SetupVao(GLuint vao, GLuint vbo, GLsizei stride,
@@ -72,13 +77,12 @@ void SetMeshFrameUniforms() {
     sMeshShader.Set("uSpecular", env.specular);
     sMeshShader.Set("uFresnel", env.fresnel);
     sMeshShader.Set("uFogDensity", env.fogDensity);
-    sMeshShader.Set("uNumPointLights", ctx().numPointLights);
-    char buf[48];
+    glUniform1i(sNumLightsLoc, ctx().numPointLights);
     for (int i = 0; i < ctx().numPointLights; ++i) {
         auto& light = ctx().pointLights[i];
-        std::snprintf(buf, sizeof(buf), "uPLPos[%d]", i);   sMeshShader.Set(buf, light.pos);
-        std::snprintf(buf, sizeof(buf), "uPLColor[%d]", i); sMeshShader.Set(buf, light.color);
-        std::snprintf(buf, sizeof(buf), "uPLRange[%d]", i); sMeshShader.Set(buf, light.range);
+        glUniform3fv(sLightLocs[i].pos,   1, &light.pos.x);
+        glUniform3fv(sLightLocs[i].color, 1, &light.color.x);
+        glUniform1f (sLightLocs[i].range, light.range);
     }
     ctx().meshFrameReady = true;
 }
@@ -288,6 +292,19 @@ void Init(const std::string& dir) {
     sPickMeshShader  = Shader(dir + "/Pick.vert",      dir + "/Pick.frag");
     sPickLineShader  = Shader(dir + "/PickLine.vert",  dir + "/PickLine.frag");
     sPickPointShader = Shader(dir + "/PickPoint.vert", dir + "/PickPoint.frag");
+
+    // Cache point light uniform locations
+    auto prog = sMeshShader.Id();
+    sNumLightsLoc = glGetUniformLocation(prog, "uNumPointLights");
+    char buf[48];
+    for (int i = 0; i < kMaxPointLights; ++i) {
+        std::snprintf(buf, sizeof(buf), "uPLPos[%d]", i);
+        sLightLocs[i].pos = glGetUniformLocation(prog, buf);
+        std::snprintf(buf, sizeof(buf), "uPLColor[%d]", i);
+        sLightLocs[i].color = glGetUniformLocation(prog, buf);
+        std::snprintf(buf, sizeof(buf), "uPLRange[%d]", i);
+        sLightLocs[i].range = glGetUniformLocation(prog, buf);
+    }
 
     glCreateVertexArrays(1, &sMeshVao); glCreateBuffers(1, &sMeshVbo);
     SetupVao(sMeshVao, sMeshVbo, sizeof(MeshVert), {
@@ -530,20 +547,22 @@ void End() {
         sMeshShader.Use();
 
         // Glow pass (additive)
-        bool hasGlow = std::any_of(dl.begin(), dl.end(),
-                                   [](const auto& d) { return d.unlitMode == 3; });
-        if (hasGlow) {
-            glEnable(GL_BLEND);
-            glBlendFunc(GL_ONE, GL_ONE);
-            glDepthMask(GL_FALSE);
-            glDisable(GL_CULL_FACE);
-            for (auto& d : dl) {
-                if (d.unlitMode != 3) continue;
-                sMeshShader.Set("uColor", d.color);
-                sMeshShader.Set("uUnlit", 3);
-                glDrawArrays(GL_TRIANGLES, d.offset, d.count);
-                ++ctx().stats.drawCalls;
+        bool hadGlow = false;
+        for (auto& d : dl) {
+            if (d.unlitMode != 3) continue;
+            if (!hadGlow) {
+                glEnable(GL_BLEND);
+                glBlendFunc(GL_ONE, GL_ONE);
+                glDepthMask(GL_FALSE);
+                glDisable(GL_CULL_FACE);
+                hadGlow = true;
             }
+            sMeshShader.Set("uColor", d.color);
+            sMeshShader.Set("uUnlit", 3);
+            glDrawArrays(GL_TRIANGLES, d.offset, d.count);
+            ++ctx().stats.drawCalls;
+        }
+        if (hadGlow) {
             glDisable(GL_BLEND);
             glDepthMask(GL_TRUE);
             glEnable(GL_CULL_FACE);
