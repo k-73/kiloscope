@@ -1,5 +1,6 @@
 #include "Render/DrawState.hpp"
 #include <GLFW/glfw3.h>
+#include <algorithm>
 #include <generator/SphereMesh.hpp>
 #include <generator/CappedCylinderMesh.hpp>
 #include <generator/CappedConeMesh.hpp>
@@ -296,15 +297,18 @@ void Init(const std::string& dir) {
     SetupVao(sLineVao, sLineVbo, sizeof(LineVert), {
         {0, {3, offsetof(LineVert, pos)}}, {1, {3, offsetof(LineVert, otherEnd)}},
         {2, {2, offsetof(LineVert, expand)}}, {3, {4, offsetof(LineVert, color)}}});
+    // Integer attribute (pickId) — needs IFormat, can't use SetupVao
     glEnableVertexArrayAttrib(sLineVao, 4);
     glVertexArrayAttribIFormat(sLineVao, 4, 1, GL_UNSIGNED_INT, offsetof(LineVert, pickId));
     glVertexArrayAttribBinding(sLineVao, 4, 0);
 
     glCreateVertexArrays(1, &sGridVao);
 
-    glCreateVertexArrays(1, &sPointVao); glCreateBuffers(1, &sPointVbo);
+    glCreateVertexArrays(1, &sPointVao);
+    glCreateBuffers(1, &sPointVbo);
     SetupVao(sPointVao, sPointVbo, sizeof(PointVert), {
         {0, {3, offsetof(PointVert, pos)}}, {1, {4, offsetof(PointVert, color)}}});
+    // Integer attribute (pickId)
     glEnableVertexArrayAttrib(sPointVao, 2);
     glVertexArrayAttribIFormat(sPointVao, 2, 1, GL_UNSIGNED_INT, offsetof(PointVert, pickId));
     glVertexArrayAttribBinding(sPointVao, 2, 0);
@@ -487,7 +491,8 @@ void End() {
     if (sFrame.fly) {
         ctx().pickEnabled = false;
         auto& cam = ctx().cam;
-        auto pivot = cam.Pivot(); float s = cam.Distance() * 0.03f;
+        auto pivot = cam.Pivot();
+        float s = cam.Distance() * 0.03f;
         Line(pivot, pivot+glm::vec3(s,0,0), {.95f,.25f,.25f,.7f}, 2.f);
         Line(pivot, pivot+glm::vec3(0,s,0), {.35f,.85f,.35f,.7f}, 2.f);
         Line(pivot, pivot+glm::vec3(0,0,s), {.35f,.50f,.95f,.7f}, 2.f);
@@ -500,7 +505,9 @@ void End() {
 
     ctx().stats.pointLights = ctx().numPointLights;
 
-    if (!ctx().drawList.empty()) {
+    auto& dl = ctx().drawList;
+
+    if (!dl.empty()) {
         glNamedBufferData(sMeshVbo, GLsizeiptr(ctx().vboAccum.size() * sizeof(MeshVert)),
                           ctx().vboAccum.data(), GL_DYNAMIC_DRAW);
         glBindVertexArray(sMeshVao);
@@ -510,7 +517,7 @@ void End() {
             BeginPickPass();
             sPickMeshShader.Use();
             sPickMeshShader.Set("uViewProj", sViewProj);
-            for (auto& d : ctx().drawList) {
+            for (auto& d : dl) {
                 if (!d.pickId || d.unlitMode == 3) continue;
                 sPickMeshShader.Set("uPickId", d.pickId);
                 glDrawArrays(GL_TRIANGLES, d.offset, d.count);
@@ -519,34 +526,40 @@ void End() {
             EndPickPass();
         }
 
-        // Glow pass (additive blending, no depth write)
-        SetMeshFrameUniforms(); sMeshShader.Use();
-        bool hasGlow = false;
-        for (auto& d : ctx().drawList) {
-            if (d.unlitMode != 3) continue;
-            if (!hasGlow) {
-                glEnable(GL_BLEND);
-                glBlendFunc(GL_ONE, GL_ONE);
-                glDepthMask(GL_FALSE);
-                glDisable(GL_CULL_FACE);
-                hasGlow = true;
-            }
-            sMeshShader.Set("uColor", d.color); sMeshShader.Set("uUnlit", 3);
-            glDrawArrays(GL_TRIANGLES, d.offset, d.count); ++ctx().stats.drawCalls;
-        }
+        SetMeshFrameUniforms();
+        sMeshShader.Use();
+
+        // Glow pass (additive)
+        bool hasGlow = std::any_of(dl.begin(), dl.end(),
+                                   [](const auto& d) { return d.unlitMode == 3; });
         if (hasGlow) {
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_ONE, GL_ONE);
+            glDepthMask(GL_FALSE);
+            glDisable(GL_CULL_FACE);
+            for (auto& d : dl) {
+                if (d.unlitMode != 3) continue;
+                sMeshShader.Set("uColor", d.color);
+                sMeshShader.Set("uUnlit", 3);
+                glDrawArrays(GL_TRIANGLES, d.offset, d.count);
+                ++ctx().stats.drawCalls;
+            }
             glDisable(GL_BLEND);
             glDepthMask(GL_TRUE);
             glEnable(GL_CULL_FACE);
         }
 
         // Solid pass (lit, unlit, emissive)
-        for (auto& d : ctx().drawList) {
+        for (auto& d : dl) {
             if (d.unlitMode == 3) continue;
-            sMeshShader.Set("uColor", d.color); sMeshShader.Set("uUnlit", d.unlitMode);
-            glDrawArrays(GL_TRIANGLES, d.offset, d.count); ++ctx().stats.drawCalls;
+            sMeshShader.Set("uColor", d.color);
+            sMeshShader.Set("uUnlit", d.unlitMode);
+            glDrawArrays(GL_TRIANGLES, d.offset, d.count);
+            ++ctx().stats.drawCalls;
         }
-        ctx().drawList.clear(); ctx().vboAccum.clear();
+
+        dl.clear();
+        ctx().vboAccum.clear();
     }
     FlushPoints(); FlushLines();
     if (ctx().gridCfg.enabled) DrawGrid(ctx().gridCfg, ctx().cam.Distance());
