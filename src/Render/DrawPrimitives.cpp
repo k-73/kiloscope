@@ -194,7 +194,7 @@ void Cube(const glm::vec3& center, float size, const glm::vec4& color) {
 void Cylinder(const glm::vec3& a, const glm::vec3& b,
               float radius, const glm::vec4& color, int seg) {
     float halfLen = glm::length(b - a) * 0.5f;
-    if (halfLen < 1e-6f) return; // degenerate: endpoints coincide
+    if (halfLen < 1e-6f) { Sphere((a + b) * 0.5f, radius, color, seg); return; } // degenerate → sphere
     ctx().lastPickId = AllocPickId();
     SetMeshUniforms(color);
     sMeshScratch.clear();
@@ -206,7 +206,7 @@ void Cylinder(const glm::vec3& a, const glm::vec3& b,
 void Cone(const glm::vec3& base, const glm::vec3& tip,
           float radius, const glm::vec4& color, int seg) {
     float halfLen = glm::length(tip - base) * 0.5f;
-    if (halfLen < 1e-6f) return;
+    if (halfLen < 1e-6f) { Sphere(base, radius, color, seg); return; } // degenerate → sphere
     ctx().lastPickId = AllocPickId();
     SetMeshUniforms(color);
     sMeshScratch.clear();

@@ -145,13 +145,14 @@ void UploadMesh(const std::vector<MeshVert>& v) {
     s.drawList.push_back({offset, count, s.currentColor, s.currentUnlitMode, s.lastPickId});
     s.stats.vertices += count;
 
-    bool wasEmissive = s.emissive;
-    float glowR = s.emissiveGlowRadius;
+    // Auto-generate glow sphere for emissive meshes
+    bool emissive = s.emissive;
+    float glowR   = s.emissiveGlowRadius;
     s.emissive = false;
-    s.glow = false;
+    s.glow     = false;
     s.emissiveGlowRadius = 0.f;
 
-    if (wasEmissive && count > 0) {
+    if (emissive && count > 0) {
         // Compute centroid + bounding radius in one pass
         glm::vec3 centroid(0.f);
         for (GLsizei i = offset; i < offset + count; ++i)
@@ -363,10 +364,13 @@ void Init(const std::string& dir) {
     SetupVao(sLineVao, sLineVbo, sizeof(LineVert), {
         {0, {3, offsetof(LineVert, pos)}}, {1, {3, offsetof(LineVert, otherEnd)}},
         {2, {2, offsetof(LineVert, expand)}}, {3, {4, offsetof(LineVert, color)}}});
-    // Integer attribute (pickId) — needs IFormat, can't use SetupVao
-    glEnableVertexArrayAttrib(sLineVao, 4);
-    glVertexArrayAttribIFormat(sLineVao, 4, 1, GL_UNSIGNED_INT, offsetof(LineVert, pickId));
-    glVertexArrayAttribBinding(sLineVao, 4, 0);
+    // Integer attributes (pickId) need IFormat — can't use SetupVao
+    auto bindPickAttr = [](GLuint vao, GLuint idx, GLuint offset) {
+        glEnableVertexArrayAttrib(vao, idx);
+        glVertexArrayAttribIFormat(vao, idx, 1, GL_UNSIGNED_INT, offset);
+        glVertexArrayAttribBinding(vao, idx, 0);
+    };
+    bindPickAttr(sLineVao, 4, offsetof(LineVert, pickId));
 
     glCreateVertexArrays(1, &sGridVao);
 
@@ -374,10 +378,7 @@ void Init(const std::string& dir) {
     glCreateBuffers(1, &sPointVbo);
     SetupVao(sPointVao, sPointVbo, sizeof(PointVert), {
         {0, {3, offsetof(PointVert, pos)}}, {1, {4, offsetof(PointVert, color)}}});
-    // Integer attribute (pickId)
-    glEnableVertexArrayAttrib(sPointVao, 2);
-    glVertexArrayAttribIFormat(sPointVao, 2, 1, GL_UNSIGNED_INT, offsetof(PointVert, pickId));
-    glVertexArrayAttribBinding(sPointVao, 2, 0);
+    bindPickAttr(sPointVao, 2, offsetof(PointVert, pickId));
 }
 
 // ── scene getters ────────────────────────────────────────────────────
