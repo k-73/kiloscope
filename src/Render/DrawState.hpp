@@ -102,7 +102,6 @@ inline bool     sGlow           = false;
 inline Stats    sStats;
 
 inline bool sMeshFrameReady = false;
-inline bool sPickMeshReady  = false;
 inline glm::vec4 sCurrentColor;
 inline int sCurrentUnlitMode = 0;
 

@@ -148,7 +148,7 @@ void Example::OnDraw() {
     // ── Scene 2: Lighting demo ──────────────────────────────────
     ImGui::SetNextWindowSize({500, 500}, ImGuiCond_FirstUseEver);
     ImGui::Begin("Lighting Demo", nullptr);
-        Render::Begin("shadows");
+        Render::Begin("lighting");
             Render::Grid();
             Render::Sphere({0, 0, 0.5f}, 0.5f, Hex("#E05050"));
             Render::Box({2.f, 0, 0.5f}, {1.f, 1.f, 1.f}, Hex("#5090E0"));

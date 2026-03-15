@@ -86,23 +86,8 @@ void UploadMesh(const std::vector<MeshVert>& v) {
     auto offset = static_cast<GLsizei>(sVboAccum.size());
     sVboAccum.insert(sVboAccum.end(), v.begin(), v.end());
     sDrawList.push_back({offset, count, sCurrentColor, sCurrentUnlitMode, sLastPickId});
-
-    if (sPickEnabled && sLastPickId) {
-        glNamedBufferData(sMeshVbo, GLsizeiptr(sVboAccum.size() * sizeof(MeshVert)),
-                          sVboAccum.data(), GL_DYNAMIC_DRAW);
-        BeginPickPass();
-        sPickMeshShader.Use();
-        if (!sPickMeshReady) { sPickMeshShader.Set("uViewProj", sViewProj); sPickMeshReady = true; }
-        sPickMeshShader.Set("uPickId", sLastPickId);
-        glEnable(GL_CULL_FACE);
-        glBindVertexArray(sMeshVao);
-        glDrawArrays(GL_TRIANGLES, offset, count);
-        ++sStats.pickDrawCalls;
-        EndPickPass();
-    }
     sStats.vertices += count;
 
-    // Auto-generate glow for emissive objects
     bool wasEmissive = sEmissive;
     sEmissive = false;
     sGlow = false;
@@ -115,14 +100,14 @@ void UploadMesh(const std::vector<MeshVert>& v) {
         for (GLsizei i = offset; i < offset + count; ++i)
             maxR = glm::max(maxR, glm::length(sVboAccum[i].pos - centroid));
 
-        auto glowColor = glm::vec4(sCurrentColor.r, sCurrentColor.g, sCurrentColor.b, 0.35f);
         sMeshScratch.clear();
-        AppendMesh(sMeshScratch, generator::SphereMesh(maxR * 3.f, 16, 8),
+        AppendMesh(sMeshScratch, generator::SphereMesh(maxR * 2.f, 16, 8),
                    glm::translate(glm::mat4(1.f), centroid));
         auto glowOffset = static_cast<GLsizei>(sVboAccum.size());
         auto glowCount  = static_cast<GLsizei>(sMeshScratch.size());
         sVboAccum.insert(sVboAccum.end(), sMeshScratch.begin(), sMeshScratch.end());
-        sDrawList.push_back({glowOffset, glowCount, glowColor, 3, 0});
+        sDrawList.push_back({glowOffset, glowCount,
+            {sCurrentColor.r, sCurrentColor.g, sCurrentColor.b, 0.35f}, 3, 0});
         sStats.vertices += glowCount;
     }
 }
@@ -362,7 +347,7 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     glViewport(0, 0, w, h);
 
     sNextPickId = 0; sLastPickId = 0; sPickIdOverride = 0;
-    sPickEnabled = true; sMeshFrameReady = false; sPickMeshReady = false;
+    sPickEnabled = true; sMeshFrameReady = false;
     sNumPointLights = 0;
     sDrawList.clear(); sVboAccum.clear();
     sStats = {}; sStats.viewportW = w; sStats.viewportH = h; sStats.msaaSamples = scene->fbo.Samples();
@@ -423,9 +408,24 @@ void End() {
     if (!sDrawList.empty()) {
         glNamedBufferData(sMeshVbo, GLsizeiptr(sVboAccum.size() * sizeof(MeshVert)),
                           sVboAccum.data(), GL_DYNAMIC_DRAW);
-        SetMeshFrameUniforms(); sMeshShader.Use(); glBindVertexArray(sMeshVao);
+        glBindVertexArray(sMeshVao);
 
-        // Pass 1: glow layers (additive blending, no depth write)
+        // Pick pass (all pickable meshes)
+        if (sPickEnabled) {
+            BeginPickPass();
+            sPickMeshShader.Use();
+            sPickMeshShader.Set("uViewProj", sViewProj);
+            for (auto& d : sDrawList) {
+                if (!d.pickId || d.unlitMode == 3) continue;
+                sPickMeshShader.Set("uPickId", d.pickId);
+                glDrawArrays(GL_TRIANGLES, d.offset, d.count);
+                ++sStats.pickDrawCalls;
+            }
+            EndPickPass();
+        }
+
+        // Glow pass (additive blending, no depth write)
+        SetMeshFrameUniforms(); sMeshShader.Use();
         bool hasGlow = false;
         for (auto& d : sDrawList) {
             if (d.unlitMode != 3) continue;
@@ -445,7 +445,7 @@ void End() {
             glEnable(GL_CULL_FACE);
         }
 
-        // Pass 2: solid geometry (lit, unlit, emissive)
+        // Solid pass (lit, unlit, emissive)
         for (auto& d : sDrawList) {
             if (d.unlitMode == 3) continue;
             sMeshShader.Set("uColor", d.color); sMeshShader.Set("uUnlit", d.unlitMode);
