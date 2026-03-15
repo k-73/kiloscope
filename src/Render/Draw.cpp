@@ -529,13 +529,21 @@ void Begin(const char* name, const ViewportConfig& cfg) {
 
 static void DrawSun() {
     ctx().pickEnabled = false;
-    glm::vec3 sunPos = glm::normalize(ctx().env.lightDir) * ctx().env.sunDistance;
+    auto& env = ctx().env;
+
+    // Sun follows camera — always in the sky, unreachable
+    constexpr float kSunDist   = 30.f;
+    constexpr float kSunRadius = 0.5f;
+    glm::vec3 sunPos = sCamPos + glm::normalize(env.lightDir) * kSunDist;
+
     PushMatrix();
     ResetMatrix();
+    glDepthFunc(GL_ALWAYS);  // render behind all geometry
     SetNextEmissive();
-    Sphere(sunPos, ctx().env.sunRadius, {1.f, .98f, .85f, 1.f}, 24);
-    Line({0, 0, 0}, sunPos, {1, .95f, .7f, .12f}, 1.f);
+    Sphere(sunPos, kSunRadius, {1.f, .98f, .85f, 1.f}, 24);
+    glDepthFunc(GL_LESS);
     PopMatrix();
+
     ctx().pickEnabled = true;
 }
 

@@ -102,10 +102,6 @@ void Example::OnDraw() {
         ImGui::DragFloat("Fresnel",     &env.fresnel,    0.01f, 0.f, 1.f);
         ImGui::DragFloat("Fog Density", &env.fogDensity, 0.00001f, 0.f, 0.01f);
         ImGui::Checkbox("Show Sun", &env.showSun);
-        if (env.showSun) {
-            ImGui::DragFloat("Sun Distance", &env.sunDistance, 0.5f, 1.f, 100.f);
-            ImGui::DragFloat("Sun Radius",   &env.sunRadius,  0.05f, 0.05f, 5.f);
-        }
     ImGui::End();
 
     ImGui::Begin("Grid", nullptr);
