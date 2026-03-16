@@ -294,6 +294,7 @@ glm::vec2 WorldToScreen(const glm::vec3& worldPos) {
 }
 
 static void ConsumePick() {
+    if (!sFrame.scene) return;
     sFrame.scene->hoveredPickId = 0;
     sFrame.scene->pickConsumed  = true;
 }
