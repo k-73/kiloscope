@@ -295,8 +295,6 @@ glm::vec2 WorldToScreen(const glm::vec3& worldPos) {
 
 bool EventState::Clicked(int button) const {
     if (!hovered_ || !ImGui::IsMouseClicked(button)) return false;
-    // Consume: clear hoveredPickId and block End() from overwriting it.
-    // Prevents stale ID from matching a different object next frame.
     if (sFrame.scene) {
         sFrame.scene->hoveredPickId = 0;
         sFrame.scene->pickConsumed = true;
@@ -304,11 +302,38 @@ bool EventState::Clicked(int button) const {
     return true;
 }
 
+bool EventState::DoubleClicked(int button) const {
+    if (!hovered_ || !ImGui::IsMouseDoubleClicked(button)) return false;
+    if (sFrame.scene) {
+        sFrame.scene->hoveredPickId = 0;
+        sFrame.scene->pickConsumed = true;
+    }
+    return true;
+}
+
+bool EventState::Dragging(int button) const {
+    if (!sFrame.scene || pickId_ == 0 || button < 0 || button > 2) return false;
+    return pickId_ == sFrame.scene->dragPickId[button] && ImGui::IsMouseDragging(button);
+}
+
+bool EventState::Released(int button) const {
+    if (!sFrame.scene || pickId_ == 0 || button < 0 || button > 2) return false;
+    return pickId_ == sFrame.scene->dragPickId[button] && ImGui::IsMouseReleased(button);
+}
+
+glm::vec2 EventState::DragDelta(int button) const {
+    if (!Dragging(button)) return {0.f, 0.f};
+    auto d = ImGui::GetMouseDragDelta(button);
+    return {d.x, d.y};
+}
+
 EventState Event() {
     EventState state;
-    state.hovered_ = sFrame.scene && sFrame.hovered
-                  && ctx().activePickId != 0
-                  && ctx().activePickId == ctx().hoveredPickId;
+    if (!sFrame.scene) return state;
+    state.pickId_  = ctx().activePickId;
+    state.hovered_ = sFrame.hovered
+                  && state.pickId_ != 0
+                  && state.pickId_ == ctx().hoveredPickId;
     return state;
 }
 
@@ -478,6 +503,12 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     }
 
     sFrame = {scene.get(), cursor.x, cursor.y, size.x, size.y, hovered, fly};
+
+    // Drag tracking: start on click over hovered object
+    for (int btn = 0; btn < 3; ++btn) {
+        if (hovered && ImGui::IsMouseClicked(btn) && scene->hoveredPickId != 0)
+            scene->dragPickId[btn] = scene->hoveredPickId;
+    }
 
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
     auto& bg = scene->env.bgColor;
@@ -667,6 +698,11 @@ void End() {
         int my = static_cast<int>(io.MousePos.y - sFrame.cy);
         ctx().hoveredPickId = ctx().pickFbo.ReadPixel(mx, my);
     }
+
+    // Clear drag for released buttons (after user code already checked Released())
+    for (int btn = 0; btn < 3; ++btn)
+        if (ctx().dragPickId[btn] && !ImGui::IsMouseDown(btn))
+            ctx().dragPickId[btn] = 0;
 
     ctx().fbo.Resolve();
     ImGui::SetCursorScreenPos({sFrame.cx, sFrame.cy});

@@ -49,8 +49,12 @@ void Example::OnDraw() {
         auto starEvent = Render::Event();
         if (starEvent.Hovered())
             Render::Text({0, 0, 0.7f}, White, "star");
-        if (starEvent.Clicked())
+        if (starEvent.DoubleClicked())
             ImGui::OpenPopup("StarInfo");
+        if (starEvent.Dragging()) {
+            auto delta = starEvent.DragDelta();
+            Render::Text({0, 0, 0.5f}, Yellow, "drag %.0f, %.0f", delta.x, delta.y);
+        }
 
         // Planet 1 — equatorial orbit
         constexpr float orbit1R = 2.2f, planet1R = 0.18f;

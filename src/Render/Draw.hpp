@@ -154,9 +154,15 @@ glm::vec2 WorldToScreen(const glm::vec3& worldPos);
 
 // ── interaction ─────────────────────────────────────────────────
 struct EventState {
-    bool hovered_ = false;
-    bool Hovered() const { return hovered_; }
-    bool Clicked(int button = 0) const;
+    bool     hovered_ = false;
+    uint32_t pickId_  = 0;
+
+    bool      Hovered()                    const { return hovered_; }
+    bool      Clicked(int button = 0)      const;
+    bool      DoubleClicked(int button = 0)const;
+    bool      Dragging(int button = 0)     const;
+    bool      Released(int button = 0)     const;
+    glm::vec2 DragDelta(int button = 0)    const;
 };
 
 EventState Event();
