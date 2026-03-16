@@ -31,6 +31,38 @@ void Example::OnDraw() {
     using namespace Render::Color;
     float time = elapsedTime_;
 
+    // ── 5-DOF manipulator ────────────────────────────────────────
+    ImGui::Begin("Kinematics");
+        static float q[] = {0.f, -30.f, 60.f, -30.f, 0.f};
+        constexpr const char* name[] = {"Base", "Shoulder", "Elbow", "Wrist", "Roll"};
+        constexpr float       len[]  = {0.8f, 1.2f, 1.0f, 0.6f, 0.3f};
+        constexpr bool        axisZ[] = {true, false, false, false, true};
+
+        for (int i = 0; i < 5; ++i)
+            ImGui::SliderFloat(name[i], &q[i], -180.f, 180.f);
+
+        Render::Begin("Kinematics");
+            Render::Grid();
+            Render::Disk({0, 0, 0}, {0, 0, 1}, 0.25f, Gray);
+
+            Render::PushMatrix();
+            for (int i = 0; i < 5; ++i) {
+                axisZ[i] ? Render::RotateZ(q[i]) : Render::RotateY(q[i]);
+                auto color = Hue(i / 5.f);
+                Render::Sphere({0, 0, 0}, 0.06f, color);
+                auto ev = Render::Event();
+                if (ev.Hovered())
+                    Render::Text({0, 0, 0.1f}, White, "%s %.0f", name[i], q[i]);
+                if (ev.Dragging())
+                    q[i] += ImGui::GetIO().MouseDelta.x * 0.5f;
+                Render::Cylinder({0, 0, 0}, {0, 0, len[i]}, 0.03f, color);
+                Render::Translate(0, 0, len[i]);
+            }
+            Render::Frame(glm::mat4(1.f), 0.15f);
+            Render::PopMatrix();
+        Render::End();
+    ImGui::End();
+
     Render::Begin("scene", {.width = 600, .height = 600});
         Render::Grid();
 
@@ -45,10 +77,11 @@ void Example::OnDraw() {
         }
 
         // Star
-        Render::Sphere({0, 0, 0}, 0.4f, Hex("#F2EB4D"));
+        auto starPosition = glm::vec3(0.f);
+        Render::Sphere(starPosition, 0.4f, Hex("#F2EB4D"));
         auto starEvent = Render::Event();
         if (starEvent.Hovered())
-            Render::Text({0, 0, 0.7f}, White, "star");
+            Render::Text(starPosition + glm::vec3(0, 0, 0.7f), White, "star");
         if (starEvent.DoubleClicked())
             ImGui::OpenPopup("StarInfo");
         if (starEvent.Clicked(Render::Right))
