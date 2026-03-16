@@ -51,6 +51,8 @@ void Example::OnDraw() {
             Render::Text({0, 0, 0.7f}, White, "star");
         if (starEvent.DoubleClicked())
             ImGui::OpenPopup("StarInfo");
+        if (starEvent.Clicked(Render::Right))
+            Render::GetCamera("scene").Focus({0, 0, 0});
         if (starEvent.Dragging()) {
             auto delta = starEvent.DragDelta();
             Render::Text({0, 0, 0.5f}, Yellow, "drag %.0f, %.0f", delta.x, delta.y);
