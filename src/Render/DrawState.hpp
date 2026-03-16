@@ -113,8 +113,8 @@ struct SceneData {
     bool     pickEnabled    = true;
     bool     pickConsumed   = false;  // set by Clicked() to block End() overwrite
 
-    // Drag state (per mouse button: 0=left, 1=right, 2=middle)
-    uint32_t dragPickId[3] = {};
+    // Drag state (per mouse button)
+    uint32_t dragPickId[kButtonCount] = {};
 
     // Emissive one-shot flags
     bool  emissive       = false;

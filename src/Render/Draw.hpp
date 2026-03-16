@@ -153,16 +153,19 @@ GridConfig& GetGrid(const char* name);
 glm::vec2 WorldToScreen(const glm::vec3& worldPos);
 
 // ── interaction ─────────────────────────────────────────────────
+enum Button : int { Left = 0, Right = 1, Middle = 2 };
+inline constexpr int kButtonCount = 3;
+
 struct EventState {
     bool     hovered_ = false;
     uint32_t pickId_  = 0;
 
-    bool      Hovered()                    const { return hovered_; }
-    bool      Clicked(int button = 0)      const;
-    bool      DoubleClicked(int button = 0)const;
-    bool      Dragging(int button = 0)     const;
-    bool      Released(int button = 0)     const;
-    glm::vec2 DragDelta(int button = 0)    const;
+    bool      Hovered()                          const { return hovered_; }
+    bool      Clicked(Button btn = Left)         const;
+    bool      DoubleClicked(Button btn = Left)   const;
+    bool      Dragging(Button btn = Left)        const;
+    bool      Released(Button btn = Left)        const;
+    glm::vec2 DragDelta(Button btn = Left)       const;
 };
 
 EventState Event();

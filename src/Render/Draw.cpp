@@ -293,37 +293,38 @@ glm::vec2 WorldToScreen(const glm::vec3& worldPos) {
              sFrame.cy + (1.f - (ndc.y * 0.5f + 0.5f)) * sFrame.h };
 }
 
-bool EventState::Clicked(int button) const {
-    if (!hovered_ || !ImGui::IsMouseClicked(button)) return false;
-    if (sFrame.scene) {
-        sFrame.scene->hoveredPickId = 0;
-        sFrame.scene->pickConsumed = true;
-    }
+static void ConsumePick() {
+    sFrame.scene->hoveredPickId = 0;
+    sFrame.scene->pickConsumed  = true;
+}
+
+bool EventState::Clicked(Button btn) const {
+    if (!hovered_ || !ImGui::IsMouseClicked(btn)) return false;
+    ConsumePick();
     return true;
 }
 
-bool EventState::DoubleClicked(int button) const {
-    if (!hovered_ || !ImGui::IsMouseDoubleClicked(button)) return false;
-    if (sFrame.scene) {
-        sFrame.scene->hoveredPickId = 0;
-        sFrame.scene->pickConsumed = true;
-    }
+bool EventState::DoubleClicked(Button btn) const {
+    if (!hovered_ || !ImGui::IsMouseDoubleClicked(btn)) return false;
+    ConsumePick();
     return true;
 }
 
-bool EventState::Dragging(int button) const {
-    if (!sFrame.scene || pickId_ == 0 || button < 0 || button > 2) return false;
-    return pickId_ == sFrame.scene->dragPickId[button] && ImGui::IsMouseDragging(button);
+bool EventState::Dragging(Button btn) const {
+    return sFrame.scene && pickId_ != 0
+        && pickId_ == sFrame.scene->dragPickId[btn]
+        && ImGui::IsMouseDragging(btn);
 }
 
-bool EventState::Released(int button) const {
-    if (!sFrame.scene || pickId_ == 0 || button < 0 || button > 2) return false;
-    return pickId_ == sFrame.scene->dragPickId[button] && ImGui::IsMouseReleased(button);
+bool EventState::Released(Button btn) const {
+    return sFrame.scene && pickId_ != 0
+        && pickId_ == sFrame.scene->dragPickId[btn]
+        && ImGui::IsMouseReleased(btn);
 }
 
-glm::vec2 EventState::DragDelta(int button) const {
-    if (!Dragging(button)) return {0.f, 0.f};
-    auto d = ImGui::GetMouseDragDelta(button);
+glm::vec2 EventState::DragDelta(Button btn) const {
+    if (!Dragging(btn)) return {0.f, 0.f};
+    auto d = ImGui::GetMouseDragDelta(btn);
     return {d.x, d.y};
 }
 
@@ -505,9 +506,9 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     sFrame = {scene.get(), cursor.x, cursor.y, size.x, size.y, hovered, fly};
 
     // Drag tracking: start on click over hovered object
-    for (int btn = 0; btn < 3; ++btn) {
-        if (hovered && ImGui::IsMouseClicked(btn) && scene->hoveredPickId != 0)
-            scene->dragPickId[btn] = scene->hoveredPickId;
+    for (int b = 0; b < kButtonCount; ++b) {
+        if (hovered && ImGui::IsMouseClicked(b) && scene->hoveredPickId != 0)
+            scene->dragPickId[b] = scene->hoveredPickId;
     }
 
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
@@ -700,9 +701,9 @@ void End() {
     }
 
     // Clear drag for released buttons (after user code already checked Released())
-    for (int btn = 0; btn < 3; ++btn)
-        if (ctx().dragPickId[btn] && !ImGui::IsMouseDown(btn))
-            ctx().dragPickId[btn] = 0;
+    for (int b = 0; b < kButtonCount; ++b)
+        if (ctx().dragPickId[b] && !ImGui::IsMouseDown(b))
+            ctx().dragPickId[b] = 0;
 
     ctx().fbo.Resolve();
     ImGui::SetCursorScreenPos({sFrame.cx, sFrame.cy});
