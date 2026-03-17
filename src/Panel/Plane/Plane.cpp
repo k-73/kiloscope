@@ -15,9 +15,9 @@ PlanePanel::PlanePanel() : Panel("Plane", "Plane") {}
 // ── static scene helpers ──────────────────────────────────────────
 
 static void DrawAircraft() {
-    constexpr auto kBody   = "#344b61ff";  // silver-gray fuselage
-    constexpr auto kWing   = "#4D6E8C";  // steel blue wings & stabilizers
-    constexpr auto kFin    = "#7A9CB8";  // lighter blue vertical fin
+    constexpr auto kBody   = "#344b61ff";
+    constexpr auto kWing   = "#4D6E8C";
+    constexpr auto kFin    = "#7A9CB8";
 
     Cylinder({-1.5f, 0, 0}, {1.0f, 0, 0}, 0.15f, Hex(kBody), 12);
     Cone    ({1.0f,  0, 0}, {1.6f, 0, 0}, 0.15f, Hex(kBody), 12);
