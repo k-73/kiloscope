@@ -30,16 +30,6 @@ static void DrawAircraft() {
     Triangle({-1.4f,  0,    0}, {-1.0f,   0,   0}, {-1.25f,   0, -0.5f}, Hex(kFin),  true);
 }
 
-static void DrawNedAxes(const glm::vec3& at, float len) {
-    const float tip = len * 1.1f;
-    Arrow(at, at + glm::vec3{len, 0,   0}, Hex("#E05555"), 0.015f, 0.05f);
-    Arrow(at, at + glm::vec3{0,   len, 0}, Hex("#55B855"), 0.015f, 0.05f);
-    Arrow(at, at + glm::vec3{0,   0,   len}, Hex("#5580E6"), 0.015f, 0.05f);
-    Text(at + glm::vec3{tip, 0,   0  }, Hex("#E05555"), "N");
-    Text(at + glm::vec3{0,   tip, 0  }, Hex("#55B855"), "E");
-    Text(at + glm::vec3{0,   0,   tip}, Hex("#5580E6"), "D");
-}
-
 // ── controls window ──────────────────────────────────────────────
 
 void PlanePanel::DrawControlsWindow() {
@@ -122,17 +112,17 @@ void PlanePanel::CaptureChaseCamera() {
 void PlanePanel::DrawScene() {
     Begin("flight", {.frame = FrameId::NED});
         Grid();
-        DrawNedAxes({0, 0, 0}, 1.5f);
+        Frame(glm::mat4(1.f), 1.f);
 
         PushMatrix();
             Translate(pos_); RotateZ(yaw_); RotateY(pitch_); RotateX(roll_);
             PushMatrix(); Scale(0.4f); DrawAircraft(); PopMatrix();
             Frame(glm::mat4(1.f), 0.5f);
             if (speed_ > 0.1f) {
-                float vl = speed_ * 0.06f;
-                Line({0, 0, 0}, {vl, 0, 0}, Hex("#FFD700"), 3.f);
-                Text({vl + 0.1f, 0, 0}, Hex("#FFD700"), "%.1f", speed_);
+                float vl = -speed_ * 0.06f;
+                Line({0, 0, 0}, {vl, 0, 0}, Hex("#FFD700"), 5.f);
             }
+            Text({0, 0, 0.}, Hex("#f8ffd8ff"), "(%d, %d, %d)", (int)pos_.x, (int)pos_.y, (int)-pos_.z);
         PopMatrix();
 
         Cross(glm::vec3{pos_.x, pos_.y, 0}, 0.3f, Hex("#FFFFFF30"), 1.5f);
