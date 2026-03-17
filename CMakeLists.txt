@@ -11,6 +11,7 @@ endif()
 
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE        ON)
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO  ON)
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g -DNDEBUG" CACHE STRING "" FORCE)
 
 # ── system dependencies ──────────────────────────────────────────────
 find_package(OpenGL REQUIRED)
