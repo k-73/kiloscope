@@ -15,15 +15,19 @@ PlanePanel::PlanePanel() : Panel("Plane", "Plane") {}
 // ── static scene helpers ──────────────────────────────────────────
 
 static void DrawAircraft() {
-    Cylinder({-1.5f, 0, 0}, {1.0f, 0, 0}, 0.15f, Hex("#be0000ff"), 12);
-    Cone    ({1.0f,  0, 0}, {1.6f, 0, 0}, 0.15f, Hex("#be0000ff"), 12);
-    Sphere  ({-1.5f, 0, 0},               0.15f, Hex("#be0000ff"), 12);
+    constexpr auto kBody   = "#344b61ff";  // silver-gray fuselage
+    constexpr auto kWing   = "#4D6E8C";  // steel blue wings & stabilizers
+    constexpr auto kFin    = "#7A9CB8";  // lighter blue vertical fin
+
+    Cylinder({-1.5f, 0, 0}, {1.0f, 0, 0}, 0.15f, Hex(kBody), 12);
+    Cone    ({1.0f,  0, 0}, {1.6f, 0, 0}, 0.15f, Hex(kBody), 12);
+    Sphere  ({-1.5f, 0, 0},               0.15f, Hex(kBody), 12);
 
     constexpr float ws = 2.2f;
-    Triangle({-0.1f, -ws,   0}, {-0.1f,  ws,   0}, { 0.5f,    0,    0}, Hex("#55B855"), true);
-    Triangle({-0.1f, -ws,   0}, {-0.5f,   0,   0}, {-0.1f,   ws,    0}, Hex("#55B855"), true);
-    Triangle({-1.3f, -0.6f, 0}, {-1.3f,  0.6f, 0}, {-0.9f,    0,    0}, Hex("#55B855"), true);
-    Triangle({-1.4f,  0,    0}, {-1.0f,   0,   0}, {-1.25f,   0, -0.5f}, Hex("#5580E6"), true);
+    Triangle({-0.1f, -ws,   0}, {-0.1f,  ws,   0}, { 0.5f,    0,    0}, Hex(kWing), true);
+    Triangle({-0.1f, -ws,   0}, {-0.5f,   0,   0}, {-0.1f,   ws,    0}, Hex(kWing), true);
+    Triangle({-1.3f, -0.6f, 0}, {-1.3f,  0.6f, 0}, {-0.9f,    0,    0}, Hex(kWing), true);
+    Triangle({-1.4f,  0,    0}, {-1.0f,   0,   0}, {-1.25f,   0, -0.5f}, Hex(kFin),  true);
 }
 
 static void DrawNedAxes(const glm::vec3& at, float len) {
