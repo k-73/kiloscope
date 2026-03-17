@@ -473,6 +473,8 @@ void Shutdown() {
     GLuint vbos[] = {sMeshVbo, sLineVbo, sPointVbo};
     glDeleteVertexArrays(4, vaos);
     glDeleteBuffers(3, vbos);
+    sMeshVao = sLineVao = sGridVao = sPointVao = 0;
+    sMeshVbo = sLineVbo = sPointVbo = 0;
     sMeshVboCap = sLineVboCap = sPointVboCap = 0;
     sSphereCache.clear(); sCylinderCache.clear(); sConeCache.clear();
     sCapsuleCache.clear(); sTorusCache.clear(); sDiskCache.clear();
