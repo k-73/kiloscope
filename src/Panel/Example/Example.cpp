@@ -42,6 +42,7 @@ void Example::OnDraw() {
             ImGui::SliderFloat(name[i], &q[i], -180.f, 180.f);
 
         Render::Begin("Kinematics");
+            Render::SetFrame(Render::FrameId::XYZ);
             Render::Grid();
             Render::Disk({0, 0, 0}, {0, 0, 1}, 0.25f, Gray);
 

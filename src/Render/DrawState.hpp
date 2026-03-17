@@ -3,6 +3,7 @@
 // NOT part of public API. Do not include from outside src/Render/.
 
 #include "Render/Draw.hpp"
+#include "Render/Frame.hpp"
 #include "Render/Camera.hpp"
 #include "Render/Fbo.hpp"
 #include "Render/Shader.hpp"
@@ -98,6 +99,9 @@ struct SceneData {
     float lineWidth  = 2.5f;
     float pointSize  = 4.f;
 
+    // Coordinate frame convention (maps user axes → internal axes)
+    glm::mat3 frameMat{1.f};
+
     // Transform stack
     std::vector<glm::mat4> matStack = {glm::mat4(1.f)};
 
@@ -173,6 +177,7 @@ inline uint32_t AllocPickId() {
 }
 
 inline const glm::mat4& Mat() { return ctx().matStack.back(); }
+inline const glm::mat3& FMat() { return ctx().frameMat; }
 
 inline glm::vec3 XformPoint(const glm::vec3& p) {
     return glm::vec3(Mat() * glm::vec4(p, 1.f));

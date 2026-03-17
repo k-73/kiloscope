@@ -1,4 +1,5 @@
 #pragma once
+#include "Render/Frame.hpp"
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <string>
@@ -73,8 +74,9 @@ inline glm::vec4 Hue(float t) {
 
 // ── scene viewport ──────────────────────────────────────────────
 struct ViewportConfig {
-    float width  = -1;  // -1 = fill available
-    float height = -1;
+    float   width  = -1;  // -1 = fill available
+    float   height = -1;
+    FrameId frame  = FrameId::XYZ;  // coordinate convention for this scene
 };
 
 struct Stats {
@@ -170,12 +172,21 @@ struct EventState {
 
 EventState Event();
 
+// ── coordinate frame ─────────────────────────────────────────────
+// Set mid-scene (or use ViewportConfig::frame for per-scene default).
+// All Translate/Rotate calls remap through active frame until changed.
+void SetFrame(FrameId id);
+template<typename F> void SetFrame() { SetFrame(F::M); }
+void SetFrame(const glm::mat3& m);  // custom frame matrix
+
 // ── transform stack ──────────────────────────────────────────────
 void PushMatrix();
 void PopMatrix();
 void ResetMatrix();
 void SetMatrix(const glm::mat4& m);
 void Transform(const glm::mat4& m);
+
+// Frame-aware: remap through active frame (SetFrame / ViewportConfig::frame)
 void Translate(const glm::vec3& offset);
 void Translate(float x, float y, float z);
 void Rotate(float angleDeg, const glm::vec3& axis);
@@ -185,6 +196,17 @@ void RotateY(float angleDeg);
 void RotateZ(float angleDeg);
 void Scale(const glm::vec3& s);
 void Scale(float s);
+
+// ── frame-explicit overloads (zero-cost, bypass active frame) ────
+namespace Raw { // internal-coordinate (no frame remapping)
+    void Translate(const glm::vec3& v);
+    void Rotate(float deg, const glm::vec3& axis);
+}
+template<typename F> void Translate(float x, float y, float z) { Raw::Translate(F::M * glm::vec3{x,y,z}); }
+template<typename F> void Translate(const glm::vec3& v)        { Raw::Translate(F::M * v); }
+template<typename F> void RotateX(float deg) { Raw::Rotate(deg, F::M[0]); }
+template<typename F> void RotateY(float deg) { Raw::Rotate(deg, F::M[1]); }
+template<typename F> void RotateZ(float deg) { Raw::Rotate(deg, F::M[2]); }
 
 // ── lines ────────────────────────────────────────────────────────
 void Line(const glm::vec3& a, const glm::vec3& b,
