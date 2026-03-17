@@ -136,12 +136,15 @@ void Text(const glm::vec3& pos, const glm::vec4& color, const char* fmt, ...) {
 // ── basic geometry ───────────────────────────────────────────────────
 
 void Triangle(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c,
-              const glm::vec4& color) {
+              const glm::vec4& color, bool twoSided) {
     ctx().activePickId = AllocPickId();
     auto ta = XformPoint(a), tb = XformPoint(b), tc = XformPoint(c);
-    auto normal = glm::normalize(glm::cross(tb - ta, tc - ta));
+    auto n = glm::normalize(glm::cross(tb - ta, tc - ta));
     SetMeshUniforms(color);
-    UploadMesh({{ta, normal}, {tb, normal}, {tc, normal}});
+    if (twoSided)
+        UploadMesh({{ta, n}, {tb, n}, {tc, n}, {ta, -n}, {tc, -n}, {tb, -n}});
+    else
+        UploadMesh({{ta, n}, {tb, n}, {tc, n}});
 }
 
 void Quad(const glm::vec3& a, const glm::vec3& b,

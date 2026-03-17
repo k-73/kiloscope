@@ -20,10 +20,10 @@ static void DrawAircraft() {
     Sphere  ({-1.5f, 0, 0},               0.15f, Hex("#be0000ff"), 12);
 
     constexpr float ws = 2.2f;
-    Triangle({-0.1f, -ws,   0}, {-0.1f,  ws,   0}, { 0.5f,    0,    0}, Hex("#55B855"));
-    Triangle({-0.1f, -ws,   0}, {-0.5f,   0,   0}, {-0.1f,   ws,    0}, Hex("#55B855"));
-    Triangle({-1.3f, -0.6f, 0}, {-1.3f,  0.6f, 0}, {-0.9f,    0,    0}, Hex("#55B855"));
-    Triangle({-1.4f,  0,    0}, {-1.0f,   0,   0}, {-1.25f,   0, -0.5f}, Hex("#5580E6"));
+    Triangle({-0.1f, -ws,   0}, {-0.1f,  ws,   0}, { 0.5f,    0,    0}, Hex("#55B855"), true);
+    Triangle({-0.1f, -ws,   0}, {-0.5f,   0,   0}, {-0.1f,   ws,    0}, Hex("#55B855"), true);
+    Triangle({-1.3f, -0.6f, 0}, {-1.3f,  0.6f, 0}, {-0.9f,    0,    0}, Hex("#55B855"), true);
+    Triangle({-1.4f,  0,    0}, {-1.0f,   0,   0}, {-1.25f,   0, -0.5f}, Hex("#5580E6"), true);
 }
 
 static void DrawNedAxes(const glm::vec3& at, float len) {

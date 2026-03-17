@@ -231,7 +231,7 @@ void Text(const glm::vec3& pos, const glm::vec4& color,
 
 // ── basic geometry ───────────────────────────────────────────────
 void Triangle(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c,
-              const glm::vec4& color);
+              const glm::vec4& color, bool twoSided = false);
 void Quad(const glm::vec3& a, const glm::vec3& b,
           const glm::vec3& c, const glm::vec3& d, const glm::vec4& color);
 void Plane(const glm::vec3& center, const glm::vec3& normal,
