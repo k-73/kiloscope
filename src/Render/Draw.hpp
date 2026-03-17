@@ -173,11 +173,13 @@ struct EventState {
 EventState Event();
 
 // ── coordinate frame ─────────────────────────────────────────────
-// Set mid-scene (or use ViewportConfig::frame for per-scene default).
-// All Translate/Rotate calls remap through active frame until changed.
+// Frame is baked into the base matrix: all operations (transforms AND
+// draw positions) automatically work in the user's coordinate convention.
+// Set per-scene via ViewportConfig::frame, or mid-scene via SetFrame().
 void SetFrame(FrameId id);
+void SetFrame(const glm::mat3& m);
 template<typename F> void SetFrame() { SetFrame(F::M); }
-void SetFrame(const glm::mat3& m);  // custom frame matrix
+const glm::mat3& GetFrame();
 
 // ── transform stack ──────────────────────────────────────────────
 void PushMatrix();
@@ -185,8 +187,6 @@ void PopMatrix();
 void ResetMatrix();
 void SetMatrix(const glm::mat4& m);
 void Transform(const glm::mat4& m);
-
-// Frame-aware: remap through active frame (SetFrame / ViewportConfig::frame)
 void Translate(const glm::vec3& offset);
 void Translate(float x, float y, float z);
 void Rotate(float angleDeg, const glm::vec3& axis);
@@ -197,16 +197,12 @@ void RotateZ(float angleDeg);
 void Scale(const glm::vec3& s);
 void Scale(float s);
 
-// ── frame-explicit overloads (zero-cost, bypass active frame) ────
-namespace Raw { // internal-coordinate (no frame remapping)
-    void Translate(const glm::vec3& v);
-    void Rotate(float deg, const glm::vec3& axis);
-}
-template<typename F> void Translate(float x, float y, float z) { Raw::Translate(F::M * glm::vec3{x,y,z}); }
-template<typename F> void Translate(const glm::vec3& v)        { Raw::Translate(F::M * v); }
-template<typename F> void RotateX(float deg) { Raw::Rotate(deg, F::M[0]); }
-template<typename F> void RotateY(float deg) { Raw::Rotate(deg, F::M[1]); }
-template<typename F> void RotateZ(float deg) { Raw::Rotate(deg, F::M[2]); }
+// ── cross-frame overloads (convert from F into active frame) ─────
+template<typename F> void Translate(float x, float y, float z) { Translate(glm::transpose(GetFrame()) * F::M * glm::vec3{x,y,z}); }
+template<typename F> void Translate(const glm::vec3& v)        { Translate(glm::transpose(GetFrame()) * F::M * v); }
+template<typename F> void RotateX(float deg) { Rotate(deg, glm::transpose(GetFrame()) * F::M[0]); }
+template<typename F> void RotateY(float deg) { Rotate(deg, glm::transpose(GetFrame()) * F::M[1]); }
+template<typename F> void RotateZ(float deg) { Rotate(deg, glm::transpose(GetFrame()) * F::M[2]); }
 
 // ── lines ────────────────────────────────────────────────────────
 void Line(const glm::vec3& a, const glm::vec3& b,

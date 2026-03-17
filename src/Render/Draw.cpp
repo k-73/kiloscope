@@ -555,8 +555,8 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     scene->stats.msaaSamples  = scene->fbo.Samples();
 
     scene->matStack.resize(1);
-    scene->matStack[0] = glm::mat4(1.f);
     scene->frameMat = FrameMat(cfg.frame);
+    scene->matStack[0] = glm::mat4(scene->frameMat);
 }
 
 // ── DrawSun / DrawGrid ───────────────────────────────────────────────
@@ -716,28 +716,25 @@ void End() {
 
 // ── coordinate frame ────────────────────────────────────────────────
 
-void SetFrame(FrameId id)        { ctx().frameMat = FrameMat(id); }
-void SetFrame(const glm::mat3& m){ ctx().frameMat = m; }
+void SetFrame(FrameId id)         { SetFrame(FrameMat(id)); }
+void SetFrame(const glm::mat3& m) {
+    // Right-multiply basis change: preserves world position, relabels local axes
+    ctx().matStack.back() *= glm::mat4(glm::transpose(ctx().frameMat) * m);
+    ctx().frameMat = m;
+}
+const glm::mat3& GetFrame() { return ctx().frameMat; }
 
 // ── transform stack ──────────────────────────────────────────────────
 
 void PushMatrix()  { auto& stk = ctx().matStack; stk.push_back(stk.back()); }
 void PopMatrix()   { auto& stk = ctx().matStack; if (stk.size() > 1) stk.pop_back(); }
-void ResetMatrix() { ctx().matStack.back() = glm::mat4(1.f); }
+void ResetMatrix() { ctx().matStack.back() = glm::mat4(ctx().frameMat); }
 void SetMatrix(const glm::mat4& m)  { ctx().matStack.back() = m; }
 void Transform(const glm::mat4& m)  { ctx().matStack.back() *= m; }
-
-// Raw: operate in internal coordinates directly
-namespace Raw {
-void Translate(const glm::vec3& v)           { auto& m = ctx().matStack.back(); m = glm::translate(m, v); }
-void Rotate(float deg, const glm::vec3& axis){ auto& m = ctx().matStack.back(); m = glm::rotate(m, glm::radians(deg), axis); }
-}
-
-// Public: remap through active frame
-void Translate(const glm::vec3& v)           { Raw::Translate(FMat() * v); }
-void Translate(float x, float y, float z)    { Translate({x, y, z}); }
-void Rotate(float deg, const glm::vec3& axis){ Raw::Rotate(deg, FMat() * axis); }
-void Rotate(const glm::quat& q)             { ctx().matStack.back() *= glm::mat4_cast(q); }
+void Translate(const glm::vec3& v)  { auto& m = ctx().matStack.back(); m = glm::translate(m, v); }
+void Translate(float x, float y, float z) { Translate({x, y, z}); }
+void Rotate(float deg, const glm::vec3& axis) { auto& m = ctx().matStack.back(); m = glm::rotate(m, glm::radians(deg), axis); }
+void Rotate(const glm::quat& q) { ctx().matStack.back() *= glm::mat4_cast(q); }
 void RotateX(float deg) { Rotate(deg, {1, 0, 0}); }
 void RotateY(float deg) { Rotate(deg, {0, 1, 0}); }
 void RotateZ(float deg) { Rotate(deg, {0, 0, 1}); }
