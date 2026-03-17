@@ -630,13 +630,10 @@ static void DrawSun() {
     constexpr float kSunRadius = 0.5f;
     glm::vec3 sunPos = sCamPos + glm::normalize(env.lightDir) * kSunDist;
 
-    PushMatrix();
-    ResetMatrix();
-    glDepthFunc(GL_ALWAYS);  // render behind all geometry
+    glDepthFunc(GL_ALWAYS);
     SetNextEmissive();
     Sphere(sunPos, kSunRadius, {1.f, .98f, .85f, 1.f}, 24);
     glDepthFunc(GL_LESS);
-    PopMatrix();
 
     ctx().pickEnabled = true;
 }
@@ -673,11 +670,15 @@ static void DrawGrid(const GridConfig& cfg, float camDist) {
 // ── End ──────────────────────────────────────────────────────────────
 
 void End() {
+    // Crosshair and sun operate in internal coords — bypass frame
+    PushMatrix();
+    SetMatrix(glm::mat4(1.f));
+
     if (sFrame.fly) {
         ctx().pickEnabled = false;
         auto& cam = ctx().cam;
         auto pivot = cam.Pivot();
-        float s = cam.Distance() * 0.03f; // crosshair scale relative to distance
+        float s = cam.Distance() * 0.03f;
         Line(pivot, pivot+glm::vec3(s,0,0), {.95f,.25f,.25f,.7f}, 2.f);
         Line(pivot, pivot+glm::vec3(0,s,0), {.35f,.85f,.35f,.7f}, 2.f);
         Line(pivot, pivot+glm::vec3(0,0,s), {.35f,.50f,.95f,.7f}, 2.f);
@@ -687,6 +688,8 @@ void End() {
     }
 
     if (ctx().env.showSun) DrawSun();
+
+    PopMatrix();
 
     ctx().stats.pointLights = ctx().numPointLights;
 
