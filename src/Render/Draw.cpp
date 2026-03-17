@@ -689,15 +689,16 @@ void End() {
         auto& cam   = ctx().cam;
         auto  pivot = cam.Pivot();
         float s     = cam.Distance() * 0.03f;
-        // Axis colors follow the active frame convention (same logic as grid).
+        // Draw pivot axes in user-frame directions so they match the scene convention.
+        // fm[i] = direction of user axis i in internal space (e.g. NED: fm[2] = Down).
+        const glm::mat3& fm = ctx().frameMat;
         const glm::vec4 axColors[3] = {
             {.95f,.25f,.25f,.7f}, {.35f,.85f,.35f,.7f}, {.35f,.50f,.95f,.7f}};
-        const glm::mat3& fm = ctx().frameMat;
-        Line(pivot, pivot+glm::vec3(s,0,0), FrameAxisColor(fm, 0, axColors), 2.f);
-        Line(pivot, pivot+glm::vec3(0,s,0), FrameAxisColor(fm, 1, axColors), 2.f);
-        Line(pivot, pivot+glm::vec3(0,0,s), FrameAxisColor(fm, 2, axColors), 2.f);
+        Line(pivot, pivot + fm[0] * s, axColors[0], 2.f);
+        Line(pivot, pivot + fm[1] * s, axColors[1], 2.f);
+        Line(pivot, pivot + fm[2] * s, axColors[2], 2.f);
         Line(cam.Eye(), pivot, {1,1,1,.15f}, 1.f);
-        Text(pivot+glm::vec3(s*.5f,s*.5f,s), {1,1,1,.6f}, "%.1f", cam.Distance());
+        Text(pivot + fm[0]*s*.4f + fm[2]*s*.4f, {1,1,1,.6f}, "%.1f", cam.Distance());
         ctx().pickEnabled = true;
     }
 
