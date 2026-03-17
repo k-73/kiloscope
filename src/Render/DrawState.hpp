@@ -35,6 +35,11 @@ struct IndexedMesh {
 
 const IndexedMesh& GetUnitSphere(int seg);
 const IndexedMesh& GetUnitBox();
+const IndexedMesh& GetUnitCylinder(int seg);
+const IndexedMesh& GetUnitCone(int seg);
+const IndexedMesh& GetUnitCapsule(int seg);
+const IndexedMesh& GetUnitTorus(int seg);
+const IndexedMesh& GetUnitDisk(int seg);
 
 inline void AppendFromCache(std::vector<MeshVert>& out,
                             const IndexedMesh& mesh, const glm::mat4& xform) {
@@ -62,11 +67,15 @@ struct MeshDraw {
 
 struct PickFbo {
     GLuint fbo = 0, color = 0, depth = 0;
+    GLuint pbo[2] = {};         // double-buffered PBOs for async readback
+    int    pboIdx = 0;          // current write PBO
+    bool   pboReady = false;    // first frame: no read yet
     int w = 0, h = 0;
     void Resize(int nw, int nh);
     void Bind();
     void Clear();
-    uint32_t ReadPixel(int screenX, int screenY) const;
+    void BeginAsyncRead(int screenX, int screenY);   // non-blocking: start read into PBO
+    uint32_t FinishAsyncRead();                       // non-blocking: read previous frame's PBO
     void Destroy();
     ~PickFbo() { Destroy(); }
     PickFbo() = default;
@@ -149,6 +158,18 @@ inline GLuint sMeshVao = 0, sMeshVbo = 0;
 inline GLuint sLineVao = 0, sLineVbo = 0;
 inline GLuint sGridVao = 0;
 inline GLuint sPointVao = 0, sPointVbo = 0;
+inline GLsizeiptr sMeshVboCap = 0, sLineVboCap = 0, sPointVboCap = 0;
+
+// Upload to VBO: reuse if fits, orphan only when growing
+inline void UploadVbo(GLuint vbo, GLsizeiptr& cap, const void* data, GLsizeiptr size) {
+    if (size <= cap) {
+        glNamedBufferSubData(vbo, 0, size, data);
+    } else {
+        cap = size + size / 4; // grow 25% extra
+        glNamedBufferData(vbo, cap, nullptr, GL_DYNAMIC_DRAW);
+        glNamedBufferSubData(vbo, 0, size, data);
+    }
+}
 
 inline glm::mat4 sView, sProj, sViewProj;
 inline glm::vec3 sCamPos, sLightDir;

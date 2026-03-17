@@ -5,6 +5,13 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "Build type" FORCE)
+endif()
+
+set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE        ON)
+set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO  ON)
+
 # ── system dependencies ──────────────────────────────────────────────
 find_package(OpenGL REQUIRED)
 find_package(glfw3 3.3 REQUIRED)
@@ -48,7 +55,8 @@ target_compile_definitions(kiloscope PRIVATE
     IMGUI_IMPL_OPENGL_LOADER_GLEW
 )
 
-# ── compiler warnings ───────────────────────────────────────────────
+# ── compiler options ─────────────────────────────────────────────────
 target_compile_options(kiloscope PRIVATE
     -Wall -Wextra -Wpedantic -Wno-unused-parameter
+    $<$<CONFIG:Release,RelWithDebInfo>:-march=native>
 )

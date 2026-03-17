@@ -194,36 +194,36 @@ void Cube(const glm::vec3& center, float size, const glm::vec4& color) {
 void Cylinder(const glm::vec3& a, const glm::vec3& b,
               float radius, const glm::vec4& color, int seg) {
     float halfLen = glm::length(b - a) * 0.5f;
-    if (halfLen < 1e-6f) { Sphere((a + b) * 0.5f, radius, color, seg); return; } // degenerate → sphere
+    if (halfLen < 1e-6f) { Sphere((a + b) * 0.5f, radius, color, seg); return; }
     ctx().activePickId = AllocPickId();
     SetMeshUniforms(color);
     sMeshScratch.clear();
-    AppendMesh(sMeshScratch, generator::CappedCylinderMesh(radius, halfLen, seg, 1, 1),
-               Mat() * ZAlign(a, b));
+    AppendFromCache(sMeshScratch, GetUnitCylinder(seg),
+                    Mat() * ZAlign(a, b) * glm::scale(glm::mat4(1.f), {radius, radius, halfLen}));
     UploadMesh(sMeshScratch);
 }
 
 void Cone(const glm::vec3& base, const glm::vec3& tip,
           float radius, const glm::vec4& color, int seg) {
     float halfLen = glm::length(tip - base) * 0.5f;
-    if (halfLen < 1e-6f) { Sphere(base, radius, color, seg); return; } // degenerate → sphere
+    if (halfLen < 1e-6f) { Sphere(base, radius, color, seg); return; }
     ctx().activePickId = AllocPickId();
     SetMeshUniforms(color);
     sMeshScratch.clear();
-    AppendMesh(sMeshScratch, generator::CappedConeMesh(radius, halfLen, seg, 1, 1),
-               Mat() * ZAlign(base, tip));
+    AppendFromCache(sMeshScratch, GetUnitCone(seg),
+                    Mat() * ZAlign(base, tip) * glm::scale(glm::mat4(1.f), {radius, radius, halfLen}));
     UploadMesh(sMeshScratch);
 }
 
 void Capsule(const glm::vec3& a, const glm::vec3& b,
              float radius, const glm::vec4& color, int seg) {
     float halfLen = glm::length(b - a) * 0.5f;
-    if (halfLen < 1e-6f) { Sphere((a + b) * 0.5f, radius, color, seg); return; } // degenerate → sphere
+    if (halfLen < 1e-6f) { Sphere((a + b) * 0.5f, radius, color, seg); return; }
     ctx().activePickId = AllocPickId();
     SetMeshUniforms(color);
     sMeshScratch.clear();
-    AppendMesh(sMeshScratch, generator::CapsuleMesh(radius, halfLen, seg, 1, seg / 2),
-               Mat() * ZAlign(a, b));
+    AppendFromCache(sMeshScratch, GetUnitCapsule(seg),
+                    Mat() * ZAlign(a, b) * glm::scale(glm::mat4(1.f), {radius, radius, halfLen}));
     UploadMesh(sMeshScratch);
 }
 
@@ -232,8 +232,8 @@ void Torus(const glm::vec3& center, const glm::vec3& axis,
     ctx().activePickId = AllocPickId();
     SetMeshUniforms(color);
     sMeshScratch.clear();
-    AppendMesh(sMeshScratch, generator::TorusMesh(minorR, majorR, seg / 2, seg),
-               Mat() * AxisTransform(center, axis));
+    AppendFromCache(sMeshScratch, GetUnitTorus(seg),
+                    Mat() * AxisTransform(center, axis) * glm::scale(glm::mat4(1.f), {minorR, majorR, minorR}));
     UploadMesh(sMeshScratch);
 }
 
@@ -242,8 +242,8 @@ void Disk(const glm::vec3& center, const glm::vec3& normal,
     ctx().activePickId = AllocPickId();
     SetMeshUniforms(color);
     sMeshScratch.clear();
-    AppendMesh(sMeshScratch, generator::DiskMesh(radius, 0.0, seg, 1),
-               Mat() * AxisTransform(center, normal));
+    AppendFromCache(sMeshScratch, GetUnitDisk(seg),
+                    Mat() * AxisTransform(center, normal) * glm::scale(glm::mat4(1.f), glm::vec3(radius)));
     UploadMesh(sMeshScratch);
 }
 
@@ -252,6 +252,7 @@ void Ring(const glm::vec3& center, const glm::vec3& normal,
     ctx().activePickId = AllocPickId();
     SetMeshUniforms(color);
     sMeshScratch.clear();
+    // Ring can't use unit cache (inner/outer ratio varies), generate directly
     AppendMesh(sMeshScratch, generator::DiskMesh(outerR, innerR, seg, 1),
                Mat() * AxisTransform(center, normal));
     UploadMesh(sMeshScratch);
@@ -381,13 +382,14 @@ void Arrow(const glm::vec3& from, const glm::vec3& to,
     if (len < 1e-6f) return;
     ctx().activePickId = AllocPickId();
     float headLen = std::min(len * 0.25f, headR * 2.5f);
+    float shaftHalf = (len - headLen) * 0.5f;
     auto shaftEnd = from + dir * ((len - headLen) / len);
     SetMeshUniforms(color);
     sMeshScratch.clear();
-    AppendMesh(sMeshScratch, generator::CappedCylinderMesh(shaftR, glm::length(shaftEnd - from) * 0.5f, 24, 1, 1),
-               Mat() * ZAlign(from, shaftEnd));
-    AppendMesh(sMeshScratch, generator::CappedConeMesh(headR, headLen * 0.5f, 24, 1, 1),
-               Mat() * ZAlign(shaftEnd, to));
+    AppendFromCache(sMeshScratch, GetUnitCylinder(24),
+                    Mat() * ZAlign(from, shaftEnd) * glm::scale(glm::mat4(1.f), {shaftR, shaftR, shaftHalf}));
+    AppendFromCache(sMeshScratch, GetUnitCone(24),
+                    Mat() * ZAlign(shaftEnd, to) * glm::scale(glm::mat4(1.f), {headR, headR, headLen * 0.5f}));
     UploadMesh(sMeshScratch);
 }
 

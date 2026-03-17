@@ -89,7 +89,7 @@ void Fbo::Bind(float clearR, float clearG, float clearB) {
 void Fbo::Resolve() {
     glBindFramebuffer(GL_READ_FRAMEBUFFER, msaaFbo_);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, resolveFbo_);
-    glBlitFramebuffer(0, 0, w_, h_, 0, 0, w_, h_, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    glBlitFramebuffer(0, 0, w_, h_, 0, 0, w_, h_, GL_COLOR_BUFFER_BIT, GL_LINEAR);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glDisable(GL_CULL_FACE);
     glDisable(GL_DEPTH_TEST);

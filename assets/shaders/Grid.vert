@@ -2,7 +2,7 @@
 // for ray-plane intersection in the fragment shader.
 #version 450 core
 
-uniform mat4 uView, uProj;
+uniform mat4 uInvViewProj;
 
 out vec3 vNear, vFar;
 
@@ -15,9 +15,8 @@ void main() {
     vec2 p = pos[gl_VertexID];
 
     // Unproject to world space at near and far planes
-    mat4 inv = inverse(uProj * uView);
-    vec4 n = inv * vec4(p, 0, 1);
-    vec4 f = inv * vec4(p, 1, 1);
+    vec4 n = uInvViewProj * vec4(p, 0, 1);
+    vec4 f = uInvViewProj * vec4(p, 1, 1);
     vNear = n.xyz / n.w;
     vFar  = f.xyz / f.w;
 

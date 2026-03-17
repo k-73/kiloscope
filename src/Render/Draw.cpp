@@ -4,6 +4,9 @@
 #include <generator/BoxMesh.hpp>
 #include <generator/CappedCylinderMesh.hpp>
 #include <generator/CappedConeMesh.hpp>
+#include <generator/CapsuleMesh.hpp>
+#include <generator/TorusMesh.hpp>
+#include <generator/DiskMesh.hpp>
 
 namespace Kilo::Render {
 
@@ -20,6 +23,12 @@ void PickFbo::Resize(int nw, int nh) {
     glCreateRenderbuffers(1, &depth);
     glNamedRenderbufferStorage(depth, GL_DEPTH_COMPONENT32F, w, h);
     glNamedFramebufferRenderbuffer(fbo, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depth);
+    // Double-buffered PBOs for async pick readback
+    glCreateBuffers(2, pbo);
+    for (auto p : pbo)
+        glNamedBufferStorage(p, sizeof(uint32_t), nullptr, GL_MAP_READ_BIT);
+    pboIdx = 0;
+    pboReady = false;
 }
 void PickFbo::Bind() {
     glBindFramebuffer(GL_FRAMEBUFFER, fbo);
@@ -32,24 +41,40 @@ void PickFbo::Clear() {
     float  one  = 1.f; glClearBufferfv(GL_DEPTH, 0, &one);
 }
 
-uint32_t PickFbo::ReadPixel(int screenX, int screenY) const {
+void PickFbo::BeginAsyncRead(int screenX, int screenY) {
     int fy = h - 1 - screenY;
-    if (screenX < 0 || screenX >= w || fy < 0 || fy >= h) return 0;
+    if (screenX < 0 || screenX >= w || fy < 0 || fy >= h) return;
     glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
-    uint32_t id = 0;
-    glReadPixels(screenX, fy, 1, 1, GL_RED_INTEGER, GL_UNSIGNED_INT, &id);
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, pbo[pboIdx]);
+    glReadPixels(screenX, fy, 1, 1, GL_RED_INTEGER, GL_UNSIGNED_INT, nullptr);
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+}
+
+uint32_t PickFbo::FinishAsyncRead() {
+    if (!pboReady) return 0;
+    int readIdx = 1 - pboIdx; // read from the OTHER PBO (previous frame)
+    auto* ptr = static_cast<uint32_t*>(glMapNamedBufferRange(pbo[readIdx], 0, sizeof(uint32_t), GL_MAP_READ_BIT));
+    uint32_t id = ptr ? *ptr : 0;
+    glUnmapNamedBuffer(pbo[readIdx]);
     return id;
 }
 void PickFbo::Destroy() {
     if (fbo) { glDeleteFramebuffers(1, &fbo); fbo = 0; }
     if (color) { glDeleteTextures(1, &color); color = 0; }
     if (depth) { glDeleteRenderbuffers(1, &depth); depth = 0; }
+    if (pbo[0]) { glDeleteBuffers(2, pbo); pbo[0] = pbo[1] = 0; }
     w = h = 0;
+    pboReady = false;
 }
 
 // ── mesh cache (unit-size meshes, generated on first use) ────────────
 
 static std::unordered_map<int, IndexedMesh> sSphereCache;
+static std::unordered_map<int, IndexedMesh> sCylinderCache;
+static std::unordered_map<int, IndexedMesh> sConeCache;
+static std::unordered_map<int, IndexedMesh> sCapsuleCache;
+static std::unordered_map<int, IndexedMesh> sTorusCache;
+static std::unordered_map<int, IndexedMesh> sDiskCache;
 static IndexedMesh sBoxCache;
 
 template <typename GenT>
@@ -75,6 +100,36 @@ const IndexedMesh& GetUnitSphere(int seg) {
 const IndexedMesh& GetUnitBox() {
     if (sBoxCache.pos.empty()) BuildCache(sBoxCache, generator::BoxMesh({.5f, .5f, .5f}, {1, 1, 1}));
     return sBoxCache;
+}
+
+const IndexedMesh& GetUnitCylinder(int seg) {
+    auto& m = sCylinderCache[seg];
+    if (m.pos.empty()) BuildCache(m, generator::CappedCylinderMesh(1.f, 1.f, seg, 1, 1));
+    return m;
+}
+
+const IndexedMesh& GetUnitCone(int seg) {
+    auto& m = sConeCache[seg];
+    if (m.pos.empty()) BuildCache(m, generator::CappedConeMesh(1.f, 1.f, seg, 1, 1));
+    return m;
+}
+
+const IndexedMesh& GetUnitCapsule(int seg) {
+    auto& m = sCapsuleCache[seg];
+    if (m.pos.empty()) BuildCache(m, generator::CapsuleMesh(1.f, 1.f, seg, 1, seg / 2));
+    return m;
+}
+
+const IndexedMesh& GetUnitTorus(int seg) {
+    auto& m = sTorusCache[seg];
+    if (m.pos.empty()) BuildCache(m, generator::TorusMesh(1.f, 1.f, seg / 2, seg));
+    return m;
+}
+
+const IndexedMesh& GetUnitDisk(int seg) {
+    auto& m = sDiskCache[seg];
+    if (m.pos.empty()) BuildCache(m, generator::DiskMesh(1.f, 0.0, seg, 1));
+    return m;
 }
 
 // ── cached uniform locations (filled once in Init) ───────────────────
@@ -183,7 +238,7 @@ void UploadMesh(const std::vector<MeshVert>& v) {
 void FlushLines() {
     if (ctx().lineBatch.empty()) return;
     auto count = static_cast<GLsizei>(ctx().lineBatch.size());
-    glNamedBufferData(sLineVbo, GLsizeiptr(count * sizeof(LineVert)), ctx().lineBatch.data(), GL_DYNAMIC_DRAW);
+    UploadVbo(sLineVbo, sLineVboCap, ctx().lineBatch.data(), GLsizeiptr(count * sizeof(LineVert)));
     ++ctx().stats.drawCalls;
     ctx().stats.lineSegments += count / 6; // 6 verts = 2 triangles per line segment
 
@@ -243,7 +298,7 @@ void BatchLine(const glm::vec3& a, const glm::vec3& b,
 void FlushPoints() {
     if (ctx().pointBatch.empty()) return;
     auto count = static_cast<GLsizei>(ctx().pointBatch.size());
-    glNamedBufferData(sPointVbo, GLsizeiptr(count * sizeof(PointVert)), ctx().pointBatch.data(), GL_DYNAMIC_DRAW);
+    UploadVbo(sPointVbo, sPointVboCap, ctx().pointBatch.data(), GLsizeiptr(count * sizeof(PointVert)));
     ++ctx().stats.drawCalls;
     ctx().stats.points += count;
 
@@ -543,11 +598,16 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     scene->glowRadius = 0.f;
     scene->numPointLights    = 0;
 
+    // Clear but keep capacity (avoid realloc every frame)
     scene->drawList.clear();
     scene->vboAccum.clear();
     scene->lineBatch.clear();
     scene->pointBatch.clear();
     scene->textBatch.clear();
+    // Reserve based on previous frame to avoid growth during draw
+    scene->vboAccum.reserve(scene->stats.vertices + 256);
+    scene->lineBatch.reserve(scene->stats.lineSegments * 6 + 64);
+    scene->pointBatch.reserve(scene->stats.points + 32);
 
     scene->stats = {};
     scene->stats.viewportW    = w;
@@ -583,8 +643,7 @@ static void DrawSun() {
 
 static void DrawGrid(const GridConfig& cfg, float camDist) {
     sGridShader.Use();
-    sGridShader.Set("uView", sView);
-    sGridShader.Set("uProj", sProj);
+    sGridShader.Set("uInvViewProj", glm::inverse(sViewProj));
     sGridShader.Set("uViewProj", sViewProj);
     sGridShader.Set("uCamPos", sCamPos);
     sGridShader.Set("uCamDist", camDist);
@@ -634,8 +693,8 @@ void End() {
     auto& dl = ctx().drawList;
 
     if (!dl.empty()) {
-        glNamedBufferData(sMeshVbo, GLsizeiptr(ctx().vboAccum.size() * sizeof(MeshVert)),
-                          ctx().vboAccum.data(), GL_DYNAMIC_DRAW);
+        UploadVbo(sMeshVbo, sMeshVboCap, ctx().vboAccum.data(),
+                  GLsizeiptr(ctx().vboAccum.size() * sizeof(MeshVert)));
         glBindVertexArray(sMeshVao);
 
         // Pick pass (depth-tested — front object wins at each pixel)
@@ -693,13 +752,16 @@ void End() {
     FlushLines();
     if (ctx().gridCfg.enabled) DrawGrid(ctx().gridCfg, ctx().cam.Distance());
 
-    // Read pick target after all geometry rendered (correct overlap priority).
-    // Skip if a Clicked() consumed the pick state this frame.
+    // Async pick readback: read PREVIOUS frame's result (non-blocking),
+    // then start THIS frame's read (GPU processes while CPU continues).
     if (sFrame.hovered && !ctx().pickConsumed) {
+        ctx().hoveredPickId = ctx().pickFbo.FinishAsyncRead();
         auto& io = ImGui::GetIO();
         int mx = static_cast<int>(io.MousePos.x - sFrame.cx);
         int my = static_cast<int>(io.MousePos.y - sFrame.cy);
-        ctx().hoveredPickId = ctx().pickFbo.ReadPixel(mx, my);
+        ctx().pickFbo.BeginAsyncRead(mx, my);
+        ctx().pickFbo.pboIdx = 1 - ctx().pickFbo.pboIdx;
+        ctx().pickFbo.pboReady = true;
     }
 
     // Clear drag for released buttons (after user code already checked Released())
