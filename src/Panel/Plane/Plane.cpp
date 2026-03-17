@@ -122,7 +122,7 @@ void PlanePanel::DrawScene() {
                 float vl = -speed_ * 0.06f;
                 Line({0, 0, 0}, {vl, 0, 0}, Hex("#FFD700"), 5.f);
             }
-            Text({0, 0, 0.}, Hex("#f8ffd8ff"), "(%d, %d, %d)", (int)pos_.x, (int)pos_.y, (int)-pos_.z);
+            Text({0, 0, 0}, Hex("#f8ffd8ff"), "(%d, %d, %d)", (int)pos_.x, (int)pos_.y, (int)-pos_.z);
         PopMatrix();
 
         Cross(glm::vec3{pos_.x, pos_.y, 0}, 0.3f, Hex("#FFFFFF30"), 1.5f);
