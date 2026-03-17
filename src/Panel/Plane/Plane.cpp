@@ -12,11 +12,6 @@ using namespace Render::Color;
 
 PlanePanel::PlanePanel() : Panel("Plane", "Plane") {}
 
-void PlanePanel::OnLoop() {
-    prevT_ = t_;
-    t_ = std::chrono::duration<float>(Clock::now() - start_).count();
-}
-
 // ── static scene helpers ──────────────────────────────────────────
 
 static void DrawAircraft() {
@@ -25,19 +20,20 @@ static void DrawAircraft() {
     Sphere  ({-1.5f, 0, 0},               0.15f, Hex("#be0000ff"), 12);
 
     constexpr float ws = 2.2f;
-    Triangle({-0.1f, -ws, 0}, {-0.1f,  ws, 0}, { 0.5f, 0, 0}, Hex("#4070C0"));
-    Triangle({-0.1f, -ws, 0}, {-0.5f,   0, 0}, {-0.1f, ws, 0}, Hex("#3060A8"));
-    Triangle({-1.3f, -0.6f,0}, {-1.3f, 0.6f,0}, {-0.9f, 0, 0}, Hex("#4070C0"));
-    Triangle({-1.4f,  0,   0}, {-1.0f,  0,  0}, {-1.25f, 0,-0.5f}, Hex("#C04040"));
+    Triangle({-0.1f, -ws,   0}, {-0.1f,  ws,   0}, { 0.5f,    0,    0}, Hex("#4070C0"));
+    Triangle({-0.1f, -ws,   0}, {-0.5f,   0,   0}, {-0.1f,   ws,    0}, Hex("#3060A8"));
+    Triangle({-1.3f, -0.6f, 0}, {-1.3f,  0.6f, 0}, {-0.9f,    0,    0}, Hex("#4070C0"));
+    Triangle({-1.4f,  0,    0}, {-1.0f,   0,   0}, {-1.25f,   0, -0.5f}, Hex("#C04040"));
 }
 
 static void DrawNedAxes(const glm::vec3& at, float len) {
-    Arrow(at, at + glm::vec3{len,   0,   0}, Hex("#E05555"), 0.015f, 0.05f);
-    Arrow(at, at + glm::vec3{  0, len,   0}, Hex("#55B855"), 0.015f, 0.05f);
-    Arrow(at, at + glm::vec3{  0,   0, len}, Hex("#5580E6"), 0.015f, 0.05f);
-    Text(at + glm::vec3{len*1.1f,      0, 0}, Hex("#E05555"), "N");
-    Text(at + glm::vec3{     0, len*1.1f, 0}, Hex("#55B855"), "E");
-    Text(at + glm::vec3{     0,      0, len*1.1f}, Hex("#5580E6"), "D");
+    const float tip = len * 1.1f;
+    Arrow(at, at + glm::vec3{len, 0,   0}, Hex("#E05555"), 0.015f, 0.05f);
+    Arrow(at, at + glm::vec3{0,   len, 0}, Hex("#55B855"), 0.015f, 0.05f);
+    Arrow(at, at + glm::vec3{0,   0,   len}, Hex("#5580E6"), 0.015f, 0.05f);
+    Text(at + glm::vec3{tip, 0,   0  }, Hex("#E05555"), "N");
+    Text(at + glm::vec3{0,   tip, 0  }, Hex("#55B855"), "E");
+    Text(at + glm::vec3{0,   0,   tip}, Hex("#5580E6"), "D");
 }
 
 // ── controls window ──────────────────────────────────────────────
@@ -47,7 +43,7 @@ void PlanePanel::DrawControlsWindow() {
     ImGui::Text("Camera: %s  [C = toggle]", freecam_ ? "FreeCam" : "Chase");
     if (!freecam_) ImGui::Checkbox("Chase Camera", &chase_);
     ImGui::Separator();
-    ImGui::DragFloat("Speed", &speed_, 0.5f, 0.f, 50.f,   "%.1f u/s");
+    ImGui::DragFloat ("Speed", &speed_, 0.5f, 0.f, 50.f,   "%.1f u/s");
     ImGui::SliderFloat("Roll",  &roll_,  -90.f,  90.f, "%.1f\xc2\xb0");
     ImGui::SliderFloat("Pitch", &pitch_, -45.f,  45.f, "%.1f\xc2\xb0");
     ImGui::SliderFloat("Yaw",   &yaw_,  -180.f, 180.f, "%.1f\xc2\xb0");
@@ -70,8 +66,8 @@ void PlanePanel::HandleInput(float dt, bool focused) {
     constexpr float pitchRate = 40.f, yawRate = 50.f;
     if (ImGui::IsKeyDown(ImGuiKey_W)) pitch_ -= pitchRate * dt;
     if (ImGui::IsKeyDown(ImGuiKey_S)) pitch_ += pitchRate * dt;
-    if (ImGui::IsKeyDown(ImGuiKey_A)) yaw_   -= yawRate  * dt;
-    if (ImGui::IsKeyDown(ImGuiKey_D)) yaw_   += yawRate  * dt;
+    if (ImGui::IsKeyDown(ImGuiKey_A)) yaw_   -= yawRate   * dt;
+    if (ImGui::IsKeyDown(ImGuiKey_D)) yaw_   += yawRate   * dt;
 }
 
 // ── physics ──────────────────────────────────────────────────────
@@ -79,35 +75,36 @@ void PlanePanel::HandleInput(float dt, bool focused) {
 void PlanePanel::UpdatePhysics(float dt, bool focused) {
     pitch_ = std::clamp(pitch_, -80.f, 80.f);
 
-    float bankTarget = (focused && !freecam_)
-        ? (ImGui::IsKeyDown(ImGuiKey_D) ? 1.f : 0.f)
-        - (ImGui::IsKeyDown(ImGuiKey_A) ? 1.f : 0.f)
-        : 0.f;
-    roll_ += (bankTarget * 35.f - roll_) * std::min(1.f, 5.f * dt);
+    float bank = 0.f;
+    if (focused && !freecam_) {
+        if (ImGui::IsKeyDown(ImGuiKey_D)) bank += 1.f;
+        if (ImGui::IsKeyDown(ImGuiKey_A)) bank -= 1.f;
+    }
+    roll_ += (bank * 35.f - roll_) * std::min(1.f, 5.f * dt);
 
-    float yr = glm::radians(yaw_), pr = glm::radians(pitch_);
-    float cp = std::cos(pr);
+    const float yr = glm::radians(yaw_), pr = glm::radians(pitch_);
+    const float cp = std::cos(pr);
     pos_.x += speed_ * std::cos(yr) * cp * dt;
     pos_.y += speed_ * std::sin(yr) * cp * dt;
-    pos_.z  = std::min(pos_.z - speed_ * std::sin(pr) * dt, -0.1f);
+    pos_.z -= speed_ * std::sin(pr) * dt;
+    pos_.z  = std::min(pos_.z, -0.1f);  // stay above ground
 }
 
 // ── camera ───────────────────────────────────────────────────────
 
 void PlanePanel::UpdateChaseCamera() {
     if (freecam_ || !chase_) return;
-    auto& cam    = GetCamera("flight");
-    cam.Target() = NED::M * pos_;
-    cam.Yaw()    = -yaw_ - 90.f + chaseYawOff_;
-    cam.Pitch()  = 18.f + chasePitchOff_;
+    auto& cam      = GetCamera("flight");
+    cam.Target()   = NED::M * pos_;
+    cam.Yaw()      = -yaw_ - 90.f + chaseYawOff_;
+    cam.Pitch()    = 18.f + chasePitchOff_;
     cam.Distance() = chaseDist_;
-    camYawPrev_   = cam.Yaw();
-    camPitchPrev_ = cam.Pitch();
+    camYawPrev_    = cam.Yaw();
+    camPitchPrev_  = cam.Pitch();
 }
 
-// Draw.cpp applies MMB orbit (cam.Orbit) and scroll zoom (cam.Zoom)
-// to our camera during Render::Begin/End. We capture those deltas
-// and fold them into persistent offsets so they survive the next reset.
+// Draw.cpp applies MMB orbit and scroll zoom to the camera during Render::Begin/End.
+// We capture those deltas and fold them into persistent offsets for the next frame.
 void PlanePanel::CaptureChaseCamera() {
     if (freecam_ || !chase_) return;
     auto& cam      = GetCamera("flight");
@@ -129,26 +126,26 @@ void PlanePanel::DrawScene() {
             Frame(glm::mat4(1.f), 0.5f);
             if (speed_ > 0.1f) {
                 float vl = speed_ * 0.06f;
-                Line({0,0,0}, {vl,0,0}, Hex("#FFD700"), 3.f);
-                Text({vl+0.1f,0,0}, Hex("#FFD700"), "%.1f", speed_);
+                Line({0, 0, 0}, {vl, 0, 0}, Hex("#FFD700"), 3.f);
+                Text({vl + 0.1f, 0, 0}, Hex("#FFD700"), "%.1f", speed_);
             }
         PopMatrix();
 
-        Cross({pos_.x, pos_.y,     0    }, 0.3f, Hex("#FFFFFF30"), 1.5f);
-        Line (pos_, {pos_.x, pos_.y, 0}, Hex("#FFFFFF15"), 1.f);
+        Cross(glm::vec3{pos_.x, pos_.y, 0}, 0.3f, Hex("#FFFFFF30"), 1.5f);
+        Line (pos_, glm::vec3{pos_.x, pos_.y, 0}, Hex("#FFFFFF15"), 1.f);
 
         constexpr float cd = 12.f;
-        Text({ cd,  0, 0.1f}, Hex("#E07070"), "N");
-        Text({-cd,  0, 0.1f}, Hex("#E07070"), "S");
-        Text({  0, cd, 0.1f}, Hex("#70B870"), "E");
-        Text({  0,-cd, 0.1f}, Hex("#70B870"), "W");
+        Text({ cd,   0, 0.1f}, Hex("#E07070"), "N");
+        Text({-cd,   0, 0.1f}, Hex("#E07070"), "S");
+        Text({  0,  cd, 0.1f}, Hex("#70B870"), "E");
+        Text({  0, -cd, 0.1f}, Hex("#70B870"), "W");
     End();
 }
 
 // ── orchestrator ─────────────────────────────────────────────────
 
 void PlanePanel::OnDraw() {
-    float dt = ImGui::GetIO().DeltaTime;
+    const float dt = ImGui::GetIO().DeltaTime;
 
     auto& env    = GetEnvironment("flight");
     env.bgColor  = {0.06f, 0.08f, 0.14f};
@@ -158,7 +155,7 @@ void PlanePanel::OnDraw() {
     DrawControlsWindow();
 
     ImGui::Begin("Flight View");
-    bool focused = ImGui::IsWindowFocused();
+    const bool focused = ImGui::IsWindowFocused();
     HandleInput(dt, focused);
     UpdatePhysics(dt, focused);
     UpdateChaseCamera();

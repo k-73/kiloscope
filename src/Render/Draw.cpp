@@ -638,7 +638,17 @@ static void DrawSun() {
     ctx().pickEnabled = true;
 }
 
+static glm::vec4 FrameAxisColor(const glm::mat3& fm, int axis, const glm::vec4 (&colors)[3]) {
+    int best = 0;
+    for (int u = 1; u < 3; ++u)
+        if (std::abs(fm[u][axis]) > std::abs(fm[best][axis])) best = u;
+    return colors[best];
+}
+
 static void DrawGrid(const GridConfig& cfg, float camDist) {
+    const glm::vec4 axisColors[3] = {cfg.axisXColor, cfg.axisYColor, {.35f,.50f,.95f,1.f}};
+    const glm::mat3& fm = ctx().frameMat;
+
     sGridShader.Use();
     sGridShader.Set("uInvViewProj", glm::inverse(sViewProj));
     sGridShader.Set("uViewProj", sViewProj);
@@ -650,8 +660,8 @@ static void DrawGrid(const GridConfig& cfg, float camDist) {
     sGridShader.Set("uColorFine",   cfg.colorFine);
     sGridShader.Set("uColorMedium", cfg.colorMedium);
     sGridShader.Set("uColorCoarse", cfg.colorCoarse);
-    sGridShader.Set("uAxisXColor",  cfg.axisXColor);
-    sGridShader.Set("uAxisYColor",  cfg.axisYColor);
+    sGridShader.Set("uAxisXColor",  FrameAxisColor(fm, 0, axisColors));
+    sGridShader.Set("uAxisYColor",  FrameAxisColor(fm, 1, axisColors));
     sGridShader.Set("uAxisThickness",    cfg.axisThickness);
     sGridShader.Set("uAxisScaleWithCam", cfg.axisScaleWithCam ? 1 : 0);
     sGridShader.Set("uFadeStart", cfg.fadeStart);
@@ -676,12 +686,16 @@ void End() {
 
     if (sFrame.fly) {
         ctx().pickEnabled = false;
-        auto& cam = ctx().cam;
-        auto pivot = cam.Pivot();
-        float s = cam.Distance() * 0.03f;
-        Line(pivot, pivot+glm::vec3(s,0,0), {.95f,.25f,.25f,.7f}, 2.f);
-        Line(pivot, pivot+glm::vec3(0,s,0), {.35f,.85f,.35f,.7f}, 2.f);
-        Line(pivot, pivot+glm::vec3(0,0,s), {.35f,.50f,.95f,.7f}, 2.f);
+        auto& cam   = ctx().cam;
+        auto  pivot = cam.Pivot();
+        float s     = cam.Distance() * 0.03f;
+        // Axis colors follow the active frame convention (same logic as grid).
+        const glm::vec4 axColors[3] = {
+            {.95f,.25f,.25f,.7f}, {.35f,.85f,.35f,.7f}, {.35f,.50f,.95f,.7f}};
+        const glm::mat3& fm = ctx().frameMat;
+        Line(pivot, pivot+glm::vec3(s,0,0), FrameAxisColor(fm, 0, axColors), 2.f);
+        Line(pivot, pivot+glm::vec3(0,s,0), FrameAxisColor(fm, 1, axColors), 2.f);
+        Line(pivot, pivot+glm::vec3(0,0,s), FrameAxisColor(fm, 2, axColors), 2.f);
         Line(cam.Eye(), pivot, {1,1,1,.15f}, 1.f);
         Text(pivot+glm::vec3(s*.5f,s*.5f,s), {1,1,1,.6f}, "%.1f", cam.Distance());
         ctx().pickEnabled = true;
