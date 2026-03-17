@@ -13,8 +13,8 @@ namespace Kilo::Render {
 struct XYZ { static constexpr glm::mat3 M{1.f}; };                                          // identity (internal)
 struct ENU { static constexpr glm::mat3 M{1.f}; };                                          // East-North-Up = internal
 struct NED { static constexpr glm::mat3 M{{0,1,0}, {1,0,0}, {0,0,-1}}; };                   // North-East-Down
-struct FLU { static constexpr glm::mat3 M{{0,-1,0}, {1,0,0}, {0,0,1}}; };                   // Forward-Left-Up (ROS body)
-struct FRD { static constexpr glm::mat3 M{{0,1,0}, {1,0,0}, {0,0,-1}}; };                   // Forward-Right-Down
+struct FLU { static constexpr glm::mat3 M{{0,1,0}, {-1,0,0}, {0,0,1}}; };                   // Forward-Left-Up (ROS body)
+struct FRD { static constexpr glm::mat3 M{{0,1,0}, {1,0,0}, {0,0,-1}}; };                   // Forward-Right-Down (≡ NED: same mapping, different semantics — world vs body frame)
 
 // ── runtime enum mirror ─────────────────────────────────────────────
 

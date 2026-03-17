@@ -4,6 +4,7 @@
 #include <glm/gtc/quaternion.hpp>
 #include <string>
 #include <cmath>
+#include <cstring>
 
 namespace Kilo::Render {
 
@@ -36,8 +37,7 @@ inline glm::vec4 Hex(const char* s) {
         if (c >= 'A' && c <= 'F') return c - 'A' + 10;
         return 0;
     };
-    int len = 0;
-    for (auto p = s; *p; ++p) ++len;
+    int len = static_cast<int>(std::strlen(s));
     if (len == 3) // RGB
         return {hex(s[0]) / 15.f, hex(s[1]) / 15.f, hex(s[2]) / 15.f, 1.f};
     if (len == 4) // RGBA

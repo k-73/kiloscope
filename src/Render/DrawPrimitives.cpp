@@ -232,8 +232,9 @@ void Torus(const glm::vec3& center, const glm::vec3& axis,
     ctx().activePickId = AllocPickId();
     SetMeshUniforms(color);
     sMeshScratch.clear();
-    AppendFromCache(sMeshScratch, GetUnitTorus(seg),
-                    Mat() * AxisTransform(center, axis) * glm::scale(glm::mat4(1.f), {minorR, majorR, minorR}));
+    // Generate directly — non-uniform scale on a unit torus distorts the tube cross-section.
+    AppendMesh(sMeshScratch, generator::TorusMesh(minorR, majorR, seg / 2, seg),
+               Mat() * AxisTransform(center, axis));
     UploadMesh(sMeshScratch);
 }
 

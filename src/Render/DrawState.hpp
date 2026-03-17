@@ -81,6 +81,18 @@ struct PickFbo {
     PickFbo() = default;
     PickFbo(const PickFbo&) = delete;
     PickFbo& operator=(const PickFbo&) = delete;
+    PickFbo(PickFbo&& o) noexcept
+        : fbo(o.fbo), color(o.color), depth(o.depth),
+          pboIdx(o.pboIdx), pboReady(o.pboReady), w(o.w), h(o.h) {
+        pbo[0] = o.pbo[0]; pbo[1] = o.pbo[1];
+        o.fbo = o.color = o.depth = 0;
+        o.pbo[0] = o.pbo[1] = 0;
+        o.w = o.h = 0; o.pboReady = false;
+    }
+    PickFbo& operator=(PickFbo&& o) noexcept {
+        if (this != &o) { Destroy(); new (this) PickFbo(std::move(o)); }
+        return *this;
+    }
 };
 
 // ── per-scene state ──────────────────────────────────────────────────
@@ -96,6 +108,7 @@ struct SceneData {
 
     // Configuration
     Camera cam; Environment env; GridConfig gridCfg;
+    bool flyLocked = false;         // per-scene fly-mode cursor lock
 
     // Mesh batching
     std::vector<MeshDraw> drawList;

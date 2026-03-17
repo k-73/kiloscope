@@ -473,6 +473,10 @@ void Shutdown() {
     GLuint vbos[] = {sMeshVbo, sLineVbo, sPointVbo};
     glDeleteVertexArrays(4, vaos);
     glDeleteBuffers(3, vbos);
+    sMeshVboCap = sLineVboCap = sPointVboCap = 0;
+    sSphereCache.clear(); sCylinderCache.clear(); sConeCache.clear();
+    sCapsuleCache.clear(); sTorusCache.clear(); sDiskCache.clear();
+    sBoxCache = {};
     sFrame = {};
 }
 
@@ -531,6 +535,7 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     auto& io = ImGui::GetIO();
     auto& cam = scene->cam;
     bool hovered = ImGui::IsItemHovered();
+    if (!hovered) { scene->hoveredPickId = 0; scene->pickFbo.pboReady = false; }
     bool active = ImGui::IsItemActive();
     bool shift = ImGui::IsKeyDown(ImGuiKey_LeftShift) || ImGui::IsKeyDown(ImGuiKey_RightShift);
     bool fly = active && ImGui::IsMouseDown(ImGuiMouseButton_Right);
@@ -541,11 +546,10 @@ void Begin(const char* name, const ViewportConfig& cfg) {
         else       cam.Orbit(io.MouseDelta.x, io.MouseDelta.y);
     }
 
-    { // Fly mode cursor lock
-        static bool sFlyLocked = false;
+    { // Fly mode cursor lock (per-scene — prevents one panel from locking cursor for all scenes)
         auto* win = glfwGetCurrentContext();
-        if (fly && !sFlyLocked) { glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_DISABLED); sFlyLocked = true; }
-        if (!ImGui::IsMouseDown(ImGuiMouseButton_Right) && sFlyLocked) { glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_NORMAL); sFlyLocked = false; }
+        if (fly && !scene->flyLocked) { glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_DISABLED); scene->flyLocked = true; }
+        if (!ImGui::IsMouseDown(ImGuiMouseButton_Right) && scene->flyLocked) { glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_NORMAL); scene->flyLocked = false; }
     }
     if (fly) {
         cam.FlyLook(io.MouseDelta.x, io.MouseDelta.y);
