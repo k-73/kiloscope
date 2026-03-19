@@ -9,24 +9,22 @@ namespace Kilo {
 
 PanelManager::PanelManager() = default;
 
-void PanelManager::Start() {
-    worker_ = std::jthread([this](std::stop_token st) { WorkerLoop(st); });
-}
-
 PanelManager::~PanelManager() {
     worker_.request_stop();
     if (worker_.joinable()) worker_.join();
 }
 
+// ── lifecycle ───────────────────────────────────────────────────
+
+void PanelManager::Start() {
+    worker_ = std::jthread([this](std::stop_token st) { WorkerLoop(st); });
+}
+
 Panel* PanelManager::Add(std::string_view typeId) {
     std::unique_lock lock(panelsMutex_);
 
-    for (auto& p : panels_) {
-        if (p->TypeId() == typeId) {
-            p->SetVisible(true);
-            return p.get();
-        }
-    }
+    for (auto& p : panels_)
+        if (p->TypeId() == typeId) { p->SetVisible(true); return p.get(); }
 
     auto panel = PanelRegistry::Instance().Create(typeId);
     if (!panel) return nullptr;
@@ -43,12 +41,19 @@ void PanelManager::Remove(std::string_view id) {
 
     auto it = std::find_if(panels_.begin(), panels_.end(),
         [&](auto& p) { return p->Id() == id; });
-    if (it != panels_.end()) {
-        (*it)->OnDetach();
-        Log::UI().info("Panel removed: {}", id);
-        panels_.erase(it);
-    }
+    if (it == panels_.end()) return;
+
+    (*it)->OnDetach();
+    Log::UI().info("Panel removed: {}", id);
+    panels_.erase(it);
 }
+
+bool PanelManager::Empty() const {
+    std::shared_lock lock(panelsMutex_);
+    return panels_.empty();
+}
+
+// ── main thread ─────────────────────────────────────────────────
 
 void PanelManager::Draw() {
     std::shared_lock lock(panelsMutex_);
@@ -57,20 +62,22 @@ void PanelManager::Draw() {
 
 void PanelManager::DrawMenuBar() {
     std::shared_lock lock(panelsMutex_);
-    if (ImGui::BeginMainMenuBar()) {
-        if (ImGui::BeginMenu("Panels")) {
-            for (auto& p : panels_) {
-                ImGui::PushID(p->Id().c_str());
-                bool vis = p->IsVisible();
-                if (ImGui::MenuItem(p->Title().c_str(), nullptr, vis))
-                    p->SetVisible(!vis);
-                ImGui::PopID();
-            }
-            ImGui::EndMenu();
+    if (!ImGui::BeginMainMenuBar()) return;
+
+    if (ImGui::BeginMenu("Panels")) {
+        for (auto& p : panels_) {
+            ImGui::PushID(p->Id().c_str());
+            bool vis = p->IsVisible();
+            if (ImGui::MenuItem(p->Title().c_str(), nullptr, vis))
+                p->SetVisible(!vis);
+            ImGui::PopID();
         }
-        ImGui::EndMainMenuBar();
+        ImGui::EndMenu();
     }
+    ImGui::EndMainMenuBar();
 }
+
+// ── worker thread ───────────────────────────────────────────────
 
 void PanelManager::WorkerLoop(std::stop_token st) {
     using Clock = std::chrono::steady_clock;
@@ -85,28 +92,33 @@ void PanelManager::WorkerLoop(std::stop_token st) {
                 p->OnLoop();
             }
         }
+
+        // Fixed-rate timing: sleep until next tick, clamp to now if overrun
+        auto now = Clock::now();
+        if (next < now) next = now;
         std::this_thread::sleep_until(next);
         next += kInterval;
     }
 }
 
+// ── persistence ─────────────────────────────────────────────────
+
 void PanelManager::SaveToFile(const std::string& path) const {
-    std::shared_lock lock(panelsMutex_);
-
     json arr = json::array();
-    for (auto& p : panels_) {
-        json entry;
-        entry["typeId"]  = p->TypeId();
-        entry["visible"] = p->IsVisible();
-        if (!(p->Flags() & PanelFlags::NoSettings)) {
-            auto settings = p->SaveSettings();
-            if (!settings.is_null() && !settings.empty())
-                entry["settings"] = settings;
+    {
+        std::shared_lock lock(panelsMutex_);
+        for (auto& p : panels_) {
+            json entry;
+            entry["typeId"]  = p->TypeId();
+            entry["visible"] = p->IsVisible();
+            if (!(p->Flags() & PanelFlags::NoSettings)) {
+                auto settings = p->SaveSettings();
+                if (!settings.is_null() && !settings.empty())
+                    entry["settings"] = settings;
+            }
+            arr.push_back(entry);
         }
-        arr.push_back(entry);
     }
-
-    lock.unlock();
 
     std::ofstream f(path);
     if (f) {

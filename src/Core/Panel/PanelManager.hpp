@@ -18,10 +18,10 @@ public:
     void   Start();
     Panel* Add(std::string_view typeId);
     void   Remove(std::string_view id);
-    void   Draw();
-    void   DrawMenuBar();
 
-    bool Empty() const { return panels_.empty(); }
+    void Draw();
+    void DrawMenuBar();
+    bool Empty() const;
 
     void SaveToFile(const std::string& path) const;
     void LoadFromFile(const std::string& path);
@@ -29,6 +29,8 @@ public:
 private:
     void WorkerLoop(std::stop_token st);
 
+    // panels_ guarded by panelsMutex_: shared_lock for reads, unique_lock for writes.
+    // Individual panel state guarded by panel->mutex_.
     std::vector<std::unique_ptr<Panel>> panels_;
     mutable std::shared_mutex           panelsMutex_;
     std::jthread                        worker_;
