@@ -4,30 +4,36 @@
 
 namespace Kilo {
 
-class PlanePanel : public Panel {
+class Airspace : public Panel {
 public:
-    PlanePanel();
+    Airspace();
     void OnDraw() override;
 
 private:
-    void DrawControlsWindow();
+    bool DrawControls();
     void HandleInput(float dt, bool focused);
     void UpdatePhysics(float dt, bool focused);
     void UpdateChaseCamera();
     void DrawScene();
     void CaptureChaseCamera();
 
+    // Aircraft state
     glm::vec3 pos_{0, 0, -2.f};
-    float yaw_ = 0.f, pitch_ = 0.f, roll_ = 0.f, speed_ = 0.f;
-    bool  chase_   = true;
-    bool  freecam_ = false;
+    float yaw_   = 0.f;
+    float pitch_ = 0.f;
+    float roll_  = 0.f;
+    float speed_ = 0.f;
 
-    // Chase camera: MMB-orbit offsets and scroll distance, captured from Draw.cpp
+    // Camera mode
+    bool chase_   = true;
+    bool freecam_ = false;
+
+    // Chase camera offsets (accumulated from user orbit/zoom)
     float chaseYawOff_   = 0.f;
     float chasePitchOff_ = 0.f;
     float chaseDist_     = 4.f;
-    float camYawPrev_    = 0.f;
-    float camPitchPrev_  = 0.f;
+    float prevYaw_       = 0.f;
+    float prevPitch_     = 0.f;
 };
 
 } // namespace Kilo
