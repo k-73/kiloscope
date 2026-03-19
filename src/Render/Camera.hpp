@@ -75,7 +75,6 @@ public:
     bool Following() const { return following_; }
 
     void ResetFollow(float distance = -1.f) {
-        following_ = true;
         followYawOff_ = followPitchOff_ = 0.f;
         if (distance > 0.f) followDist_ = distance;
     }

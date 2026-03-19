@@ -86,9 +86,10 @@ void main() {
         ? (axCol * axA + gridCol * gridA * (1.0 - axA)) / alpha
         : vec3(0);
 
-    // Distance fade
-    float d    = length(fp.xy - uCamPos.xy);
-    float fade = 1.0 - smoothstep(uCamDist * uFadeStart, uCamDist * uFadeEnd, d);
+    // Distance fade — additive base ensures grid stays visible at close zoom
+    float d      = length(fp.xy - uCamPos.xy);
+    float scale  = 1.0 + uCamDist;
+    float fade   = 1.0 - smoothstep(uFadeStart * scale, uFadeEnd * scale, d);
     alpha *= fade;
     if (alpha < 0.003) discard;
 

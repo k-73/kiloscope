@@ -14,9 +14,9 @@ void main() {
     );
     vec2 p = pos[gl_VertexID];
 
-    // Unproject to world space at near and far planes
-    vec4 n = uInvViewProj * vec4(p, 0, 1);
-    vec4 f = uInvViewProj * vec4(p, 1, 1);
+    // Unproject to world space at near and far planes (OpenGL NDC z: -1..+1)
+    vec4 n = uInvViewProj * vec4(p, -1, 1);
+    vec4 f = uInvViewProj * vec4(p,  1, 1);
     vNear = n.xyz / n.w;
     vFar  = f.xyz / f.w;
 
