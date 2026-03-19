@@ -1,5 +1,6 @@
 #include "Render/DrawState.hpp"
 #include <GLFW/glfw3.h>
+#include <algorithm>
 #include <generator/SphereMesh.hpp>
 #include <generator/BoxMesh.hpp>
 #include <generator/CappedCylinderMesh.hpp>
@@ -582,8 +583,9 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     float aspect = static_cast<float>(w) / std::max(1, h);
     sView = cam.View();
     sProj  = cam.Projection(aspect);
-    sViewProj = sProj * sView;
-    sCamPos   = cam.Position();
+    sViewProj    = sProj * sView;
+    sInvViewProj = glm::inverse(sViewProj);
+    sCamPos      = cam.Position();
     sLightDir = glm::normalize(scene->env.lightDir);
     sVpW = w; sVpH = h;
 
@@ -595,7 +597,7 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     scene->nextPickId     = 0;
     scene->activePickId     = 0;
     scene->pickIdOverride = 0;
-    scene->pickEnabled    = true;
+    scene->pickEnabled    = hovered;
     scene->pickConsumed   = false;
     scene->meshFrameReady = false;
 
@@ -628,10 +630,8 @@ void Begin(const char* name, const ViewportConfig& cfg) {
 // ── DrawSun / DrawGrid ───────────────────────────────────────────────
 
 static void DrawSun() {
-    ctx().pickEnabled = false;
     auto& env = ctx().env;
 
-    // Sun follows camera — always in the sky, unreachable
     constexpr float kSunDist   = 30.f;
     constexpr float kSunRadius = 0.5f;
     glm::vec3 sunPos = sCamPos + glm::normalize(env.lightDir) * kSunDist;
@@ -640,8 +640,6 @@ static void DrawSun() {
     SetNextEmissive();
     Sphere(sunPos, kSunRadius, {1.f, .98f, .85f, 1.f}, 24);
     glDepthFunc(GL_LESS);
-
-    ctx().pickEnabled = true;
 }
 
 static glm::vec4 FrameAxisColor(const glm::mat3& fm, int axis, const glm::vec4 (&colors)[3]) {
@@ -656,7 +654,7 @@ static void DrawGrid(const GridConfig& cfg, float camDist) {
     const glm::mat3& fm = ctx().frameMat;
 
     sGridShader.Use();
-    sGridShader.Set("uInvViewProj", glm::inverse(sViewProj));
+    sGridShader.Set("uInvViewProj", sInvViewProj);
     sGridShader.Set("uViewProj", sViewProj);
     sGridShader.Set("uCamPos", sCamPos);
     sGridShader.Set("uCamDist", camDist);
@@ -686,17 +684,17 @@ static void DrawGrid(const GridConfig& cfg, float camDist) {
 // ── End ──────────────────────────────────────────────────────────────
 
 void End() {
+    // Internal draws (sun, crosshair) must not inherit pick IDs from user code
+    ctx().activePickId = 0;
+
     // Crosshair and sun operate in internal coords — bypass frame
     PushMatrix();
     SetMatrix(glm::mat4(1.f));
 
     if (sFrame.fly) {
-        ctx().pickEnabled = false;
         auto& cam   = ctx().cam;
         auto  pivot = cam.Pivot();
         float s     = cam.Distance() * 0.03f;
-        // Draw pivot axes in user-frame directions so they match the scene convention.
-        // fm[i] = direction of user axis i in internal space (e.g. NED: fm[2] = Down).
         const glm::mat3& fm = ctx().frameMat;
         const glm::vec4 axColors[3] = {
             {.95f,.25f,.25f,.7f}, {.35f,.85f,.35f,.7f}, {.35f,.50f,.95f,.7f}};
@@ -705,7 +703,6 @@ void End() {
         Line(pivot, pivot + fm[2] * s, axColors[2], 2.f);
         Line(cam.Eye(), pivot, {1,1,1,.15f}, 1.f);
         Text(pivot + fm[0]*s*.4f + fm[2]*s*.4f, {1,1,1,.6f}, "%.1f", cam.Distance());
-        ctx().pickEnabled = true;
     }
 
     if (ctx().env.showSun) DrawSun();
@@ -735,35 +732,33 @@ void End() {
             EndPickPass();
         }
 
+        // Sort by shading mode: solid (0,1,2) first, glow (3) last.
+        // Solid needs depth writes; glow is additive without depth write.
+        // Within each group, order is irrelevant (depth test for solid,
+        // additive blend is commutative for glow).
+        auto solidFirst = [](const MeshDraw& a, const MeshDraw& b) {
+            return (a.shadingMode < 3) > (b.shadingMode < 3);
+        };
+        std::stable_sort(dl.begin(), dl.end(), solidFirst);
+
         SetMeshFrameUniforms();
         sMeshShader.Use();
 
-        // Solid pass first (populates depth buffer)
+        bool inGlow = false;
         for (auto& d : dl) {
-            if (d.shadingMode == 3) continue;
+            if (!inGlow && d.shadingMode == 3) {
+                glEnable(GL_BLEND);
+                glBlendFunc(GL_ONE, GL_ONE);
+                glDepthMask(GL_FALSE);
+                glDisable(GL_CULL_FACE);
+                inGlow = true;
+            }
             sMeshShader.Set("uColor", d.color);
             sMeshShader.Set("uUnlit", d.shadingMode);
             glDrawArrays(GL_TRIANGLES, d.offset, d.count);
             ++ctx().stats.drawCalls;
         }
-
-        // Glow pass last (additive on top of solid, depth-tested but no depth write)
-        bool hadGlow = false;
-        for (auto& d : dl) {
-            if (d.shadingMode != 3) continue;
-            if (!hadGlow) {
-                glEnable(GL_BLEND);
-                glBlendFunc(GL_ONE, GL_ONE);
-                glDepthMask(GL_FALSE);
-                glDisable(GL_CULL_FACE);
-                hadGlow = true;
-            }
-            sMeshShader.Set("uColor", d.color);
-            sMeshShader.Set("uUnlit", 3);
-            glDrawArrays(GL_TRIANGLES, d.offset, d.count);
-            ++ctx().stats.drawCalls;
-        }
-        if (hadGlow) {
+        if (inGlow) {
             glDisable(GL_BLEND);
             glDepthMask(GL_TRUE);
             glEnable(GL_CULL_FACE);

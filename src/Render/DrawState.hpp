@@ -184,7 +184,7 @@ inline void UploadVbo(GLuint vbo, GLsizeiptr& cap, const void* data, GLsizeiptr 
     }
 }
 
-inline glm::mat4 sView, sProj, sViewProj;
+inline glm::mat4 sView, sProj, sViewProj, sInvViewProj;
 inline glm::vec3 sCamPos, sLightDir;
 inline int sVpW = 1, sVpH = 1;
 
