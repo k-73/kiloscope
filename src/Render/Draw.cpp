@@ -540,7 +540,7 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     if (!hovered) { scene->hoveredPickId = 0; scene->pickFbo.pboReady = false; }
     bool active = ImGui::IsItemActive();
     bool shift = ImGui::IsKeyDown(ImGuiKey_LeftShift) || ImGui::IsKeyDown(ImGuiKey_RightShift);
-    bool fly = active && ImGui::IsMouseDown(ImGuiMouseButton_Right);
+    bool fly = active && ImGui::IsMouseDown(ImGuiMouseButton_Right) && !cam.Following();
 
     if (hovered && io.MouseWheel != 0.f) cam.Zoom(io.MouseWheel);
     if (active && ImGui::IsMouseDragging(ImGuiMouseButton_Middle)) {

@@ -51,6 +51,35 @@ public:
     // ── focus ───────────────────────────────────────────────────
     void Focus(const glm::vec3& pos) { pivot_ = pos; }
 
+    // ── follow mode ─────────────────────────────────────────────
+    // Camera tracks a moving target with base yaw/pitch while the
+    // user can orbit (MMB) and zoom (scroll) on top.
+    // Call Follow() before Render::Begin, CaptureFollow() after End.
+    void Follow(const glm::vec3& target, float yaw, float basePitch = 18.f) {
+        following_ = true;
+        pivot_ = target;
+        yaw_   = yaw + followYawOff_;
+        pitch_ = basePitch + followPitchOff_;
+        dist_  = followDist_;
+        snapYaw_   = yaw_;
+        snapPitch_ = pitch_;
+    }
+
+    void CaptureFollow() {
+        followYawOff_   += yaw_ - snapYaw_;
+        followPitchOff_  = std::clamp(followPitchOff_ + pitch_ - snapPitch_, -70.f, 70.f);
+        followDist_      = dist_;
+    }
+
+    void Unfollow()  { following_ = false; }
+    bool Following() const { return following_; }
+
+    void ResetFollow(float distance = -1.f) {
+        following_ = true;
+        followYawOff_ = followPitchOff_ = 0.f;
+        if (distance > 0.f) followDist_ = distance;
+    }
+
     // ── direction vectors ───────────────────────────────────────
     glm::vec3 ViewDir() const {
         float cy = std::cos(glm::radians(yaw_)),  sy = std::sin(glm::radians(yaw_));
@@ -94,6 +123,12 @@ public:
 private:
     glm::vec3 pivot_{0.f};
     float dist_ = 8.f, yaw_ = 45.f, pitch_ = 30.f, fov_ = 45.f;
+
+    // follow mode state
+    bool  following_    = false;
+    float followYawOff_ = 0.f, followPitchOff_ = 0.f;
+    float followDist_   = 4.f;
+    float snapYaw_      = 0.f, snapPitch_ = 0.f;
 };
 
 } // namespace Kilo::Render

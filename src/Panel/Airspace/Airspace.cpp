@@ -38,7 +38,7 @@ static void DrawAircraft() {
 
 // ── controls ────────────────────────────────────────────────────
 
-bool Airspace::DrawControls() {
+void Airspace::DrawControls() {
     ImGui::Begin("Airspace");
     ImGui::Text("Camera: %s  [C]", freecam_ ? "FreeCam" : "Chase");
     if (!freecam_) ImGui::Checkbox("Chase Camera", &chase_);
@@ -50,9 +50,7 @@ bool Airspace::DrawControls() {
     ImGui::Separator();
     ImGui::Text("N %.1f  E %.1f  Alt %.1f", pos_.x, pos_.y, -pos_.z);
     ImGui::TextDisabled(freecam_ ? "RMB+WASD = fly camera" : "WASD = fly  |  MMB = orbit");
-    bool focused = ImGui::IsWindowFocused();
     ImGui::End();
-    return focused;
 }
 
 // ── input ───────────────────────────────────────────────────────
@@ -60,7 +58,7 @@ bool Airspace::DrawControls() {
 void Airspace::HandleInput(float dt, bool focused) {
     if (focused && ImGui::IsKeyPressed(ImGuiKey_C, false)) {
         freecam_ = !freecam_;
-        if (!freecam_) { chaseYawOff_ = 0.f; chasePitchOff_ = 0.f; }
+        if (!freecam_) GetCamera("flight").ResetFollow();
     }
     if (!focused || freecam_) return;
 
@@ -91,28 +89,6 @@ void Airspace::UpdatePhysics(float dt, bool focused) {
     pos_.y += speed_ * std::sin(yr) * cp * dt;
     pos_.z -= speed_ * std::sin(pr) * dt;
     pos_.z  = std::min(pos_.z, -0.1f);
-}
-
-// ── chase camera ────────────────────────────────────────────────
-
-void Airspace::UpdateChaseCamera() {
-    if (freecam_ || !chase_) return;
-    auto& cam      = GetCamera("flight");
-    cam.Target()   = NED::M * pos_;
-    cam.Yaw()      = -yaw_ - 90.f + chaseYawOff_;
-    cam.Pitch()    = 18.f + chasePitchOff_;
-    cam.Distance() = chaseDist_;
-    prevYaw_       = cam.Yaw();
-    prevPitch_     = cam.Pitch();
-}
-
-// Capture MMB-orbit and scroll-zoom deltas applied by the renderer.
-void Airspace::CaptureChaseCamera() {
-    if (freecam_ || !chase_) return;
-    auto& cam       = GetCamera("flight");
-    chaseYawOff_   += cam.Yaw()   - prevYaw_;
-    chasePitchOff_  = std::clamp(chasePitchOff_ + cam.Pitch() - prevPitch_, -70.f, 70.f);
-    chaseDist_      = cam.Distance();
 }
 
 // ── scene ───────────────────────────────────────────────────────
@@ -156,12 +132,24 @@ void Airspace::OnDraw() {
     env.showSun  = true;
     env.lightDir = NED::M * glm::vec3{0.4f, 0.2f, -0.8f};
 
-    bool focused = DrawControls();
+    DrawControls();
+
+    // Panel::Draw() wraps OnDraw() in ImGui::Begin(id_), so the current
+    // window is the panel itself — which contains the 3D viewport.
+    // Clicking the viewport focuses this window, enabling keyboard input.
+    bool focused = ImGui::IsWindowFocused();
     HandleInput(dt, focused);
     UpdatePhysics(dt, focused);
-    UpdateChaseCamera();
+
+    if (!freecam_ && chase_)
+        GetCamera("flight").Follow(NED::M * pos_, -yaw_ - 90.f);
+    else
+        GetCamera("flight").Unfollow();
+
     DrawScene();
-    CaptureChaseCamera();
+
+    if (!freecam_ && chase_)
+        GetCamera("flight").CaptureFollow();
 }
 
 static const bool reg_ = RegisterPanel<Airspace>("Airspace", "Airspace");
