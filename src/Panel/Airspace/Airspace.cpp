@@ -133,10 +133,6 @@ void Airspace::OnDraw() {
     env.lightDir = NED::M * glm::vec3{0.4f, 0.2f, -0.8f};
 
     DrawControls();
-
-    // Panel::Draw() wraps OnDraw() in ImGui::Begin(id_), so the current
-    // window is the panel itself — which contains the 3D viewport.
-    // Clicking the viewport focuses this window, enabling keyboard input.
     bool focused = ImGui::IsWindowFocused();
     HandleInput(dt, focused);
     UpdatePhysics(dt, focused);

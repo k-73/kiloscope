@@ -1,10 +1,10 @@
 #pragma once
-#include <nlohmann/json.hpp>
 #include <atomic>
 #include <mutex>
 #include <string>
 #include <string_view>
 #include <cstdint>
+#include <nlohmann/json.hpp>
 
 namespace Kilo {
 
@@ -38,8 +38,8 @@ public:
     // Lifecycle (worker thread calls OnLoop; main thread calls OnDraw)
     virtual void OnAttach() {}
     virtual void OnDetach() {}
-    virtual void OnLoop()   {}
-    virtual void OnDraw()   = 0;
+    virtual void OnLoop() {}
+    virtual void OnDraw() = 0;
 
     // Persistence
     virtual json SaveSettings() const { return {}; }
@@ -51,9 +51,9 @@ public:
     const std::string& Title()  const { return title_; }
     PanelFlags         Flags()  const { return flags_; }
 
-    // Visibility (atomic — safe to read/write from any thread)
-    bool IsVisible()          const { return visible_; }
-    void SetVisible(bool v)         { visible_ = v; }
+    // Visibility (atomic, thread-safe)
+    bool IsVisible()        const { return visible_; }
+    void SetVisible(bool v)       { visible_ = v; }
 
     void Draw();
 

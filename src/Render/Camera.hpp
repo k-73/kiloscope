@@ -18,15 +18,18 @@ namespace Kilo::Render {
 //   RMB hold     = fly mode (look + WASD/QE movement)
 //   Focus(pos)   = animate pivot to position
 class Camera {
+    static constexpr float kPitchMin = -89.f, kPitchMax = 89.f;
+    static constexpr float kDistMin  = 0.01f, kDistMax  = 1000.f;
+
 public:
     // ── orbit mode ──────────────────────────────────────────────
     void Orbit(float dx, float dy, float sensitivity = 0.3f) {
         yaw_   -= dx * sensitivity;
-        pitch_  = std::clamp(pitch_ + dy * sensitivity, -89.f, 89.f);
+        pitch_  = std::clamp(pitch_ + dy * sensitivity, kPitchMin, kPitchMax);
     }
 
     void Zoom(float delta) {
-        dist_ = std::clamp(dist_ * (1.f - delta * 0.1f), 0.01f, 1000.f);
+        dist_ = std::clamp(dist_ * (1.f - delta * 0.1f), kDistMin, kDistMax);
     }
 
     void Pan(float dx, float dy) {
@@ -38,7 +41,7 @@ public:
     void FlyLook(float dx, float dy, float sensitivity = 0.15f) {
         auto pos = Eye();
         yaw_   -= dx * sensitivity;
-        pitch_  = std::clamp(pitch_ + dy * sensitivity, -89.f, 89.f);
+        pitch_  = std::clamp(pitch_ + dy * sensitivity, kPitchMin, kPitchMax);
         pivot_  = pos + ViewDir() * dist_;
     }
 
@@ -122,13 +125,18 @@ public:
 
 private:
     glm::vec3 pivot_{0.f};
-    float dist_ = 8.f, yaw_ = 45.f, pitch_ = 30.f, fov_ = 45.f;
+    float dist_  = 8.f;
+    float yaw_   = 45.f;
+    float pitch_ = 30.f;
+    float fov_   = 45.f;
 
-    // follow mode state
-    bool  following_    = false;
-    float followYawOff_ = 0.f, followPitchOff_ = 0.f;
-    float followDist_   = 4.f;
-    float snapYaw_      = 0.f, snapPitch_ = 0.f;
+    // follow mode
+    bool  following_      = false;
+    float followYawOff_   = 0.f;
+    float followPitchOff_ = 0.f;
+    float followDist_     = 4.f;
+    float snapYaw_        = 0.f;
+    float snapPitch_      = 0.f;
 };
 
 } // namespace Kilo::Render
