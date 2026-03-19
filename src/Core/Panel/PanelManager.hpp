@@ -2,6 +2,7 @@
 #include "Panel.hpp"
 #include "PanelRegistry.hpp"
 #include <memory>
+#include <shared_mutex>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -29,7 +30,8 @@ private:
     void WorkerLoop(std::stop_token st);
 
     std::vector<std::unique_ptr<Panel>> panels_;
-    std::jthread worker_;
+    mutable std::shared_mutex           panelsMutex_;
+    std::jthread                        worker_;
 };
 
 } // namespace Kilo

@@ -19,6 +19,8 @@ PanelManager::~PanelManager() {
 }
 
 Panel* PanelManager::Add(std::string_view typeId) {
+    std::unique_lock lock(panelsMutex_);
+
     for (auto& p : panels_) {
         if (p->TypeId() == typeId) {
             p->SetVisible(true);
@@ -37,6 +39,8 @@ Panel* PanelManager::Add(std::string_view typeId) {
 }
 
 void PanelManager::Remove(std::string_view id) {
+    std::unique_lock lock(panelsMutex_);
+
     auto it = std::find_if(panels_.begin(), panels_.end(),
         [&](auto& p) { return p->Id() == id; });
     if (it != panels_.end()) {
@@ -47,10 +51,12 @@ void PanelManager::Remove(std::string_view id) {
 }
 
 void PanelManager::Draw() {
+    std::shared_lock lock(panelsMutex_);
     for (auto& p : panels_) p->Draw();
 }
 
 void PanelManager::DrawMenuBar() {
+    std::shared_lock lock(panelsMutex_);
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("Panels")) {
             for (auto& p : panels_) {
@@ -67,17 +73,26 @@ void PanelManager::DrawMenuBar() {
 }
 
 void PanelManager::WorkerLoop(std::stop_token st) {
-    using namespace std::chrono_literals;
+    using Clock = std::chrono::steady_clock;
+    constexpr auto kInterval = std::chrono::milliseconds(1);
+    auto next = Clock::now() + kInterval;
+
     while (!st.stop_requested()) {
-        for (auto& p : panels_) {
-            std::lock_guard g(p->mutex_);
-            p->OnLoop();
+        {
+            std::shared_lock lock(panelsMutex_);
+            for (auto& p : panels_) {
+                std::lock_guard g(p->mutex_);
+                p->OnLoop();
+            }
         }
-        std::this_thread::sleep_for(1ms);
+        std::this_thread::sleep_until(next);
+        next += kInterval;
     }
 }
 
 void PanelManager::SaveToFile(const std::string& path) const {
+    std::shared_lock lock(panelsMutex_);
+
     json arr = json::array();
     for (auto& p : panels_) {
         json entry;
@@ -90,6 +105,9 @@ void PanelManager::SaveToFile(const std::string& path) const {
         }
         arr.push_back(entry);
     }
+
+    lock.unlock();
+
     std::ofstream f(path);
     if (f) {
         f << arr.dump(2);
