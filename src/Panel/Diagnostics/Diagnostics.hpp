@@ -13,8 +13,11 @@ public:
 private:
     bool showImGuiDemo_  = false;
     bool showImPlotDemo_ = false;
-    float frameTimes_[128] = {};
-    int frameIdx_ = 0;
+
+    static constexpr int kHistory = 128;
+    float fpsHistory_[kHistory] = {};
+    int   histIdx_    = 0;
+    int   sampleSkip_ = 0;
 };
 
 } // namespace Kilo

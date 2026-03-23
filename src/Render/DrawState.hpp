@@ -44,13 +44,14 @@ const IndexedMesh& GetUnitDisk(int seg);
 inline void AppendFromCache(std::vector<MeshVert>& out,
                             const IndexedMesh& mesh, const glm::mat4& xform) {
     auto nmat = glm::transpose(glm::inverse(glm::mat3(xform)));
+    bool hasUV = !mesh.uv.empty();
     for (auto& tri : mesh.tri) {
         for (size_t j = 0; j < 3; ++j) {
             auto idx = tri[j];
             MeshVert v;
             v.pos    = glm::vec3(xform * glm::vec4(mesh.pos[idx], 1.f));
             v.normal = glm::normalize(nmat * mesh.nrm[idx]);
-            if (!mesh.uv.empty()) v.uv = mesh.uv[idx];
+            if (hasUV) v.uv = mesh.uv[idx];
             out.push_back(v);
         }
     }

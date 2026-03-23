@@ -74,14 +74,8 @@ void Fbo::Resize(int w, int h, int samples) {
 void Fbo::Bind(float clearR, float clearG, float clearB) {
     glBindFramebuffer(GL_FRAMEBUFFER, msaaFbo_);
     glViewport(0, 0, w_, h_);
-    glDisable(GL_SCISSOR_TEST);
-    glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LESS);
     glDepthMask(GL_TRUE);
     glEnable(GL_CULL_FACE);
-    glCullFace(GL_BACK);
-    glEnable(GL_MULTISAMPLE);
-    glClearDepth(1.0);
     glClearColor(clearR, clearG, clearB, 1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
@@ -91,8 +85,6 @@ void Fbo::Resolve() {
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, resolveFbo_);
     glBlitFramebuffer(0, 0, w_, h_, 0, 0, w_, h_, GL_COLOR_BUFFER_BIT, GL_LINEAR);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glDisable(GL_CULL_FACE);
-    glDisable(GL_DEPTH_TEST);
 }
 
 } // namespace Kilo::Render

@@ -209,17 +209,19 @@ void UploadMesh(const std::vector<MeshVert>& v) {
     s.glowRadius = 0.f;
 
     if (emissive && count > 0) {
-        // Compute centroid + bounding radius in one pass
+        // Compute centroid + bounding radius in single pass
         glm::vec3 centroid(0.f);
         for (GLsizei i = offset; i < offset + count; ++i)
             centroid += s.vboAccum[i].pos;
         centroid /= static_cast<float>(count);
 
         if (glowR <= 0.f) {
-            float maxR = 0.f;
-            for (GLsizei i = offset; i < offset + count; ++i)
-                maxR = glm::max(maxR, glm::length(s.vboAccum[i].pos - centroid));
-            glowR = glm::max(maxR * kGlowRadiusScale, kGlowRadiusMin);
+            float maxR2 = 0.f;
+            for (GLsizei i = offset; i < offset + count; ++i) {
+                auto d = s.vboAccum[i].pos - centroid;
+                maxR2 = glm::max(maxR2, glm::dot(d, d));
+            }
+            glowR = glm::max(std::sqrt(maxR2) * kGlowRadiusScale, kGlowRadiusMin);
         }
 
         sMeshScratch.clear();
@@ -462,6 +464,14 @@ void Init(const std::string& dir) {
     SetupVao(sPointVao, sPointVbo, sizeof(PointVert), {
         {0, {3, offsetof(PointVert, pos)}}, {1, {4, offsetof(PointVert, color)}}});
     bindPickAttr(sPointVao, 2, offsetof(PointVert, pickId));
+
+    // One-time GL state (invariant across frames)
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);
+    glClearDepth(1.0);
+    glCullFace(GL_BACK);
+    glEnable(GL_MULTISAMPLE);
+    glDisable(GL_SCISSOR_TEST);
 }
 
 // ── Shutdown ─────────────────────────────────────────────────────────
@@ -589,7 +599,7 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     sLightDir = glm::normalize(scene->env.lightDir);
     sVpW = w; sVpH = h;
 
-    scene->pickFbo.Clear();
+    if (hovered) scene->pickFbo.Clear();
     glBindFramebuffer(GL_FRAMEBUFFER, scene->fbo.Handle());
     glViewport(0, 0, w, h);
 

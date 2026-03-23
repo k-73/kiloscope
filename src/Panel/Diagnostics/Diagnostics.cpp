@@ -4,6 +4,7 @@
 #include <imgui.h>
 #include <implot.h>
 #include <GL/glew.h>
+#include <algorithm>
 
 namespace Kilo {
 
@@ -12,13 +13,32 @@ static const char* sGlVersion   = nullptr;
 
 void Diagnostics::OnDraw() {
     auto& io = ImGui::GetIO();
+    float fps = io.Framerate;
+    float ft  = 1000.f / fps;
 
-    frameTimes_[frameIdx_] = 1000.f / io.Framerate;
-    frameIdx_ = (frameIdx_ + 1) % 128;
+    // Sample every ~32ms worth of frames → ~4s visible history at any FPS
+    int skip = std::max(1, static_cast<int>(fps * 0.032f));
+    if (++sampleSkip_ >= skip) {
+        sampleSkip_ = 0;
+        fpsHistory_[histIdx_] = fps;
+        histIdx_ = (histIdx_ + 1) % kHistory;
+    }
+
+    // Stats over buffer (128 iterations ≈ negligible)
+    float sum = 0.f, lo = fps, hi = fps;
+    int n = 0;
+    for (int i = 0; i < kHistory; ++i) {
+        float v = fpsHistory_[i];
+        if (v > 0.f) { sum += v; lo = std::min(lo, v); hi = std::max(hi, v); ++n; }
+    }
+    float avg = n > 0 ? sum / float(n) : fps;
 
     ImGui::SeparatorText("Performance");
-    ImGui::Text("%.1f FPS  (%.2f ms)", io.Framerate, 1000.f / io.Framerate);
-    ImGui::PlotLines("##ft", frameTimes_, 128, frameIdx_, nullptr, 0.f, 33.f, {-1, 40});
+    ImGui::Text("%.0f FPS (%.2f ms)   avg %.0f   min %.0f", fps, ft, avg, lo);
+
+    float margin = std::max(1.f, (hi - lo) * 0.15f);
+    ImGui::PlotLines("##fps", fpsHistory_, kHistory, histIdx_, nullptr,
+                     lo - margin, hi + margin, {-1, 60});
 
     ImGui::SeparatorText("Render");
     auto& s = Render::GetStats();
