@@ -74,7 +74,6 @@ static std::unordered_map<int, IndexedMesh> sSphereCache;
 static std::unordered_map<int, IndexedMesh> sCylinderCache;
 static std::unordered_map<int, IndexedMesh> sConeCache;
 static std::unordered_map<int, IndexedMesh> sCapsuleCache;
-static std::unordered_map<int, IndexedMesh> sTorusCache;
 static std::unordered_map<int, IndexedMesh> sDiskCache;
 static IndexedMesh sBoxCache;
 
@@ -122,12 +121,6 @@ IndexedMesh& GetUnitCone(int seg) {
 IndexedMesh& GetUnitCapsule(int seg) {
     auto& m = sCapsuleCache[seg];
     if (m.pos.empty()) BuildCache(m, generator::CapsuleMesh(1.f, 1.f, seg, 1, seg / 2));
-    return m;
-}
-
-IndexedMesh& GetUnitTorus(int seg) {
-    auto& m = sTorusCache[seg];
-    if (m.pos.empty()) BuildCache(m, generator::TorusMesh(1.f, 1.f, seg / 2, seg));
     return m;
 }
 
@@ -197,6 +190,8 @@ static void EndPickPass() {
     glViewport(0, 0, sVpW, sVpH);
 }
 
+static void UploadGpuMesh(IndexedMesh& mesh);  // forward decl
+
 void UploadMesh(const std::vector<MeshVert>& v) {
     auto& s = ctx();
     auto count  = static_cast<GLsizei>(v.size());
@@ -213,7 +208,7 @@ void UploadMesh(const std::vector<MeshVert>& v) {
     s.glowRadius = 0.f;
 
     if (emissive && count > 0) {
-        // Compute centroid + bounding radius in single pass
+        // Centroid from already-world-space flat vertices
         glm::vec3 centroid(0.f);
         for (GLsizei i = offset; i < offset + count; ++i)
             centroid += s.vboAccum[i].pos;
@@ -228,15 +223,14 @@ void UploadMesh(const std::vector<MeshVert>& v) {
             glowR = glm::max(std::sqrt(maxR2) * kGlowRadiusScale, kGlowRadiusMin);
         }
 
-        sMeshScratch.clear();
-        AppendFromCache(sMeshScratch, GetUnitSphere(16),
-                        glm::scale(glm::translate(glm::mat4(1.f), centroid), glm::vec3(glowR)));
-        auto glowOffset = static_cast<GLsizei>(s.vboAccum.size());
-        auto glowCount  = static_cast<GLsizei>(sMeshScratch.size());
-        s.vboAccum.insert(s.vboAccum.end(), sMeshScratch.begin(), sMeshScratch.end());
-        s.drawList.push_back({glowOffset, glowCount,
-            {s.currentColor.r, s.currentColor.g, s.currentColor.b, kGlowAlpha}, 3, 0});
-        s.stats.vertices += glowCount;
+        // Glow sphere via GPU path (no CPU vertex transform)
+        auto glowModel = glm::scale(glm::translate(glm::mat4(1.f), centroid), glm::vec3(glowR));
+        auto& glowMesh = GetUnitSphere(16);
+        UploadGpuMesh(glowMesh);
+        s.drawList.push_back({0, 0,
+            {s.currentColor.r, s.currentColor.g, s.currentColor.b, kGlowAlpha},
+            3, 0, &glowMesh.gpu, glowModel, glm::mat3(1.f)});
+        s.stats.vertices += glowMesh.gpu.indexCount;
     }
 }
 
@@ -287,8 +281,9 @@ static void UploadGpuMesh(IndexedMesh& mesh) {
 void UploadGpuDraw(IndexedMesh& mesh, const glm::mat4& model) {
     UploadGpuMesh(mesh);
     auto& s = ctx();
+    auto nmat = glm::transpose(glm::inverse(glm::mat3(model)));
     s.drawList.push_back({0, 0, s.currentColor, s.currentShadingMode,
-                          s.activePickId, &mesh.gpu, model});
+                          s.activePickId, &mesh.gpu, model, nmat});
     s.stats.vertices += mesh.gpu.indexCount;
 
     // Emissive glow sphere (centroid from model translation, radius from bounding sphere)
@@ -312,7 +307,7 @@ void UploadGpuDraw(IndexedMesh& mesh, const glm::mat4& model) {
         UploadGpuMesh(glowMesh);
         s.drawList.push_back({0, 0,
             {s.currentColor.r, s.currentColor.g, s.currentColor.b, kGlowAlpha},
-            3, 0, &glowMesh.gpu, glowModel});
+            3, 0, &glowMesh.gpu, glowModel, glm::mat3(1.f)});
         s.stats.vertices += glowMesh.gpu.indexCount;
     }
 }
@@ -578,7 +573,7 @@ void Shutdown() {
     };
     destroyGpuCache(sSphereCache); destroyGpuCache(sCylinderCache);
     destroyGpuCache(sConeCache); destroyGpuCache(sCapsuleCache);
-    destroyGpuCache(sTorusCache); destroyGpuCache(sDiskCache);
+    destroyGpuCache(sDiskCache);
     if (sBoxCache.gpu.vao) { glDeleteVertexArrays(1, &sBoxCache.gpu.vao);
                               glDeleteBuffers(1, &sBoxCache.gpu.vbo);
                               glDeleteBuffers(1, &sBoxCache.gpu.ebo); }
@@ -873,8 +868,7 @@ void End() {
             sMeshShader.Set("uColor", d.color);
             sMeshShader.Set("uUnlit", d.shadingMode);
             sMeshShader.Set("uModel", d.model);
-            sMeshShader.Set("uNormalMat",
-                glm::transpose(glm::inverse(glm::mat3(d.model))));
+            sMeshShader.Set("uNormalMat", d.normalMat);
             bindAndDraw(d);
             ++ctx().stats.drawCalls;
         }

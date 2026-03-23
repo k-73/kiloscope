@@ -16,8 +16,8 @@ Panel::Panel(std::string_view typeId, std::string title, PanelFlags flags)
 Panel::~Panel() = default;
 
 void Panel::Draw() {
-    if (!visible_) return;
     std::lock_guard g(mutex_);
+    if (!visible_) return;
     bool open = true;
     ImGui::Begin(id_.c_str(), &open);
     if (!open) { visible_ = false; ImGui::End(); return; }

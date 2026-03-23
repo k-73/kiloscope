@@ -47,24 +47,7 @@ IndexedMesh& GetUnitBox();
 IndexedMesh& GetUnitCylinder(int seg);
 IndexedMesh& GetUnitCone(int seg);
 IndexedMesh& GetUnitCapsule(int seg);
-IndexedMesh& GetUnitTorus(int seg);
 IndexedMesh& GetUnitDisk(int seg);
-
-inline void AppendFromCache(std::vector<MeshVert>& out,
-                            const IndexedMesh& mesh, const glm::mat4& xform) {
-    auto nmat = glm::transpose(glm::inverse(glm::mat3(xform)));
-    bool hasUV = !mesh.uv.empty();
-    for (auto& tri : mesh.tri) {
-        for (size_t j = 0; j < 3; ++j) {
-            auto idx = tri[j];
-            MeshVert v;
-            v.pos    = glm::vec3(xform * glm::vec4(mesh.pos[idx], 1.f));
-            v.normal = glm::normalize(nmat * mesh.nrm[idx]);
-            if (hasUV) v.uv = mesh.uv[idx];
-            out.push_back(v);
-        }
-    }
-}
 
 struct MeshDraw {
     GLsizei offset, count;
@@ -73,6 +56,7 @@ struct MeshDraw {
     uint32_t pickId;
     const GpuMesh* gpuMesh = nullptr;   // non-null → GPU-side indexed draw
     glm::mat4 model{1.f};
+    glm::mat3 normalMat{1.f};           // precomputed transpose(inverse(mat3(model)))
 };
 
 // ── FBO types ────────────────────────────────────────────────────────
