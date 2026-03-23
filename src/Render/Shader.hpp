@@ -22,6 +22,7 @@ public:
     GLuint Id() const { return prog_; }
 
     void Set(const char* n, const glm::mat4& m) const;
+    void Set(const char* n, const glm::mat3& m) const;
     void Set(const char* n, const glm::vec2& v) const;
     void Set(const char* n, const glm::vec3& v) const;
     void Set(const char* n, const glm::vec4& v) const;

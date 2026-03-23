@@ -27,20 +27,28 @@ struct LineVert  { glm::vec3 pos, otherEnd; glm::vec2 expand; glm::vec4 color; u
 struct PointVert { glm::vec3 pos; glm::vec4 color; uint32_t pickId; };
 struct TextEntry { glm::vec3 worldPos; glm::vec4 color; std::string text; };
 
-// Cached indexed mesh (generated once, transformed per-use)
+// GPU-resident mesh (uploaded once, drawn with per-instance model matrix)
+struct GpuMesh {
+    GLuint  vao = 0, vbo = 0, ebo = 0;
+    GLsizei indexCount = 0;
+};
+
+// Cached indexed mesh (generated once, lazily uploaded to GPU)
 struct IndexedMesh {
     std::vector<glm::vec3> pos, nrm;
     std::vector<glm::vec2> uv;
     std::vector<std::array<int, 3>> tri;
+    float   boundingRadius = 0.f;
+    GpuMesh gpu;
 };
 
-const IndexedMesh& GetUnitSphere(int seg);
-const IndexedMesh& GetUnitBox();
-const IndexedMesh& GetUnitCylinder(int seg);
-const IndexedMesh& GetUnitCone(int seg);
-const IndexedMesh& GetUnitCapsule(int seg);
-const IndexedMesh& GetUnitTorus(int seg);
-const IndexedMesh& GetUnitDisk(int seg);
+IndexedMesh& GetUnitSphere(int seg);
+IndexedMesh& GetUnitBox();
+IndexedMesh& GetUnitCylinder(int seg);
+IndexedMesh& GetUnitCone(int seg);
+IndexedMesh& GetUnitCapsule(int seg);
+IndexedMesh& GetUnitTorus(int seg);
+IndexedMesh& GetUnitDisk(int seg);
 
 inline void AppendFromCache(std::vector<MeshVert>& out,
                             const IndexedMesh& mesh, const glm::mat4& xform) {
@@ -63,6 +71,8 @@ struct MeshDraw {
     glm::vec4 color;
     int shadingMode;          // 0=lit, 1=unlit, 2=emissive, 3=glow
     uint32_t pickId;
+    const GpuMesh* gpuMesh = nullptr;   // non-null → GPU-side indexed draw
+    glm::mat4 model{1.f};
 };
 
 // ── FBO types ────────────────────────────────────────────────────────
@@ -264,6 +274,7 @@ struct PickGroup {
 // ── function declarations (defined in Draw.cpp, called by DrawPrimitives.cpp)
 void SetMeshUniforms(const glm::vec4& color, bool unlit = false);
 void UploadMesh(const std::vector<MeshVert>& v);
+void UploadGpuDraw(IndexedMesh& mesh, const glm::mat4& model);
 void BatchLine(const glm::vec3& a, const glm::vec3& b,
                const glm::vec4& color, float width);
 void BatchLineGradient(const glm::vec3& a, const glm::vec3& b,

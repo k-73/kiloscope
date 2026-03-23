@@ -80,54 +80,58 @@ static IndexedMesh sBoxCache;
 
 template <typename GenT>
 static void BuildCache(IndexedMesh& out, const GenT& gen) {
+    float maxR2 = 0.f;
     for (auto it = gen.vertices(); !it.done(); it.next()) {
         auto v = it.generate();
-        out.pos.push_back(glm::vec3(v.position));
+        auto p = glm::vec3(v.position);
+        out.pos.push_back(p);
         out.nrm.push_back(glm::vec3(v.normal));
         out.uv.push_back(glm::vec2(v.texCoord));
+        maxR2 = glm::max(maxR2, glm::dot(p, p));
     }
+    out.boundingRadius = std::sqrt(maxR2);
     for (auto it = gen.triangles(); !it.done(); it.next()) {
         auto t = it.generate();
         out.tri.push_back({t.vertices[0], t.vertices[1], t.vertices[2]});
     }
 }
 
-const IndexedMesh& GetUnitSphere(int seg) {
+IndexedMesh& GetUnitSphere(int seg) {
     auto& m = sSphereCache[seg];
     if (m.pos.empty()) BuildCache(m, generator::SphereMesh(1.f, seg, seg / 2));
     return m;
 }
 
-const IndexedMesh& GetUnitBox() {
+IndexedMesh& GetUnitBox() {
     if (sBoxCache.pos.empty()) BuildCache(sBoxCache, generator::BoxMesh({.5f, .5f, .5f}, {1, 1, 1}));
     return sBoxCache;
 }
 
-const IndexedMesh& GetUnitCylinder(int seg) {
+IndexedMesh& GetUnitCylinder(int seg) {
     auto& m = sCylinderCache[seg];
     if (m.pos.empty()) BuildCache(m, generator::CappedCylinderMesh(1.f, 1.f, seg, 1, 1));
     return m;
 }
 
-const IndexedMesh& GetUnitCone(int seg) {
+IndexedMesh& GetUnitCone(int seg) {
     auto& m = sConeCache[seg];
     if (m.pos.empty()) BuildCache(m, generator::CappedConeMesh(1.f, 1.f, seg, 1, 1));
     return m;
 }
 
-const IndexedMesh& GetUnitCapsule(int seg) {
+IndexedMesh& GetUnitCapsule(int seg) {
     auto& m = sCapsuleCache[seg];
     if (m.pos.empty()) BuildCache(m, generator::CapsuleMesh(1.f, 1.f, seg, 1, seg / 2));
     return m;
 }
 
-const IndexedMesh& GetUnitTorus(int seg) {
+IndexedMesh& GetUnitTorus(int seg) {
     auto& m = sTorusCache[seg];
     if (m.pos.empty()) BuildCache(m, generator::TorusMesh(1.f, 1.f, seg / 2, seg));
     return m;
 }
 
-const IndexedMesh& GetUnitDisk(int seg) {
+IndexedMesh& GetUnitDisk(int seg) {
     auto& m = sDiskCache[seg];
     if (m.pos.empty()) BuildCache(m, generator::DiskMesh(1.f, 0.0, seg, 1));
     return m;
@@ -233,6 +237,83 @@ void UploadMesh(const std::vector<MeshVert>& v) {
         s.drawList.push_back({glowOffset, glowCount,
             {s.currentColor.r, s.currentColor.g, s.currentColor.b, kGlowAlpha}, 3, 0});
         s.stats.vertices += glowCount;
+    }
+}
+
+// ── GPU mesh upload (static, immutable — once per unique mesh) ────────
+
+static void UploadGpuMesh(IndexedMesh& mesh) {
+    auto& g = mesh.gpu;
+    if (g.vao) return;  // already uploaded
+
+    // Interleaved vertex buffer from indexed data
+    std::vector<MeshVert> verts(mesh.pos.size());
+    bool hasUV = !mesh.uv.empty();
+    for (size_t i = 0; i < mesh.pos.size(); ++i) {
+        verts[i].pos    = mesh.pos[i];
+        verts[i].normal = mesh.nrm[i];
+        if (hasUV) verts[i].uv = mesh.uv[i];
+    }
+
+    // Flatten triangle indices
+    std::vector<uint32_t> indices;
+    indices.reserve(mesh.tri.size() * 3);
+    for (auto& t : mesh.tri) {
+        indices.push_back(static_cast<uint32_t>(t[0]));
+        indices.push_back(static_cast<uint32_t>(t[1]));
+        indices.push_back(static_cast<uint32_t>(t[2]));
+    }
+    g.indexCount = static_cast<GLsizei>(indices.size());
+
+    glCreateVertexArrays(1, &g.vao);
+    glCreateBuffers(1, &g.vbo);
+    glCreateBuffers(1, &g.ebo);
+    glNamedBufferStorage(g.vbo, GLsizeiptr(verts.size() * sizeof(MeshVert)), verts.data(), 0);
+    glNamedBufferStorage(g.ebo, GLsizeiptr(indices.size() * sizeof(uint32_t)), indices.data(), 0);
+
+    // Same attribute layout as sMeshVao
+    glVertexArrayVertexBuffer(g.vao, 0, g.vbo, 0, sizeof(MeshVert));
+    glVertexArrayElementBuffer(g.vao, g.ebo);
+    auto attr = [&](GLuint idx, GLint size, GLuint offset) {
+        glEnableVertexArrayAttrib(g.vao, idx);
+        glVertexArrayAttribFormat(g.vao, idx, size, GL_FLOAT, GL_FALSE, offset);
+        glVertexArrayAttribBinding(g.vao, idx, 0);
+    };
+    attr(0, 3, offsetof(MeshVert, pos));
+    attr(1, 3, offsetof(MeshVert, normal));
+    attr(2, 2, offsetof(MeshVert, uv));
+}
+
+void UploadGpuDraw(IndexedMesh& mesh, const glm::mat4& model) {
+    UploadGpuMesh(mesh);
+    auto& s = ctx();
+    s.drawList.push_back({0, 0, s.currentColor, s.currentShadingMode,
+                          s.activePickId, &mesh.gpu, model});
+    s.stats.vertices += mesh.gpu.indexCount;
+
+    // Emissive glow sphere (centroid from model translation, radius from bounding sphere)
+    bool emissive = s.emissive;
+    float glowR   = s.glowRadius;
+    s.emissive = false;
+    s.glow     = false;
+    s.glowRadius = 0.f;
+
+    if (emissive) {
+        glm::vec3 centroid = glm::vec3(model[3]);
+        if (glowR <= 0.f) {
+            float sx = glm::length(glm::vec3(model[0]));
+            float sy = glm::length(glm::vec3(model[1]));
+            float sz = glm::length(glm::vec3(model[2]));
+            glowR = glm::max(mesh.boundingRadius * glm::max(sx, glm::max(sy, sz))
+                             * kGlowRadiusScale, kGlowRadiusMin);
+        }
+        auto glowModel = glm::scale(glm::translate(glm::mat4(1.f), centroid), glm::vec3(glowR));
+        auto& glowMesh = GetUnitSphere(16);
+        UploadGpuMesh(glowMesh);
+        s.drawList.push_back({0, 0,
+            {s.currentColor.r, s.currentColor.g, s.currentColor.b, kGlowAlpha},
+            3, 0, &glowMesh.gpu, glowModel});
+        s.stats.vertices += glowMesh.gpu.indexCount;
     }
 }
 
@@ -487,8 +568,20 @@ void Shutdown() {
     sMeshVao = sLineVao = sGridVao = sPointVao = 0;
     sMeshVbo = sLineVbo = sPointVbo = 0;
     sMeshVboCap = sLineVboCap = sPointVboCap = 0;
-    sSphereCache.clear(); sCylinderCache.clear(); sConeCache.clear();
-    sCapsuleCache.clear(); sTorusCache.clear(); sDiskCache.clear();
+    auto destroyGpuCache = [](auto& cache) {
+        for (auto& [_, m] : cache) {
+            if (m.gpu.vao) { glDeleteVertexArrays(1, &m.gpu.vao);
+                             glDeleteBuffers(1, &m.gpu.vbo);
+                             glDeleteBuffers(1, &m.gpu.ebo); }
+        }
+        cache.clear();
+    };
+    destroyGpuCache(sSphereCache); destroyGpuCache(sCylinderCache);
+    destroyGpuCache(sConeCache); destroyGpuCache(sCapsuleCache);
+    destroyGpuCache(sTorusCache); destroyGpuCache(sDiskCache);
+    if (sBoxCache.gpu.vao) { glDeleteVertexArrays(1, &sBoxCache.gpu.vao);
+                              glDeleteBuffers(1, &sBoxCache.gpu.vbo);
+                              glDeleteBuffers(1, &sBoxCache.gpu.ebo); }
     sBoxCache = {};
     sFrame = {};
 }
@@ -724,11 +817,28 @@ void End() {
     auto& dl = ctx().drawList;
 
     if (!dl.empty()) {
-        UploadVbo(sMeshVbo, sMeshVboCap, ctx().vboAccum.data(),
-                  GLsizeiptr(ctx().vboAccum.size() * sizeof(MeshVert)));
-        glBindVertexArray(sMeshVao);
+        // Upload flat (CPU-transformed) vertices if any
+        bool hasFlat = !ctx().vboAccum.empty();
+        if (hasFlat)
+            UploadVbo(sMeshVbo, sMeshVboCap, ctx().vboAccum.data(),
+                      GLsizeiptr(ctx().vboAccum.size() * sizeof(MeshVert)));
 
-        // Pick pass (depth-tested — front object wins at each pixel)
+        // Helper lambdas for dual-path draw
+        auto bindAndDraw = [&](const MeshDraw& d) {
+            if (d.gpuMesh) {
+                glBindVertexArray(d.gpuMesh->vao);
+                glDrawElements(GL_TRIANGLES, d.gpuMesh->indexCount, GL_UNSIGNED_INT, nullptr);
+            } else {
+                glBindVertexArray(sMeshVao);
+                glDrawArrays(GL_TRIANGLES, d.offset, d.count);
+            }
+        };
+
+        auto setModel = [](const Shader& sh, const MeshDraw& d) {
+            sh.Set("uModel", d.model);
+        };
+
+        // Pick pass
         if (ctx().pickEnabled) {
             BeginPickPass();
             sPickMeshShader.Use();
@@ -736,20 +846,17 @@ void End() {
             for (auto& d : dl) {
                 if (!d.pickId || d.shadingMode == 3) continue;
                 sPickMeshShader.Set("uPickId", d.pickId);
-                glDrawArrays(GL_TRIANGLES, d.offset, d.count);
+                setModel(sPickMeshShader, d);
+                bindAndDraw(d);
                 ++ctx().stats.pickDrawCalls;
             }
             EndPickPass();
         }
 
-        // Sort by shading mode: solid (0,1,2) first, glow (3) last.
-        // Solid needs depth writes; glow is additive without depth write.
-        // Within each group, order is irrelevant (depth test for solid,
-        // additive blend is commutative for glow).
-        auto solidFirst = [](const MeshDraw& a, const MeshDraw& b) {
+        // Sort: solid (0,1,2) first, glow (3) last
+        std::stable_sort(dl.begin(), dl.end(), [](const MeshDraw& a, const MeshDraw& b) {
             return (a.shadingMode < 3) > (b.shadingMode < 3);
-        };
-        std::stable_sort(dl.begin(), dl.end(), solidFirst);
+        });
 
         SetMeshFrameUniforms();
         sMeshShader.Use();
@@ -765,7 +872,10 @@ void End() {
             }
             sMeshShader.Set("uColor", d.color);
             sMeshShader.Set("uUnlit", d.shadingMode);
-            glDrawArrays(GL_TRIANGLES, d.offset, d.count);
+            sMeshShader.Set("uModel", d.model);
+            sMeshShader.Set("uNormalMat",
+                glm::transpose(glm::inverse(glm::mat3(d.model))));
+            bindAndDraw(d);
             ++ctx().stats.drawCalls;
         }
         if (inGlow) {

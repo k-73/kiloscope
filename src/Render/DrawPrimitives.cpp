@@ -174,20 +174,16 @@ void Sphere(const glm::vec3& center, float radius,
             const glm::vec4& color, int seg) {
     ctx().activePickId = AllocPickId();
     SetMeshUniforms(color);
-    sMeshScratch.clear();
-    AppendFromCache(sMeshScratch, GetUnitSphere(seg),
-                    glm::scale(glm::translate(Mat(), center), glm::vec3(radius)));
-    UploadMesh(sMeshScratch);
+    UploadGpuDraw(GetUnitSphere(seg),
+                  glm::scale(glm::translate(Mat(), center), glm::vec3(radius)));
 }
 
 void Box(const glm::vec3& center, const glm::vec3& size,
          const glm::vec4& color) {
     ctx().activePickId = AllocPickId();
     SetMeshUniforms(color);
-    sMeshScratch.clear();
-    auto xform = glm::translate(Mat(), center) * glm::scale(glm::mat4(1.f), size);
-    AppendFromCache(sMeshScratch, GetUnitBox(), xform);
-    UploadMesh(sMeshScratch);
+    UploadGpuDraw(GetUnitBox(),
+                  glm::translate(Mat(), center) * glm::scale(glm::mat4(1.f), size));
 }
 
 void Cube(const glm::vec3& center, float size, const glm::vec4& color) {
@@ -200,10 +196,8 @@ void Cylinder(const glm::vec3& a, const glm::vec3& b,
     if (halfLen < 1e-6f) { Sphere((a + b) * 0.5f, radius, color, seg); return; }
     ctx().activePickId = AllocPickId();
     SetMeshUniforms(color);
-    sMeshScratch.clear();
-    AppendFromCache(sMeshScratch, GetUnitCylinder(seg),
-                    Mat() * ZAlign(a, b) * glm::scale(glm::mat4(1.f), {radius, radius, halfLen}));
-    UploadMesh(sMeshScratch);
+    UploadGpuDraw(GetUnitCylinder(seg),
+                  Mat() * ZAlign(a, b) * glm::scale(glm::mat4(1.f), {radius, radius, halfLen}));
 }
 
 void Cone(const glm::vec3& base, const glm::vec3& tip,
@@ -212,10 +206,8 @@ void Cone(const glm::vec3& base, const glm::vec3& tip,
     if (halfLen < 1e-6f) { Sphere(base, radius, color, seg); return; }
     ctx().activePickId = AllocPickId();
     SetMeshUniforms(color);
-    sMeshScratch.clear();
-    AppendFromCache(sMeshScratch, GetUnitCone(seg),
-                    Mat() * ZAlign(base, tip) * glm::scale(glm::mat4(1.f), {radius, radius, halfLen}));
-    UploadMesh(sMeshScratch);
+    UploadGpuDraw(GetUnitCone(seg),
+                  Mat() * ZAlign(base, tip) * glm::scale(glm::mat4(1.f), {radius, radius, halfLen}));
 }
 
 void Capsule(const glm::vec3& a, const glm::vec3& b,
@@ -224,10 +216,8 @@ void Capsule(const glm::vec3& a, const glm::vec3& b,
     if (halfLen < 1e-6f) { Sphere((a + b) * 0.5f, radius, color, seg); return; }
     ctx().activePickId = AllocPickId();
     SetMeshUniforms(color);
-    sMeshScratch.clear();
-    AppendFromCache(sMeshScratch, GetUnitCapsule(seg),
-                    Mat() * ZAlign(a, b) * glm::scale(glm::mat4(1.f), {radius, radius, halfLen}));
-    UploadMesh(sMeshScratch);
+    UploadGpuDraw(GetUnitCapsule(seg),
+                  Mat() * ZAlign(a, b) * glm::scale(glm::mat4(1.f), {radius, radius, halfLen}));
 }
 
 void Torus(const glm::vec3& center, const glm::vec3& axis,
@@ -245,10 +235,8 @@ void Disk(const glm::vec3& center, const glm::vec3& normal,
           float radius, const glm::vec4& color, int seg) {
     ctx().activePickId = AllocPickId();
     SetMeshUniforms(color);
-    sMeshScratch.clear();
-    AppendFromCache(sMeshScratch, GetUnitDisk(seg),
-                    Mat() * AxisTransform(center, normal) * glm::scale(glm::mat4(1.f), glm::vec3(radius)));
-    UploadMesh(sMeshScratch);
+    UploadGpuDraw(GetUnitDisk(seg),
+                  Mat() * AxisTransform(center, normal) * glm::scale(glm::mat4(1.f), glm::vec3(radius)));
 }
 
 void Ring(const glm::vec3& center, const glm::vec3& normal,
@@ -389,12 +377,10 @@ void Arrow(const glm::vec3& from, const glm::vec3& to,
     float shaftHalf = (len - headLen) * 0.5f;
     auto shaftEnd = from + dir * ((len - headLen) / len);
     SetMeshUniforms(color);
-    sMeshScratch.clear();
-    AppendFromCache(sMeshScratch, GetUnitCylinder(24),
-                    Mat() * ZAlign(from, shaftEnd) * glm::scale(glm::mat4(1.f), {shaftR, shaftR, shaftHalf}));
-    AppendFromCache(sMeshScratch, GetUnitCone(24),
-                    Mat() * ZAlign(shaftEnd, to) * glm::scale(glm::mat4(1.f), {headR, headR, headLen * 0.5f}));
-    UploadMesh(sMeshScratch);
+    UploadGpuDraw(GetUnitCylinder(24),
+                  Mat() * ZAlign(from, shaftEnd) * glm::scale(glm::mat4(1.f), {shaftR, shaftR, shaftHalf}));
+    UploadGpuDraw(GetUnitCone(24),
+                  Mat() * ZAlign(shaftEnd, to) * glm::scale(glm::mat4(1.f), {headR, headR, headLen * 0.5f}));
 }
 
 void Axes(const glm::vec3& origin, float len) {
