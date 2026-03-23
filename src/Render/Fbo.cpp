@@ -67,8 +67,13 @@ void Fbo::Resize(int w, int h, int samples) {
         if (glCheckNamedFramebufferStatus(fbo, GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
             throw std::runtime_error(std::string("FBO incomplete: ") + name);
     };
-    check(msaaFbo_, "msaa");
-    check(resolveFbo_, "resolve");
+    try {
+        check(msaaFbo_, "msaa");
+        check(resolveFbo_, "resolve");
+    } catch (...) {
+        Destroy();
+        throw;
+    }
 }
 
 void Fbo::Bind(float clearR, float clearG, float clearB) {

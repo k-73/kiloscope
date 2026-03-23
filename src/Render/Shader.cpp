@@ -6,27 +6,74 @@
 
 namespace Kilo::Render {
 
-Shader::Shader(const std::string& vertPath, const std::string& fragPath) {
-    auto vs = Compile(GL_VERTEX_SHADER, ReadFile(vertPath));
-    auto fs = Compile(GL_FRAGMENT_SHADER, ReadFile(fragPath));
-    prog_ = glCreateProgram();
-    glAttachShader(prog_, vs);
-    glAttachShader(prog_, fs);
-    glLinkProgram(prog_);
+// Fallback shader: renders everything as magenta to signal missing/broken shaders
+static constexpr const char* kFallbackVert = R"(
+#version 450
+layout(location=0) in vec3 aPos;
+uniform mat4 uViewProj;
+void main() { gl_Position = uViewProj * vec4(aPos, 1.0); }
+)";
 
-    GLint ok;
-    glGetProgramiv(prog_, GL_LINK_STATUS, &ok);
-    if (!ok) {
-        char buf[1024];
-        glGetProgramInfoLog(prog_, sizeof(buf), nullptr, buf);
-        glDeleteProgram(prog_); glDeleteShader(vs); glDeleteShader(fs);
-        prog_ = 0;
-        Log::Render().error("Shader link failed: {}", buf);
-        throw std::runtime_error(std::string("Shader link: ") + buf);
-    }
+static constexpr const char* kFallbackFrag = R"(
+#version 450
+out vec4 FragColor;
+void main() { FragColor = vec4(1.0, 0.0, 1.0, 1.0); }
+)";
+
+static GLuint CompileSource(GLenum type, const char* src) {
+    GLuint s = glCreateShader(type);
+    glShaderSource(s, 1, &src, nullptr);
+    glCompileShader(s);
+    return s;
+}
+
+static GLuint LinkFallback() {
+    auto vs = CompileSource(GL_VERTEX_SHADER, kFallbackVert);
+    auto fs = CompileSource(GL_FRAGMENT_SHADER, kFallbackFrag);
+    GLuint prog = glCreateProgram();
+    glAttachShader(prog, vs);
+    glAttachShader(prog, fs);
+    glLinkProgram(prog);
     glDeleteShader(vs);
     glDeleteShader(fs);
-    Log::Render().info("Shader linked: {} + {}", vertPath, fragPath);
+    return prog;
+}
+
+Shader::Shader(const std::string& vertPath, const std::string& fragPath) {
+    auto vertSrc = ReadFile(vertPath);
+    auto fragSrc = ReadFile(fragPath);
+
+    if (vertSrc.empty() || fragSrc.empty()) {
+        Log::Render().error("Shader file missing: {} / {} — using fallback", vertPath, fragPath);
+        prog_ = LinkFallback();
+        return;
+    }
+
+    try {
+        auto vs = Compile(GL_VERTEX_SHADER, vertSrc);
+        auto fs = Compile(GL_FRAGMENT_SHADER, fragSrc);
+        prog_ = glCreateProgram();
+        glAttachShader(prog_, vs);
+        glAttachShader(prog_, fs);
+        glLinkProgram(prog_);
+
+        GLint ok;
+        glGetProgramiv(prog_, GL_LINK_STATUS, &ok);
+        if (!ok) {
+            char buf[1024];
+            glGetProgramInfoLog(prog_, sizeof(buf), nullptr, buf);
+            glDeleteProgram(prog_); glDeleteShader(vs); glDeleteShader(fs);
+            prog_ = 0;
+            throw std::runtime_error(std::string("Shader link: ") + buf);
+        }
+        glDeleteShader(vs);
+        glDeleteShader(fs);
+        Log::Render().info("Shader linked: {} + {}", vertPath, fragPath);
+    } catch (const std::exception& e) {
+        Log::Render().error("Shader failed: {} — using fallback", e.what());
+        if (prog_) { glDeleteProgram(prog_); prog_ = 0; }
+        prog_ = LinkFallback();
+    }
 }
 
 Shader::~Shader() { if (prog_) glDeleteProgram(prog_); }
@@ -75,7 +122,10 @@ GLuint Shader::Compile(GLenum type, const std::string& src) {
 
 std::string Shader::ReadFile(const std::string& path) {
     std::ifstream f(path);
-    if (!f) throw std::runtime_error("Cannot open shader: " + path);
+    if (!f) {
+        Log::Render().error("Cannot open shader: {}", path);
+        return {};
+    }
     return {std::istreambuf_iterator<char>(f), {}};
 }
 

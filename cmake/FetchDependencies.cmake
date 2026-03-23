@@ -3,8 +3,7 @@ include(FetchContent)
 # ── ImGui (docking branch) ───────────────────────────────────────────
 FetchContent_Declare(imgui
     GIT_REPOSITORY https://github.com/ocornut/imgui.git
-    GIT_TAG        docking
-    GIT_SHALLOW    ON
+    GIT_TAG        e05bd9deb9a73b67acb5c04b8a581e06a2d42657
 )
 FetchContent_MakeAvailable(imgui)
 
@@ -40,7 +39,7 @@ target_compile_definitions(imgui PUBLIC
 # ── ImPlot ───────────────────────────────────────────────────────────
 FetchContent_Declare(implot
     GIT_REPOSITORY https://github.com/epezent/implot.git
-    GIT_TAG        master
+    GIT_TAG        v0.17
     GIT_SHALLOW    ON
 )
 FetchContent_MakeAvailable(implot)
@@ -66,18 +65,6 @@ FetchContent_Declare(glm
 set(GLM_BUILD_LIBRARY OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(glm)
 
-# ── asio (standalone, header-only) ───────────────────────────────────
-FetchContent_Declare(asio
-    GIT_REPOSITORY https://github.com/chriskohlhoff/asio.git
-    GIT_TAG        asio-1-30-2
-    GIT_SHALLOW    ON
-)
-FetchContent_MakeAvailable(asio)
-
-add_library(asio INTERFACE)
-target_include_directories(asio INTERFACE ${asio_SOURCE_DIR}/asio/include)
-target_compile_definitions(asio INTERFACE ASIO_STANDALONE)
-
 # ── spdlog ──────────────────────────────────────────────────────────
 FetchContent_Declare(spdlog
     GIT_REPOSITORY https://github.com/gabime/spdlog.git
@@ -96,22 +83,6 @@ FetchContent_Declare(json
 set(JSON_BuildTests OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(json)
 
-# ── EnTT ────────────────────────────────────────────────────────────
-FetchContent_Declare(entt
-    GIT_REPOSITORY https://github.com/skypjack/entt.git
-    GIT_TAG        v3.14.0
-    GIT_SHALLOW    ON
-)
-FetchContent_MakeAvailable(entt)
-
-# ── magic_enum ─────────────────────────────────────────────────────
-FetchContent_Declare(magic_enum
-    GIT_REPOSITORY https://github.com/Neargye/magic_enum.git
-    GIT_TAG        v0.9.7
-    GIT_SHALLOW    ON
-)
-FetchContent_MakeAvailable(magic_enum)
-
 # ── glaze ──────────────────────────────────────────────────────────
 FetchContent_Declare(glaze
     GIT_REPOSITORY https://github.com/stephenberry/glaze.git
@@ -120,19 +91,10 @@ FetchContent_Declare(glaze
 )
 FetchContent_MakeAvailable(glaze)
 
-# ── toml++ ─────────────────────────────────────────────────────────
-FetchContent_Declare(tomlplusplus
-    GIT_REPOSITORY https://github.com/marzer/tomlplusplus.git
-    GIT_TAG        v3.4.0
-    GIT_SHALLOW    ON
-)
-FetchContent_MakeAvailable(tomlplusplus)
-
 # ── generator (procedural geometry) ─────────────────────────────────
 FetchContent_Declare(generator
     GIT_REPOSITORY https://github.com/ilmola/generator.git
-    GIT_TAG        master
-    GIT_SHALLOW    ON
+    GIT_TAG        ed17c6f7c86d03c215827def77d28a127f9e14ae
 )
 FetchContent_GetProperties(generator)
 if(NOT generator_POPULATED)

@@ -11,6 +11,7 @@
 #include <imgui.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <array>
+#include <cassert>
 #include <cmath>
 #include <cstdarg>
 #include <memory>
@@ -197,7 +198,10 @@ inline FrameState sFrame;
 
 // ── scene accessor ───────────────────────────────────────────────────
 
-inline SceneData& ctx() { return *sFrame.scene; }
+inline SceneData& ctx() {
+    assert(sFrame.scene && "Draw call outside Begin()/End()");
+    return *sFrame.scene;
+}
 
 // ── inline helpers ───────────────────────────────────────────────────
 
