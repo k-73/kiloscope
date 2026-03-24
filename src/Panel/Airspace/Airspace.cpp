@@ -141,15 +141,18 @@ void Airspace::OnDraw() {
 
     // Main view — chase camera
     SetupEnv("flight");
-    if (!freecam_ && chase_)
+    if (!freecam_ && chase_) {
         Render::GetCamera("flight").Follow(worldPos, -yaw_ - 90.f);
-    else
+    }
+    else {
         Render::GetCamera("flight").Unfollow();
+    }
 
     DrawWorld("flight");
 
-    if (!freecam_ && chase_)
+    if (!freecam_ && chase_) {
         Render::GetCamera("flight").CaptureFollow();
+    }
 
     // Gimbal view — mounted under aircraft, looking at origin
     ImGui::Begin("Gimbal");
