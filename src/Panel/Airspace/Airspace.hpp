@@ -16,16 +16,18 @@ private:
     void DrawWorld(const char* scene);
     void SetupEnv(const char* scene);
 
-    // Aircraft state
-    glm::vec3 pos_{0, 0, -2.f};
-    float yaw_   = 0.f;
-    float pitch_ = 0.f;
-    float roll_  = 0.f;
-    float speed_ = 0.f;
+    struct AircraftState {
+        glm::vec3 position{0, 0, -2.f};
+        float yaw   = 0.f;
+        float pitch = 0.f;
+        float roll  = 0.f;
+        float speed = 0.f;
+    } aircraft_;
 
-    // Camera mode
-    bool chase_   = true;
-    bool freecam_ = false;
+    struct CameraMode {
+        bool chase  = true;
+        bool free   = false;
+    } cameraMode_;
 };
 
 } // namespace Kilo

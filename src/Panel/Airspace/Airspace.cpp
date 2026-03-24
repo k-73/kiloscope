@@ -37,16 +37,16 @@ static void DrawAircraft() {
 
 void Airspace::DrawControls() {
     ImGui::Begin("Airspace");
-    ImGui::Text("Camera: %s  [C]", freecam_ ? "FreeCam" : "Chase");
-    if (!freecam_) ImGui::Checkbox("Chase Camera", &chase_);
+    ImGui::Text("Camera: %s  [C]", cameraMode_.free ? "FreeCam" : "Chase");
+    if (!cameraMode_.free) ImGui::Checkbox("Chase Camera", &cameraMode_.chase);
     ImGui::Separator();
-    ImGui::DragFloat ("Speed", &speed_, 0.5f, 0.f, 50.f,   "%.1f u/s");
-    ImGui::SliderFloat("Roll",  &roll_,  -90.f,  90.f, "%.1f\xc2\xb0");
-    ImGui::SliderFloat("Pitch", &pitch_, -45.f,  45.f, "%.1f\xc2\xb0");
-    ImGui::SliderFloat("Yaw",   &yaw_,  -180.f, 180.f, "%.1f\xc2\xb0");
+    ImGui::DragFloat ("Speed", &aircraft_.speed, 0.5f, 0.f, 50.f,   "%.1f u/s");
+    ImGui::SliderFloat("Roll",  &aircraft_.roll,  -90.f,  90.f, "%.1f\xc2\xb0");
+    ImGui::SliderFloat("Pitch", &aircraft_.pitch, -45.f,  45.f, "%.1f\xc2\xb0");
+    ImGui::SliderFloat("Yaw",   &aircraft_.yaw,  -180.f, 180.f, "%.1f\xc2\xb0");
     ImGui::Separator();
-    ImGui::Text("N %.1f  E %.1f  Alt %.1f", pos_.x, pos_.y, -pos_.z);
-    ImGui::TextDisabled(freecam_ ? "RMB+WASD = fly camera" : "WASD = fly  |  MMB = orbit");
+    ImGui::Text("N %.1f  E %.1f  Alt %.1f", aircraft_.position.x, aircraft_.position.y, -aircraft_.position.z);
+    ImGui::TextDisabled(cameraMode_.free ? "RMB+WASD = fly camera" : "WASD = fly  |  MMB = orbit");
     ImGui::End();
 }
 
@@ -54,38 +54,38 @@ void Airspace::DrawControls() {
 
 void Airspace::HandleInput(float dt, bool focused) {
     if (focused && ImGui::IsKeyPressed(ImGuiKey_C, false)) {
-        freecam_ = !freecam_;
-        if (!freecam_) Render::GetCamera("flight").ResetFollow();
+        cameraMode_.free = !cameraMode_.free;
+        if (!cameraMode_.free) Render::GetCamera("flight").ResetFollow();
     }
-    if (!focused || freecam_) return;
+    if (!focused || cameraMode_.free) return;
 
     constexpr float kPitchRate = 40.f, kYawRate = 50.f;
-    if (ImGui::IsKeyDown(ImGuiKey_W)) pitch_ -= kPitchRate * dt;
-    if (ImGui::IsKeyDown(ImGuiKey_S)) pitch_ += kPitchRate * dt;
-    if (ImGui::IsKeyDown(ImGuiKey_A)) yaw_   -= kYawRate   * dt;
-    if (ImGui::IsKeyDown(ImGuiKey_D)) yaw_   += kYawRate   * dt;
+    if (ImGui::IsKeyDown(ImGuiKey_W)) aircraft_.pitch -= kPitchRate * dt;
+    if (ImGui::IsKeyDown(ImGuiKey_S)) aircraft_.pitch += kPitchRate * dt;
+    if (ImGui::IsKeyDown(ImGuiKey_A)) aircraft_.yaw   -= kYawRate   * dt;
+    if (ImGui::IsKeyDown(ImGuiKey_D)) aircraft_.yaw   += kYawRate   * dt;
 }
 
 // ── physics ─────────────────────────────────────────────────────
 
 void Airspace::UpdatePhysics(float dt, bool focused) {
-    pitch_ = std::clamp(pitch_, -80.f, 80.f);
+    aircraft_.pitch = std::clamp(aircraft_.pitch, -80.f, 80.f);
 
     // Bank autopilot: roll into turns
     float bank = 0.f;
-    if (focused && !freecam_) {
+    if (focused && !cameraMode_.free) {
         if (ImGui::IsKeyDown(ImGuiKey_D)) bank += 1.f;
         if (ImGui::IsKeyDown(ImGuiKey_A)) bank -= 1.f;
     }
-    roll_ += (bank * 35.f - roll_) * std::min(1.f, 5.f * dt);
+    aircraft_.roll += (bank * 35.f - aircraft_.roll) * std::min(1.f, 5.f * dt);
 
     // Velocity integration (NED body → world)
-    const float yr = glm::radians(yaw_), pr = glm::radians(pitch_);
+    const float yr = glm::radians(aircraft_.yaw), pr = glm::radians(aircraft_.pitch);
     const float cp = std::cos(pr);
-    pos_.x += speed_ * std::cos(yr) * cp * dt;
-    pos_.y += speed_ * std::sin(yr) * cp * dt;
-    pos_.z -= speed_ * std::sin(pr) * dt;
-    pos_.z  = std::min(pos_.z, -0.1f);
+    aircraft_.position.x += aircraft_.speed * std::cos(yr) * cp * dt;
+    aircraft_.position.y += aircraft_.speed * std::sin(yr) * cp * dt;
+    aircraft_.position.z -= aircraft_.speed * std::sin(pr) * dt;
+    aircraft_.position.z  = std::min(aircraft_.position.z, -0.1f);
 }
 
 // ── scene ───────────────────────────────────────────────────────
@@ -97,19 +97,20 @@ void Airspace::DrawWorld(const char* scene) {
 
         // Aircraft
         Render::PushMatrix();
-            Render::Translate(pos_);
-            Render::RotateZ(yaw_); Render::RotateY(pitch_); Render::RotateX(roll_);
+            Render::Translate(aircraft_.position);
+            Render::RotateZ(aircraft_.yaw); Render::RotateY(aircraft_.pitch); Render::RotateX(aircraft_.roll);
             Render::PushMatrix(); Render::Scale(0.4f); DrawAircraft(); Render::PopMatrix();
             Render::Frame(glm::mat4(1.f), 0.5f);
-            if (speed_ > 0.1f)
-                Render::Line({0, 0, 0}, {-speed_ * 0.06f, 0, 0}, Render::Color::Hex("#FFD700"), 5.f);
+            if (aircraft_.speed > 0.1f) {
+                Render::Line({0, 0, 0}, {-aircraft_.speed * 0.06f, 0, 0}, Render::Color::Hex("#FFD700"), 5.f);
+            }
             Render::Text({0, 0, 0}, Render::Color::Hex("#f8ffd8"), "(%d, %d, %d)",
-                 (int)pos_.x, (int)pos_.y, (int)-pos_.z);
+                 (int)aircraft_.position.x, (int)aircraft_.position.y, (int)-aircraft_.position.z);
         Render::PopMatrix();
 
         // Ground track
-        Render::Cross(glm::vec3{pos_.x, pos_.y, 0}, 0.3f, Render::Color::Hex("#FFFFFF30"), 1.5f);
-        Render::Line (pos_, glm::vec3{pos_.x, pos_.y, 0}, Render::Color::Hex("#FFFFFF15"), 1.f);
+        Render::Cross({aircraft_.position.x, aircraft_.position.y, 0}, 0.3f, Render::Color::Hex("#FFFFFF30"), 1.5f);
+        Render::Line (aircraft_.position, {aircraft_.position.x, aircraft_.position.y, 0}, Render::Color::Hex("#FFFFFF15"), 1.f);
 
         // Cardinal directions
         constexpr float d = 12.f;
@@ -137,12 +138,12 @@ void Airspace::OnDraw() {
     HandleInput(dt, focused);
     UpdatePhysics(dt, focused);
 
-    auto worldPos = Render::ToInternal<Render::NED>(pos_);
+    auto worldPos = Render::ToInternal<Render::NED>(aircraft_.position);
 
     // Main view — chase camera
     SetupEnv("flight");
-    if (!freecam_ && chase_) {
-        Render::GetCamera("flight").Follow(worldPos, -yaw_ - 90.f);
+    if (!cameraMode_.free && cameraMode_.chase) {
+        Render::GetCamera("flight").Follow(worldPos, -aircraft_.yaw - 90.f);
     }
     else {
         Render::GetCamera("flight").Unfollow();
@@ -150,15 +151,14 @@ void Airspace::OnDraw() {
 
     DrawWorld("flight");
 
-    if (!freecam_ && chase_) {
+    if (!cameraMode_.free && cameraMode_.chase) {
         Render::GetCamera("flight").CaptureFollow();
     }
 
     // Gimbal view — mounted under aircraft, looking at origin
     ImGui::Begin("Gimbal");
         SetupEnv("gimbal");
-        Render::GetCamera("gimbal").LookAt(
-            worldPos - glm::vec3(0, 0, 0.3f), {0.f, 0.f, 0.f});
+        Render::GetCamera("gimbal").LookAt(worldPos - glm::vec3(0, 0, 0.3f), {0.f, 0.f, 0.f});
         Render::GetCamera("gimbal").Fov() = 50.f;
         DrawWorld("gimbal");
     ImGui::End();
