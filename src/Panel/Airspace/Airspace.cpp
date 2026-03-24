@@ -93,8 +93,8 @@ void Airspace::UpdatePhysics(float dt, bool focused) {
 
 // ── scene ───────────────────────────────────────────────────────
 
-void Airspace::DrawScene() {
-    Begin("flight", {.frame = FrameId::NED});
+void Airspace::DrawWorld(const char* scene) {
+    Begin(scene, {.frame = FrameId::NED});
         Grid();
         Frame(glm::mat4(1.f), 1.f);
 
@@ -112,7 +112,7 @@ void Airspace::DrawScene() {
         // Ground track
         Cross(glm::vec3{pos_.x, pos_.y, 0}, 0.3f, Hex("#FFFFFF30"), 1.5f);
         Line (pos_, glm::vec3{pos_.x, pos_.y, 0}, Hex("#FFFFFF15"), 1.f);
-
+      
         // Cardinal directions
         constexpr float d = 12.f;
         Text({ d, 0, 0.1f}, Hex("#E07070"), "N");
@@ -122,30 +122,46 @@ void Airspace::DrawScene() {
     End();
 }
 
+void Airspace::SetupEnv(const char* scene) {
+    auto& env    = GetEnvironment(scene);
+    env.bgColor  = {0.06f, 0.08f, 0.14f};
+    env.showSun  = true;
+    env.lightDir = NED::M * glm::vec3{0.4f, 0.2f, -0.8f};
+}
+
 // ── orchestrator ────────────────────────────────────────────────
 
 void Airspace::OnDraw() {
     const float dt = ImGui::GetIO().DeltaTime;
-
-    auto& env    = GetEnvironment("flight");
-    env.bgColor  = {0.06f, 0.08f, 0.14f};
-    env.showSun  = true;
-    env.lightDir = NED::M * glm::vec3{0.4f, 0.2f, -0.8f};
 
     DrawControls();
     bool focused = ImGui::IsWindowFocused();
     HandleInput(dt, focused);
     UpdatePhysics(dt, focused);
 
+    auto worldPos = NED::M * pos_;
+
+    // Main view — chase camera
+    SetupEnv("flight");
     if (!freecam_ && chase_)
-        GetCamera("flight").Follow(NED::M * pos_, -yaw_ - 90.f);
+        GetCamera("flight").Follow(worldPos, -yaw_ - 90.f);
     else
         GetCamera("flight").Unfollow();
 
-    DrawScene();
+    DrawWorld("flight");
 
     if (!freecam_ && chase_)
         GetCamera("flight").CaptureFollow();
+
+    // Gimbal view — from aircraft looking at origin
+    ImGui::Begin("Gimbal");
+        SetupEnv("gimbal");
+        auto& gimbal = GetCamera("gimbal");
+        // Mounted under fuselage, looking at origin
+        gimbal.LookAt(worldPos - glm::vec3(0, 0, 0.3f), {0.f, 0.f, 0.f});
+        gimbal.Fov() = 50.f;
+        DrawWorld("gimbal");
+    ImGui::End();
 }
 
 static const bool reg_ = RegisterPanel<Airspace>("Airspace", "Airspace");

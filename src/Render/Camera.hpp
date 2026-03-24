@@ -54,6 +54,16 @@ public:
     // ── focus ───────────────────────────────────────────────────
     void Focus(const glm::vec3& pos) { pivot_ = pos; }
 
+    void LookAt(const glm::vec3& eye, const glm::vec3& target) {
+        pivot_ = target;
+        auto d = eye - target;
+        dist_  = glm::length(d);
+        if (dist_ < 1e-6f) return;
+        d /= dist_;
+        pitch_ = glm::degrees(std::asin(glm::clamp(d.z, -1.f, 1.f)));
+        yaw_   = glm::degrees(std::atan2(d.y, d.x));
+    }
+
     // ── follow mode ─────────────────────────────────────────────
     // Camera tracks a moving target with base yaw/pitch while the
     // user can orbit (MMB) and zoom (scroll) on top.

@@ -13,7 +13,8 @@ private:
     void DrawControls();
     void HandleInput(float dt, bool focused);
     void UpdatePhysics(float dt, bool focused);
-    void DrawScene();
+    void DrawWorld(const char* scene);
+    void SetupEnv(const char* scene);
 
     // Aircraft state
     glm::vec3 pos_{0, 0, -2.f};
