@@ -27,6 +27,10 @@ inline constexpr glm::mat3 FrameMat(FrameId id) {
 
 // ── compile-time helpers ────────────────────────────────────────────
 
+// Convert a position from frame F to internal (XYZ) coordinates
+template<typename F> constexpr glm::vec3 ToInternal(const glm::vec3& v) { return F::M * v; }
+template<typename F> constexpr glm::vec3 ToInternal(float x, float y, float z) { return F::M * glm::vec3{x,y,z}; }
+
 template<typename F> constexpr glm::vec3 MapVec(float x, float y, float z) { return F::M * glm::vec3{x,y,z}; }
 template<typename F> constexpr glm::vec3 MapVec(const glm::vec3& v)        { return F::M * v; }
 template<typename F> constexpr glm::vec3 AxisX() { return F::M[0]; }

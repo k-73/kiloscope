@@ -7,9 +7,6 @@
 
 namespace Kilo {
 
-using namespace Render;
-using namespace Render::Color;
-
 Airspace::Airspace() : Panel("Airspace", "Airspace") {}
 
 // ── aircraft model ──────────────────────────────────────────────
@@ -20,20 +17,20 @@ static void DrawAircraft() {
     constexpr auto Fin  = "#7A9CB8";
 
     // Fuselage
-    Cylinder({-1.5f, 0, 0}, {1.0f, 0, 0}, 0.15f, Hex(Body), 12);
-    Cone    ({1.0f,  0, 0}, {1.6f, 0, 0}, 0.15f, Hex(Body), 12);
-    Sphere  ({-1.5f, 0, 0},               0.15f, Hex(Body), 12);
+    Render::Cylinder({-1.5f, 0, 0}, {1.0f, 0, 0}, 0.15f, Render::Color::Hex(Body), 12);
+    Render::Cone    ({1.0f,  0, 0}, {1.6f, 0, 0}, 0.15f, Render::Color::Hex(Body), 12);
+    Render::Sphere  ({-1.5f, 0, 0},               0.15f, Render::Color::Hex(Body), 12);
 
     // Main wings (two-sided sweep)
     constexpr float span = 2.2f;
-    Triangle({-0.1f, -span, 0}, {-0.1f, span, 0}, { 0.5f, 0, 0}, Hex(Wing), true);
-    Triangle({-0.1f, -span, 0}, {-0.5f, 0,    0}, {-0.1f, span, 0}, Hex(Wing), true);
+    Render::Triangle({-0.1f, -span, 0}, {-0.1f, span, 0}, { 0.5f, 0, 0}, Render::Color::Hex(Wing), true);
+    Render::Triangle({-0.1f, -span, 0}, {-0.5f, 0,    0}, {-0.1f, span, 0}, Render::Color::Hex(Wing), true);
 
     // Horizontal stabilizers
-    Triangle({-1.3f, -0.6f, 0}, {-1.3f, 0.6f, 0}, {-0.9f, 0, 0}, Hex(Wing), true);
+    Render::Triangle({-1.3f, -0.6f, 0}, {-1.3f, 0.6f, 0}, {-0.9f, 0, 0}, Render::Color::Hex(Wing), true);
 
     // Vertical fin
-    Triangle({-1.4f, 0, 0}, {-1.0f, 0, 0}, {-1.25f, 0, -0.5f}, Hex(Fin), true);
+    Render::Triangle({-1.4f, 0, 0}, {-1.0f, 0, 0}, {-1.25f, 0, -0.5f}, Render::Color::Hex(Fin), true);
 }
 
 // ── controls ────────────────────────────────────────────────────
@@ -58,7 +55,7 @@ void Airspace::DrawControls() {
 void Airspace::HandleInput(float dt, bool focused) {
     if (focused && ImGui::IsKeyPressed(ImGuiKey_C, false)) {
         freecam_ = !freecam_;
-        if (!freecam_) GetCamera("flight").ResetFollow();
+        if (!freecam_) Render::GetCamera("flight").ResetFollow();
     }
     if (!focused || freecam_) return;
 
@@ -94,39 +91,40 @@ void Airspace::UpdatePhysics(float dt, bool focused) {
 // ── scene ───────────────────────────────────────────────────────
 
 void Airspace::DrawWorld(const char* scene) {
-    Begin(scene, {.frame = FrameId::NED});
-        Grid();
-        Frame(glm::mat4(1.f), 1.f);
+    Render::Begin(scene, {.frame = Render::FrameId::NED});
+        Render::Grid();
+        Render::Frame(glm::mat4(1.f), 1.f);
 
         // Aircraft
-        PushMatrix();
-            Translate(pos_); RotateZ(yaw_); RotateY(pitch_); RotateX(roll_);
-            PushMatrix(); Scale(0.4f); DrawAircraft(); PopMatrix();
-            Frame(glm::mat4(1.f), 0.5f);
+        Render::PushMatrix();
+            Render::Translate(pos_);
+            Render::RotateZ(yaw_); Render::RotateY(pitch_); Render::RotateX(roll_);
+            Render::PushMatrix(); Render::Scale(0.4f); DrawAircraft(); Render::PopMatrix();
+            Render::Frame(glm::mat4(1.f), 0.5f);
             if (speed_ > 0.1f)
-                Line({0, 0, 0}, {-speed_ * 0.06f, 0, 0}, Hex("#FFD700"), 5.f);
-            Text({0, 0, 0}, Hex("#f8ffd8"), "(%d, %d, %d)",
+                Render::Line({0, 0, 0}, {-speed_ * 0.06f, 0, 0}, Render::Color::Hex("#FFD700"), 5.f);
+            Render::Text({0, 0, 0}, Render::Color::Hex("#f8ffd8"), "(%d, %d, %d)",
                  (int)pos_.x, (int)pos_.y, (int)-pos_.z);
-        PopMatrix();
+        Render::PopMatrix();
 
         // Ground track
-        Cross(glm::vec3{pos_.x, pos_.y, 0}, 0.3f, Hex("#FFFFFF30"), 1.5f);
-        Line (pos_, glm::vec3{pos_.x, pos_.y, 0}, Hex("#FFFFFF15"), 1.f);
-      
+        Render::Cross(glm::vec3{pos_.x, pos_.y, 0}, 0.3f, Render::Color::Hex("#FFFFFF30"), 1.5f);
+        Render::Line (pos_, glm::vec3{pos_.x, pos_.y, 0}, Render::Color::Hex("#FFFFFF15"), 1.f);
+
         // Cardinal directions
         constexpr float d = 12.f;
-        Text({ d, 0, 0.1f}, Hex("#E07070"), "N");
-        Text({-d, 0, 0.1f}, Hex("#E07070"), "S");
-        Text({0,  d, 0.1f}, Hex("#70B870"), "E");
-        Text({0, -d, 0.1f}, Hex("#70B870"), "W");
-    End();
+        Render::Text({ d, 0, 0.1f}, Render::Color::Hex("#E07070"), "N");
+        Render::Text({-d, 0, 0.1f}, Render::Color::Hex("#E07070"), "S");
+        Render::Text({0,  d, 0.1f}, Render::Color::Hex("#70B870"), "E");
+        Render::Text({0, -d, 0.1f}, Render::Color::Hex("#70B870"), "W");
+    Render::End();
 }
 
 void Airspace::SetupEnv(const char* scene) {
-    auto& env    = GetEnvironment(scene);
+    auto& env    = Render::GetEnvironment(scene);
     env.bgColor  = {0.06f, 0.08f, 0.14f};
     env.showSun  = true;
-    env.lightDir = NED::M * glm::vec3{0.4f, 0.2f, -0.8f};
+    env.lightDir = Render::ToInternal<Render::NED>({0.4f, 0.2f, -0.8f});
 }
 
 // ── orchestrator ────────────────────────────────────────────────
@@ -139,27 +137,26 @@ void Airspace::OnDraw() {
     HandleInput(dt, focused);
     UpdatePhysics(dt, focused);
 
-    auto worldPos = NED::M * pos_;
+    auto worldPos = Render::ToInternal<Render::NED>(pos_);
 
     // Main view — chase camera
     SetupEnv("flight");
     if (!freecam_ && chase_)
-        GetCamera("flight").Follow(worldPos, -yaw_ - 90.f);
+        Render::GetCamera("flight").Follow(worldPos, -yaw_ - 90.f);
     else
-        GetCamera("flight").Unfollow();
+        Render::GetCamera("flight").Unfollow();
 
     DrawWorld("flight");
 
     if (!freecam_ && chase_)
-        GetCamera("flight").CaptureFollow();
+        Render::GetCamera("flight").CaptureFollow();
 
-    // Gimbal view — from aircraft looking at origin
+    // Gimbal view — mounted under aircraft, looking at origin
     ImGui::Begin("Gimbal");
         SetupEnv("gimbal");
-        auto& gimbal = GetCamera("gimbal");
-        // Mounted under fuselage, looking at origin
-        gimbal.LookAt(worldPos - glm::vec3(0, 0, 0.3f), {0.f, 0.f, 0.f});
-        gimbal.Fov() = 50.f;
+        Render::GetCamera("gimbal").LookAt(
+            worldPos - glm::vec3(0, 0, 0.3f), {0.f, 0.f, 0.f});
+        Render::GetCamera("gimbal").Fov() = 50.f;
         DrawWorld("gimbal");
     ImGui::End();
 }
