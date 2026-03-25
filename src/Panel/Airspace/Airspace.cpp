@@ -98,8 +98,13 @@ void Airspace::DrawWorld(const char* scene) {
         // Aircraft
         Render::PushMatrix();
             Render::Translate(aircraft_.position);
-            Render::RotateZ(aircraft_.yaw); Render::RotateY(aircraft_.pitch); Render::RotateX(aircraft_.roll);
-            Render::PushMatrix(); Render::Scale(0.4f); DrawAircraft(); Render::PopMatrix();
+            Render::RotateZ(aircraft_.yaw);
+            Render::RotateY(aircraft_.pitch);
+            Render::RotateX(aircraft_.roll);
+            Render::PushMatrix();
+                Render::Scale(0.4f);
+                DrawAircraft();
+                Render::PopMatrix();
             Render::Frame(glm::mat4(1.f), 0.5f);
             if (aircraft_.speed > 0.1f) {
                 Render::Line({0, 0, 0}, {-aircraft_.speed * 0.06f, 0, 0}, Render::Color::Hex("#FFD700"), 5.f);
@@ -138,28 +143,27 @@ void Airspace::OnDraw() {
     HandleInput(dt, focused);
     UpdatePhysics(dt, focused);
 
-    auto worldPos = Render::ToInternal<Render::NED>(aircraft_.position);
-
     // Main view — chase camera
     SetupEnv("flight");
-    if (!cameraMode_.free && cameraMode_.chase) {
-        Render::GetCamera("flight").Follow(worldPos, -aircraft_.yaw - 90.f);
-    }
-    else {
-        Render::GetCamera("flight").Unfollow();
-    }
+    auto& flightCam = Render::GetCamera("flight");
+    flightCam.SetFrame(Render::FrameId::NED);
+    if (!cameraMode_.free && cameraMode_.chase)
+        flightCam.Follow(aircraft_.position, -aircraft_.yaw - 90.f);
+    else
+        flightCam.Unfollow();
 
     DrawWorld("flight");
 
-    if (!cameraMode_.free && cameraMode_.chase) {
-        Render::GetCamera("flight").CaptureFollow();
-    }
+    if (!cameraMode_.free && cameraMode_.chase)
+        flightCam.CaptureFollow();
 
     // Gimbal view — mounted under aircraft, looking at origin
     ImGui::Begin("Gimbal");
         SetupEnv("gimbal");
-        Render::GetCamera("gimbal").LookAt(worldPos - glm::vec3(0, 0, 0.3f), {0.f, 0.f, 0.f});
-        Render::GetCamera("gimbal").Fov() = 50.f;
+        auto& gimbalCam = Render::GetCamera("gimbal");
+        gimbalCam.SetFrame(Render::FrameId::NED);
+        gimbalCam.LookAt(aircraft_.position + glm::vec3(0, 0, 0.3f), {0.f, 0.f, 0.f});
+        gimbalCam.Fov() = 50.f;
         DrawWorld("gimbal");
     ImGui::End();
 }

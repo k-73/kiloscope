@@ -1,6 +1,8 @@
 #pragma once
+#include "Render/Frame.hpp"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
 #include <algorithm>
 #include <cmath>
 
@@ -51,17 +53,41 @@ public:
         pivot_ += move * speed;
     }
 
+    // ── coordinate frame ─────────────────────────────────────────
+    // High-level methods (Follow, LookAt, Focus) auto-convert positions
+    // from this frame to internal XYZ. Low-level accessors (Target(),
+    // Distance(), Yaw(), Pitch()) operate in raw internal coordinates.
+    void SetFrame(FrameId id)         { frameMat_ = FrameMat(id); }
+    void SetFrame(const glm::mat3& m) { frameMat_ = m; }
+
     // ── focus ───────────────────────────────────────────────────
-    void Focus(const glm::vec3& pos) { pivot_ = pos; }
+    void Focus(const glm::vec3& pos) { pivot_ = frameMat_ * pos; }
 
     void LookAt(const glm::vec3& eye, const glm::vec3& target) {
-        pivot_ = target;
-        auto d = eye - target;
+        auto e = frameMat_ * eye, t = frameMat_ * target;
+        pivot_ = t;
+        auto d = e - t;
         dist_  = glm::length(d);
         if (dist_ < 1e-6f) return;
         d /= dist_;
         pitch_ = glm::degrees(std::asin(glm::clamp(d.z, -1.f, 1.f)));
         yaw_   = glm::degrees(std::atan2(d.y, d.x));
+    }
+
+    void LookDir(const glm::vec3& pos, const glm::vec3& dir) {
+        auto p = frameMat_ * pos;
+        auto d = glm::normalize(frameMat_ * dir);
+        pivot_ = p + d * dist_;
+        pitch_ = glm::degrees(std::asin(glm::clamp(-d.z, -1.f, 1.f)));
+        yaw_   = glm::degrees(std::atan2(-d.y, -d.x));
+    }
+
+    void SetPose(const glm::vec3& pos, const glm::quat& orientation) {
+        auto fwd = glm::normalize(frameMat_ * (orientation * glm::vec3(1, 0, 0)));
+        auto p   = frameMat_ * pos;
+        pivot_ = p + fwd * dist_;
+        pitch_ = glm::degrees(std::asin(glm::clamp(-fwd.z, -1.f, 1.f)));
+        yaw_   = glm::degrees(std::atan2(-fwd.y, -fwd.x));
     }
 
     // ── follow mode ─────────────────────────────────────────────
@@ -70,7 +96,7 @@ public:
     // Call Follow() before Render::Begin, CaptureFollow() after End.
     void Follow(const glm::vec3& target, float yaw, float basePitch = 18.f) {
         following_ = true;
-        pivot_ = target;
+        pivot_ = frameMat_ * target;
         yaw_   = yaw + followYawOff_;
         pitch_ = basePitch + followPitchOff_;
         dist_  = followDist_;
@@ -134,6 +160,7 @@ public:
     float&     Fov()           { return fov_; }
 
 private:
+    glm::mat3 frameMat_{1.f};
     glm::vec3 pivot_{0.f};
     float dist_  = 8.f;
     float yaw_   = 45.f;
