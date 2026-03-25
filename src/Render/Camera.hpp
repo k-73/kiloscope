@@ -57,8 +57,9 @@ public:
     // High-level methods (Follow, LookAt, Focus) auto-convert positions
     // from this frame to internal XYZ. Low-level accessors (Target(),
     // Distance(), Yaw(), Pitch()) operate in raw internal coordinates.
-    void SetFrame(FrameId id)         { frameMat_ = FrameMat(id); }
-    void SetFrame(const glm::mat3& m) { frameMat_ = m; }
+    void SetFrame(FrameId id)              { frameMat_ = FrameMat(id); }
+    void SetFrame(const glm::mat3& m)     { frameMat_ = m; }
+    const glm::mat3& GetFrame() const     { return frameMat_; }
 
     // ── focus ───────────────────────────────────────────────────
     void Focus(const glm::vec3& pos) { pivot_ = frameMat_ * pos; }
@@ -74,7 +75,8 @@ public:
         yaw_   = glm::degrees(std::atan2(d.y, d.x));
     }
 
-    void LookDir(const glm::vec3& pos, const glm::vec3& dir) {
+    void LookDir(const glm::vec3& pos, const glm::vec3& dir, float distance = -1.f) {
+        if (distance > 0.f) dist_ = distance;
         auto p = frameMat_ * pos;
         auto d = glm::normalize(frameMat_ * dir);
         pivot_ = p + d * dist_;
@@ -82,7 +84,8 @@ public:
         yaw_   = glm::degrees(std::atan2(-d.y, -d.x));
     }
 
-    void SetPose(const glm::vec3& pos, const glm::quat& orientation) {
+    void SetPose(const glm::vec3& pos, const glm::quat& orientation, float distance = -1.f) {
+        if (distance > 0.f) dist_ = distance;
         auto fwd = glm::normalize(frameMat_ * (orientation * glm::vec3(1, 0, 0)));
         auto p   = frameMat_ * pos;
         pivot_ = p + fwd * dist_;
@@ -140,8 +143,13 @@ public:
     glm::mat4 View() const { return glm::lookAt(Eye(), pivot_, {0, 0, 1}); }
 
     glm::mat4 Projection(float aspect) const {
-        float nr = std::max(0.01f, dist_ * 0.005f);
-        float fr = std::max(500.f, dist_ * 100.f);
+        float nr = nearPlane_ > 0.f ? nearPlane_ : std::max(0.01f, dist_ * 0.005f);
+        float fr = farPlane_  > 0.f ? farPlane_  : 10000.f;
+        if (ortho_) {
+            float h = dist_ * std::tan(glm::radians(fov_ * 0.5f));
+            float w = h * aspect;
+            return glm::ortho(-w, w, -h, h, nr, fr);
+        }
         return glm::perspective(glm::radians(fov_), aspect, nr, fr);
     }
 
@@ -158,6 +166,9 @@ public:
     float&     Yaw()           { return yaw_; }
     float&     Pitch()         { return pitch_; }
     float&     Fov()           { return fov_; }
+    bool&      Ortho()         { return ortho_; }
+    float&     NearPlane()     { return nearPlane_; }  // 0 = auto
+    float&     FarPlane()      { return farPlane_; }   // 0 = auto
 
 private:
     glm::mat3 frameMat_{1.f};
@@ -165,7 +176,10 @@ private:
     float dist_  = 8.f;
     float yaw_   = 45.f;
     float pitch_ = 30.f;
-    float fov_   = 45.f;
+    float fov_       = 45.f;
+    bool  ortho_     = false;
+    float nearPlane_ = 0.f;   // 0 = auto (dist * 0.005)
+    float farPlane_  = 0.f;   // 0 = auto (dist * 100)
 
     // follow mode
     bool  following_      = false;
