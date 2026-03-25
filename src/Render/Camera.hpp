@@ -14,11 +14,9 @@ namespace Kilo::Render {
 // Fly mode:    camera moves freely, pivot follows.
 //
 // Controls (set up in Draw.cpp Begin):
-//   LMB drag     = orbit around pivot
-//   MMB drag     = pan (shift pivot)
+//   MMB drag     = orbit / pan (+ shift)
 //   Scroll       = zoom (change distance to pivot)
 //   RMB hold     = fly mode (look + WASD/QE movement)
-//   Focus(pos)   = animate pivot to position
 class Camera {
     static constexpr float kPitchMin = -89.f, kPitchMax = 89.f;
     static constexpr float kDistMin  = 0.01f, kDistMax  = 1000.f;
@@ -49,48 +47,38 @@ public:
 
     void FlyMove(float fwd, float right, float up, float dt) {
         float speed = std::max(dist_, 1.f) * dt;
-        glm::vec3 move = ViewDir() * fwd + Right() * right + glm::vec3(0, 0, up);
-        pivot_ += move * speed;
+        pivot_ += ViewDir() * fwd * speed + Right() * right * speed
+                + glm::vec3(0, 0, up * speed);
     }
 
     // ── coordinate frame ─────────────────────────────────────────
-    // High-level methods (Follow, LookAt, Focus) auto-convert positions
-    // from this frame to internal XYZ. Low-level accessors (Target(),
+    // High-level methods (Follow, LookAt, LookDir, SetPose, Focus) auto-convert
+    // positions from this frame to internal XYZ. Low-level accessors (Target(),
     // Distance(), Yaw(), Pitch()) operate in raw internal coordinates.
     void SetFrame(FrameId id)              { frameMat_ = FrameMat(id); }
-    void SetFrame(const glm::mat3& m)     { frameMat_ = m; }
-    const glm::mat3& GetFrame() const     { return frameMat_; }
+    void SetFrame(const glm::mat3& m)      { frameMat_ = m; }
+    const glm::mat3& GetFrame() const      { return frameMat_; }
 
-    // ── focus ───────────────────────────────────────────────────
+    // ── positioning (frame-aware) ────────────────────────────────
     void Focus(const glm::vec3& pos) { pivot_ = frameMat_ * pos; }
 
     void LookAt(const glm::vec3& eye, const glm::vec3& target) {
         auto e = frameMat_ * eye, t = frameMat_ * target;
         pivot_ = t;
-        auto d = e - t;
-        dist_  = glm::length(d);
-        if (dist_ < 1e-6f) return;
-        d /= dist_;
-        pitch_ = glm::degrees(std::asin(glm::clamp(d.z, -1.f, 1.f)));
-        yaw_   = glm::degrees(std::atan2(d.y, d.x));
+        SetFromDir(e - t);
     }
 
     void LookDir(const glm::vec3& pos, const glm::vec3& dir, float distance = -1.f) {
         if (distance > 0.f) dist_ = distance;
-        auto p = frameMat_ * pos;
         auto d = glm::normalize(frameMat_ * dir);
-        pivot_ = p + d * dist_;
-        pitch_ = glm::degrees(std::asin(glm::clamp(-d.z, -1.f, 1.f)));
-        yaw_   = glm::degrees(std::atan2(-d.y, -d.x));
+        pivot_ = frameMat_ * pos + d * dist_;
+        SetFromViewDir(d);
     }
 
+    // Set camera from position + orientation quaternion.
+    // Forward direction is derived from orientation * X-axis (+X = forward in body frame).
     void SetPose(const glm::vec3& pos, const glm::quat& orientation, float distance = -1.f) {
-        if (distance > 0.f) dist_ = distance;
-        auto fwd = glm::normalize(frameMat_ * (orientation * glm::vec3(1, 0, 0)));
-        auto p   = frameMat_ * pos;
-        pivot_ = p + fwd * dist_;
-        pitch_ = glm::degrees(std::asin(glm::clamp(-fwd.z, -1.f, 1.f)));
-        yaw_   = glm::degrees(std::atan2(-fwd.y, -fwd.x));
+        LookDir(pos, orientation * glm::vec3(1, 0, 0), distance);
     }
 
     // ── follow mode ─────────────────────────────────────────────
@@ -122,7 +110,7 @@ public:
         if (distance > 0.f) followDist_ = distance;
     }
 
-    // ── direction vectors ───────────────────────────────────────
+    // ── direction vectors (internal XYZ) ─────────────────────────
     glm::vec3 ViewDir() const {
         float cy = std::cos(glm::radians(yaw_)),  sy = std::sin(glm::radians(yaw_));
         float cp = std::cos(glm::radians(pitch_)), sp = std::sin(glm::radians(pitch_));
@@ -147,39 +135,55 @@ public:
         float fr = farPlane_  > 0.f ? farPlane_  : 10000.f;
         if (ortho_) {
             float h = dist_ * std::tan(glm::radians(fov_ * 0.5f));
-            float w = h * aspect;
-            return glm::ortho(-w, w, -h, h, nr, fr);
+            return glm::ortho(-h * aspect, h * aspect, -h, h, nr, fr);
         }
         return glm::perspective(glm::radians(fov_), aspect, nr, fr);
     }
 
-    // ── accessors ───────────────────────────────────────────────
-    glm::vec3        Position() const { return Eye(); }
-    const glm::vec3& Pivot()    const { return pivot_; }
-    float            Distance() const { return dist_; }
-    float            Yaw()      const { return yaw_; }
-    float            Pitch()    const { return pitch_; }
-    float            Fov()      const { return fov_; }
+    // ── accessors (raw internal) ─────────────────────────────────
+    glm::vec3        Position()  const { return Eye(); }
+    const glm::vec3& Pivot()     const { return pivot_; }
+    float            Distance()  const { return dist_; }
+    float            Yaw()       const { return yaw_; }
+    float            Pitch()     const { return pitch_; }
+    float            Fov()       const { return fov_; }
+    bool             Ortho()     const { return ortho_; }
+    float            NearPlane() const { return nearPlane_; }
+    float            FarPlane()  const { return farPlane_; }
 
-    glm::vec3& Target()        { return pivot_; }
-    float&     Distance()      { return dist_; }
-    float&     Yaw()           { return yaw_; }
-    float&     Pitch()         { return pitch_; }
-    float&     Fov()           { return fov_; }
-    bool&      Ortho()         { return ortho_; }
-    float&     NearPlane()     { return nearPlane_; }  // 0 = auto
-    float&     FarPlane()      { return farPlane_; }   // 0 = auto
+    glm::vec3& Target()    { return pivot_; }
+    float&     Distance()  { return dist_; }
+    float&     Yaw()       { return yaw_; }
+    float&     Pitch()     { return pitch_; }
+    float&     Fov()       { return fov_; }
+    bool&      Ortho()     { return ortho_; }
+    float&     NearPlane() { return nearPlane_; }   // 0 = auto
+    float&     FarPlane()  { return farPlane_; }    // 0 = auto
 
 private:
-    glm::mat3 frameMat_{1.f};
-    glm::vec3 pivot_{0.f};
-    float dist_  = 8.f;
-    float yaw_   = 45.f;
-    float pitch_ = 30.f;
-    float fov_       = 45.f;
-    bool  ortho_     = false;
-    float nearPlane_ = 0.f;   // 0 = auto (dist * 0.005)
-    float farPlane_  = 0.f;   // 0 = auto (dist * 100)
+    // Decompose eye-to-target vector into distance + yaw/pitch
+    void SetFromDir(const glm::vec3& eyeToTarget) {
+        dist_ = glm::length(eyeToTarget);
+        if (dist_ < 1e-6f) return;
+        auto d = eyeToTarget / dist_;
+        SetFromViewDir(-d);
+    }
+
+    // Set yaw/pitch from a normalized view direction
+    void SetFromViewDir(const glm::vec3& d) {
+        pitch_ = glm::degrees(std::asin(glm::clamp(-d.z, -1.f, 1.f)));
+        yaw_   = glm::degrees(std::atan2(-d.y, -d.x));
+    }
+
+    glm::mat3 frameMat_  {1.f};
+    glm::vec3 pivot_     {0.f};
+    float     dist_      = 8.f;
+    float     yaw_       = 45.f;
+    float     pitch_     = 30.f;
+    float     fov_       = 45.f;
+    bool      ortho_     = false;
+    float     nearPlane_ = 0.f;     // 0 = auto
+    float     farPlane_  = 0.f;     // 0 = auto
 
     // follow mode
     bool  following_      = false;
