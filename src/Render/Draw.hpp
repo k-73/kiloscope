@@ -150,6 +150,23 @@ void Grid(const GridConfig& cfg);
 GridConfig& GetGrid();
 GridConfig& GetGrid(const char* name);
 
+// ── globe (WGS84 ellipsoid) ─────────────────────────────────────
+struct GlobeConfig {
+    bool      enabled      = false;
+    float     gratSpacing  = 10.f;
+    glm::vec4 surfaceColor = {.10f, .14f, .20f, .60f};
+    glm::vec4 gratColor    = {.40f, .50f, .60f, .50f};
+};
+
+void SetOrigin(double lat, double lon, double alt = 0.0);
+void SetOrigin(const char* scene, double lat, double lon, double alt = 0.0);
+void Globe();
+void Globe(const GlobeConfig& cfg);
+GlobeConfig& GetGlobe();
+GlobeConfig& GetGlobe(const char* name);
+glm::dvec3 GeoToLocal(double lat, double lon, double alt = 0.0);
+glm::dvec3 GeoToLocal(const char* scene, double lat, double lon, double alt = 0.0);
+
 // ── projection helpers ──────────────────────────────────────────
 glm::vec2 WorldToScreen(const glm::vec3& worldPos);
 

@@ -48,7 +48,6 @@ void Airspace::DrawControls() {
     ImGui::Separator();
     ImGui::Text("N %.1f  E %.1f  Alt %.1f",
         aircraft_.position.x, aircraft_.position.y, -aircraft_.position.z);
-    ImGui::TextDisabled(cameraMode_.free ? "RMB+WASD = fly camera" : "WASD = fly  |  MMB = orbit");
     ImGui::End();
 }
 
@@ -101,8 +100,8 @@ void Airspace::UpdatePhysics(float dt, bool focused) {
 void Airspace::DrawWorld(const char* scene) {
     Render::Begin(scene);
         Render::SetFrame(Render::FrameId::NED);
+        Render::Globe();
         Render::Grid();
-        Render::Frame(glm::mat4(1.f), 1.f);
 
         // Aircraft
         Render::PushMatrix();
@@ -113,33 +112,21 @@ void Airspace::DrawWorld(const char* scene) {
             Render::PushMatrix();
                 Render::Scale(0.4f);
                 DrawAircraft();
-                Render::PopMatrix();
-            Render::Frame(glm::mat4(1.f), 0.5f);
-            if (aircraft_.speed > 0.1f) {
-                Render::Line({0, 0, 0}, {-aircraft_.speed * 0.06f, 0, 0}, Render::Color::Hex("#FFD700"), 5.f);
-            }
-            Render::Text({0, 0, 0}, Render::Color::Hex("#f8ffd8"), "(%d, %d, %d)",
-                 (int)aircraft_.position.x, (int)aircraft_.position.y, (int)aircraft_.position.z);
+            Render::PopMatrix();
         Render::PopMatrix();
 
         // Ground track
         Render::Cross({aircraft_.position.x, aircraft_.position.y, 0}, 0.3f, Render::Color::Hex("#FFFFFF30"), 1.5f);
-        Render::Line (aircraft_.position, {aircraft_.position.x, aircraft_.position.y, 0}, Render::Color::Hex("#FFFFFF15"), 1.f);
+        Render::Line(aircraft_.position, {aircraft_.position.x, aircraft_.position.y, 0}, Render::Color::Hex("#FFFFFF15"), 1.f);
 
         // Trail
         if (trail_.size() > 1)
             Render::Trail(trail_.data(), static_cast<int>(trail_.size()), Render::Color::Hex("#FFD700"), 2.f);
-
-        // Cardinal directions
-        constexpr float d = 12.f;
-        Render::Text({ d, 0, 0.1f}, Render::Color::Hex("#E07070"), "N");
-        Render::Text({-d, 0, 0.1f}, Render::Color::Hex("#E07070"), "S");
-        Render::Text({0,  d, 0.1f}, Render::Color::Hex("#70B870"), "E");
-        Render::Text({0, -d, 0.1f}, Render::Color::Hex("#70B870"), "W");
     Render::End();
 }
 
 void Airspace::SetupEnv(const char* scene) {
+    Render::SetOrigin(scene, 52.2297, 21.0122);  // scene-level geodetic anchor
     auto& env    = Render::GetEnvironment(scene);
     env.bgColor  = {0.06f, 0.08f, 0.14f};
     env.showSun  = true;

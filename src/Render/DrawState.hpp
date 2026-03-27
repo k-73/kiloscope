@@ -5,6 +5,7 @@
 #include "Render/Draw.hpp"
 #include "Render/Frame.hpp"
 #include "Render/Camera.hpp"
+#include "Render/Geo.hpp"
 #include "Render/Fbo.hpp"
 #include "Render/Shader.hpp"
 #include <GL/glew.h>
@@ -103,7 +104,8 @@ struct SceneData {
     Fbo fbo; PickFbo pickFbo;
 
     // Configuration
-    Camera cam; Environment env; GridConfig gridCfg;
+    Camera cam; Environment env; GridConfig gridCfg; GlobeConfig globeCfg;
+    GeoRef geoRef;
     bool flyLocked = false;         // per-scene fly-mode cursor lock
 
     // Mesh batching
@@ -161,11 +163,11 @@ struct FrameState {
 
 // ── shared state (GPU resources + per-frame derived) ─────────────────
 
-inline Shader sMeshShader, sLineShader, sGridShader, sPointShader;
+inline Shader sMeshShader, sLineShader, sGridShader, sPointShader, sGlobeShader;
 inline Shader sPickMeshShader, sPickLineShader, sPickPointShader;
 inline GLuint sMeshVao = 0, sMeshVbo = 0;
 inline GLuint sLineVao = 0, sLineVbo = 0;
-inline GLuint sGridVao = 0;
+inline GLuint sGridVao = 0, sGlobeVao = 0;
 inline GLuint sPointVao = 0, sPointVbo = 0;
 inline GLsizeiptr sMeshVboCap = 0, sLineVboCap = 0, sPointVboCap = 0;
 
