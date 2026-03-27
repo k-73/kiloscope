@@ -74,9 +74,8 @@ inline glm::vec4 Hue(float t) {
 
 // ── scene viewport ──────────────────────────────────────────────
 struct ViewportConfig {
-    float   width  = -1;  // -1 = fill available
-    float   height = -1;
-    FrameId frame  = FrameId::XYZ;  // coordinate convention for this scene
+    float width  = -1;  // -1 = fill available
+    float height = -1;
 };
 
 struct Stats {

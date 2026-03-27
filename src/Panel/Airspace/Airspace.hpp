@@ -30,7 +30,7 @@ private:
         bool free   = false;
     } cameraMode_;
 
-    static constexpr size_t kTrailMax = 300;
+    static constexpr size_t kTrailMax = 128;
     std::vector<glm::vec3> trail_;
 };
 

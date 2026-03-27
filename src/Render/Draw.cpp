@@ -721,8 +721,8 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     scene->stats.msaaSamples  = scene->fbo.Samples();
 
     scene->matStack.resize(1);
-    scene->frameMat = FrameMat(cfg.frame);
-    scene->matStack[0] = glm::mat4(scene->frameMat);
+    scene->frameMat = glm::mat3(1.f);
+    scene->matStack[0] = glm::mat4(1.f);
 }
 
 // ── DrawSun / DrawGrid ───────────────────────────────────────────────
@@ -913,9 +913,9 @@ void End() {
 
 void SetFrame(FrameId id)         { SetFrame(FrameMat(id)); }
 void SetFrame(const glm::mat3& m) {
-    // Right-multiply basis change: preserves world position, relabels local axes
     ctx().matStack.back() *= glm::mat4(glm::transpose(ctx().frameMat) * m);
     ctx().frameMat = m;
+    ctx().cam.SetFrame(m);
 }
 const glm::mat3& GetFrame() { return ctx().frameMat; }
 

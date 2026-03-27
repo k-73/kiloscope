@@ -90,7 +90,7 @@ void Airspace::UpdatePhysics(float dt, bool focused) {
     aircraft_.position.z  = std::min(aircraft_.position.z, -0.1f);
 
     // Record trail by distance (adapts to speed: dense in turns, sparse on straights)
-    if (trail_.empty() || glm::distance(aircraft_.position, trail_.back()) > 0.15f) {
+    if (trail_.empty() || glm::distance(aircraft_.position, trail_.back()) > 0.25f) {
         trail_.push_back(aircraft_.position);
         if (trail_.size() > kTrailMax) trail_.erase(trail_.begin());
     }
@@ -99,7 +99,8 @@ void Airspace::UpdatePhysics(float dt, bool focused) {
 // ── scene ───────────────────────────────────────────────────────
 
 void Airspace::DrawWorld(const char* scene) {
-    Render::Begin(scene, {.frame = Render::FrameId::NED});
+    Render::Begin(scene);
+        Render::SetFrame(Render::FrameId::NED);
         Render::Grid();
         Render::Frame(glm::mat4(1.f), 1.f);
 
@@ -158,7 +159,6 @@ void Airspace::OnDraw() {
     // Main view — chase camera
     SetupEnv("flight");
     auto& flightCam = Render::GetCamera("flight");
-    flightCam.SetFrame(Render::FrameId::NED);
     if (!cameraMode_.free && cameraMode_.chase)
         flightCam.Follow(aircraft_.position, -aircraft_.yaw - 90.f);
     else
@@ -179,7 +179,6 @@ void Airspace::OnDraw() {
     ImGui::Begin("Gimbal");
         SetupEnv("gimbal");
         auto& gimbalCam = Render::GetCamera("gimbal");
-        gimbalCam.SetFrame(Render::FrameId::NED);
         gimbalCam.LookAt(aircraft_.position + glm::vec3(0.f, 0.f, 0.3f), {0.f, 0.f, 0.f});
         gimbalCam.Fov() = 50.f;
         DrawWorld("gimbal");
