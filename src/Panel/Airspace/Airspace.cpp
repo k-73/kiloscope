@@ -119,7 +119,7 @@ void Airspace::DrawWorld(const char* scene) {
                 Render::Line({0, 0, 0}, {-aircraft_.speed * 0.06f, 0, 0}, Render::Color::Hex("#FFD700"), 5.f);
             }
             Render::Text({0, 0, 0}, Render::Color::Hex("#f8ffd8"), "(%d, %d, %d)",
-                 (int)aircraft_.position.x, (int)aircraft_.position.y, (int)-aircraft_.position.z);
+                 (int)aircraft_.position.x, (int)aircraft_.position.y, (int)aircraft_.position.z);
         Render::PopMatrix();
 
         // Ground track
