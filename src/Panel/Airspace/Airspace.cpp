@@ -170,9 +170,9 @@ void Airspace::OnDraw() {
         flightCam.CaptureFollow();
 
     // Camera position (read after DrawWorld so it reflects current frame)
-    auto camNED = Render::FromInternal<Render::NED>(flightCam.Position());
+    auto camPos = flightCam.Position();
     ImGui::Begin("Airspace");
-    ImGui::TextDisabled("Cam  N %.1f  E %.1f  Alt %.1f", camNED.x, camNED.y, -camNED.z);
+    ImGui::TextDisabled("Cam  N %.1f  E %.1f  Alt %.1f", camPos.x, camPos.y, -camPos.z);
     ImGui::End();
 
     // Gimbal — mounted under aircraft, looking at origin

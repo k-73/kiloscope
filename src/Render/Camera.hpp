@@ -140,10 +140,10 @@ public:
         return glm::perspective(glm::radians(fov_), aspect, nr, fr);
     }
 
-    // ── accessors (raw internal) ─────────────────────────────────
-    glm::vec3        Position()  const { return Eye(); }
-    const glm::vec3& Pivot()     const { return pivot_; }
-    float            Distance()  const { return dist_; }
+    // ── accessors (in camera's coordinate frame) ──────────────────
+    glm::vec3 Position() const { return glm::transpose(frameMat_) * Eye(); }
+    glm::vec3 Pivot()    const { return glm::transpose(frameMat_) * pivot_; }
+    float     Distance() const { return dist_; }
     float            Yaw()       const { return yaw_; }
     float            Pitch()     const { return pitch_; }
     float            Fov()       const { return fov_; }
@@ -151,7 +151,8 @@ public:
     float            NearPlane() const { return nearPlane_; }
     float            FarPlane()  const { return farPlane_; }
 
-    glm::vec3& Target()    { return pivot_; }
+    const glm::vec3& Target() const { return pivot_; }
+    glm::vec3&       Target()       { return pivot_; }
     float&     Distance()  { return dist_; }
     float&     Yaw()       { return yaw_; }
     float&     Pitch()     { return pitch_; }

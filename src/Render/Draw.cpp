@@ -683,7 +683,7 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     sProj  = cam.Projection(aspect);
     sViewProj    = sProj * sView;
     sInvViewProj = glm::inverse(sViewProj);
-    sCamPos      = cam.Position();
+    sCamPos      = cam.Eye();
     sLightDir = glm::normalize(scene->env.lightDir);
     sVpW = w; sVpH = h;
 
@@ -791,7 +791,7 @@ void End() {
 
     if (sFrame.fly) {
         auto& cam   = ctx().cam;
-        auto  pivot = cam.Pivot();
+        auto  pivot = cam.Target();
         float s     = cam.Distance() * 0.03f;
         const glm::mat3& fm = ctx().frameMat;
         const glm::vec4 axColors[3] = {
