@@ -1,5 +1,5 @@
 #pragma once
-// Internal header — shared state between Draw.cpp and DrawPrimitives.cpp
+// Internal header — shared state between Draw.cpp, DrawPrimitives.cpp, DrawGlobe.cpp.
 // NOT part of public API. Do not include from outside src/Render/.
 
 #include "Render/Draw.hpp"
@@ -163,11 +163,11 @@ struct FrameState {
 
 // ── shared state (GPU resources + per-frame derived) ─────────────────
 
-inline Shader sMeshShader, sLineShader, sGridShader, sPointShader, sGlobeShader;
+inline Shader sMeshShader, sLineShader, sGridShader, sPointShader;
 inline Shader sPickMeshShader, sPickLineShader, sPickPointShader;
 inline GLuint sMeshVao = 0, sMeshVbo = 0;
 inline GLuint sLineVao = 0, sLineVbo = 0;
-inline GLuint sGridVao = 0, sGlobeVao = 0;
+inline GLuint sGridVao = 0;
 inline GLuint sPointVao = 0, sPointVbo = 0;
 inline GLsizeiptr sMeshVboCap = 0, sLineVboCap = 0, sPointVboCap = 0;
 

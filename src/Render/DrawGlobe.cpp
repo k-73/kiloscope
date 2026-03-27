@@ -3,6 +3,10 @@
 
 namespace Kilo::Render {
 
+// Globe-owned GPU resources (not shared — only used here)
+static Shader sGlobeShader;
+static GLuint sGlobeVao = 0;
+
 // ── init / shutdown ─────────────────────────────────────────────────
 
 void InitGlobe(const std::string& dir) {

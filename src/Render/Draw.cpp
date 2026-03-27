@@ -891,6 +891,8 @@ void End() {
     }
     FlushPoints();
     FlushLines();
+
+    // ── surface extensions (add new surface renderers here) ──────
     if (ctx().globeCfg.enabled) DrawGlobe(ctx().globeCfg);
     if (ctx().gridCfg.enabled)  DrawGrid(ctx().gridCfg, ctx().cam.Distance());
 
