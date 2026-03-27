@@ -172,9 +172,10 @@ struct EventState {
 EventState Event();
 
 // ── coordinate frame ─────────────────────────────────────────────
-// Frame is baked into the base matrix: all operations (transforms AND
-// draw positions) automatically work in the user's coordinate convention.
-// Set per-scene via ViewportConfig::frame, or mid-scene via SetFrame().
+// Frame is baked into the base matrix and synced to the scene camera.
+// All operations (transforms, draw positions, camera Follow/LookAt)
+// automatically work in the user's coordinate convention.
+// Call after Begin(), can be changed mid-scene.
 void SetFrame(FrameId id);
 void SetFrame(const glm::mat3& m);
 template<typename F> void SetFrame() { SetFrame(F::M); }

@@ -83,11 +83,15 @@ public:
     // ── follow mode ─────────────────────────────────────────────
     // Camera tracks a moving target with base yaw/pitch while the
     // user can orbit (MMB) and zoom (scroll) on top.
+    // heading = object's yaw in the current frame (e.g. NED heading).
     // Call Follow() before Render::Begin, CaptureFollow() after End.
-    void Follow(const glm::vec3& target, float yaw, float basePitch = 18.f) {
+    void Follow(const glm::vec3& target, float heading, float basePitch = 18.f) {
         following_ = true;
         pivot_ = frameMat_ * target;
-        yaw_   = yaw + followYawOff_;
+        // Convert frame heading to internal camera orbit yaw
+        float hr = glm::radians(heading);
+        auto d = frameMat_ * glm::vec3(std::cos(hr), std::sin(hr), 0.f);
+        yaw_   = glm::degrees(std::atan2(-d.y, -d.x)) + followYawOff_;
         pitch_ = basePitch + followPitchOff_;
         dist_  = followDist_;
         snapYaw_   = yaw_;

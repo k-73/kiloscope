@@ -160,7 +160,7 @@ void Airspace::OnDraw() {
     SetupEnv("flight");
     auto& flightCam = Render::GetCamera("flight");
     if (!cameraMode_.free && cameraMode_.chase)
-        flightCam.Follow(aircraft_.position, -aircraft_.yaw - 90.f);
+        flightCam.Follow(aircraft_.position, aircraft_.yaw);
     else
         flightCam.Unfollow();
 

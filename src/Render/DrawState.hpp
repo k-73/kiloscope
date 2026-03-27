@@ -221,9 +221,8 @@ inline glm::vec3 XformDir(const glm::vec3& d) {
 
 inline glm::vec3 Perpendicular(const glm::vec3& v) {
     auto n = glm::normalize(v);
-    // Use X-axis fallback when v is nearly aligned with Y to avoid degenerate cross product
-    auto up = (std::abs(n.y) < 0.99f) ? glm::vec3(0, 1, 0) : glm::vec3(1, 0, 0);
-    return glm::normalize(glm::cross(n, up));
+    auto ref = std::abs(n.y) < 0.99f ? glm::vec3(0, 1, 0) : glm::vec3(1, 0, 0);
+    return glm::normalize(glm::cross(n, ref));
 }
 
 // Build rotation matrix that maps +Z to dir (stable for all directions, no singularity)
