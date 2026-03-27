@@ -1,4 +1,5 @@
 #include "Render/DrawState.hpp"
+#include "Render/DrawGlobe.hpp"
 #include <GLFW/glfw3.h>
 #include <algorithm>
 #include <generator/SphereMesh.hpp>
@@ -500,7 +501,7 @@ void Init(const std::string& dir) {
     sPickMeshShader  = Shader(dir + "/Pick.vert",      dir + "/Pick.frag");
     sPickLineShader  = Shader(dir + "/PickLine.vert",  dir + "/PickLine.frag");
     sPickPointShader = Shader(dir + "/PickPoint.vert", dir + "/PickPoint.frag");
-    sGlobeShader     = Shader(dir + "/Globe.vert",     dir + "/Globe.frag");
+    InitGlobe(dir);
 
     // Cache point light uniform locations
     auto prog = sMeshShader.Id();
@@ -535,7 +536,6 @@ void Init(const std::string& dir) {
     bindPickAttr(sLineVao, 4, offsetof(LineVert, pickId));
 
     glCreateVertexArrays(1, &sGridVao);
-    glCreateVertexArrays(1, &sGlobeVao);
 
     glCreateVertexArrays(1, &sPointVao);
     glCreateBuffers(1, &sPointVbo);
@@ -556,13 +556,14 @@ void Init(const std::string& dir) {
 
 void Shutdown() {
     sScenes.clear();
-    sMeshShader = {}; sLineShader = {}; sGridShader = {}; sPointShader = {}; sGlobeShader = {};
+    ShutdownGlobe();
+    sMeshShader = {}; sLineShader = {}; sGridShader = {}; sPointShader = {};
     sPickMeshShader = {}; sPickLineShader = {}; sPickPointShader = {};
-    GLuint vaos[] = {sMeshVao, sLineVao, sGridVao, sGlobeVao, sPointVao};
+    GLuint vaos[] = {sMeshVao, sLineVao, sGridVao, sPointVao};
     GLuint vbos[] = {sMeshVbo, sLineVbo, sPointVbo};
-    glDeleteVertexArrays(5, vaos);
+    glDeleteVertexArrays(4, vaos);
     glDeleteBuffers(3, vbos);
-    sMeshVao = sLineVao = sGridVao = sGlobeVao = sPointVao = 0;
+    sMeshVao = sLineVao = sGridVao = sPointVao = 0;
     sMeshVbo = sLineVbo = sPointVbo = 0;
     sMeshVboCap = sLineVboCap = sPointVboCap = 0;
     auto destroyGpuCache = [](auto& cache) {
@@ -585,8 +586,7 @@ void Shutdown() {
 
 // ── scene getters ────────────────────────────────────────────────────
 
-static SceneData& GetScene(uint32_t id) { auto& s = sScenes[id]; if (!s) s = std::make_unique<SceneData>(); return *s; }
-static SceneData& GetScene(const char* name) { return GetScene(HashName(name)); }
+// GetScene defined in DrawState.hpp (shared with DrawGlobe.cpp)
 
 Camera& GetCamera() { return ctx().cam; }
 Camera& GetCamera(const char* name) { return GetScene(name).cam; }
@@ -731,61 +731,6 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     scene->matStack.resize(1);
     scene->frameMat = glm::mat3(1.f);
     scene->matStack[0] = glm::mat4(1.f);
-}
-
-// ── Globe API ────────────────────────────────────────────────────────
-
-void SetOrigin(double lat, double lon, double alt)                         { ctx().geoRef.Set(lat, lon, alt); }
-void SetOrigin(const char* name, double lat, double lon, double alt)       { GetScene(name).geoRef.Set(lat, lon, alt); }
-void Globe()                        { ctx().globeCfg.enabled = true; }
-void Globe(const GlobeConfig& cfg)  { ctx().globeCfg = cfg; ctx().globeCfg.enabled = true; }
-GlobeConfig& GetGlobe()             { return ctx().globeCfg; }
-GlobeConfig& GetGlobe(const char* n){ return GetScene(n).globeCfg; }
-
-glm::dvec3 GeoToLocal(double lat, double lon, double alt) {
-    auto& gr = ctx().geoRef;
-    if (!gr.valid) return glm::dvec3(0.0);
-    auto enu = gr.ToInternal(lat, lon, alt);
-    return glm::dvec3(glm::transpose(glm::dmat3(ctx().frameMat)) * enu);
-}
-
-glm::dvec3 GeoToLocal(const char* name, double lat, double lon, double alt) {
-    auto& sc = GetScene(name);
-    if (!sc.geoRef.valid) return glm::dvec3(0.0);
-    auto enu = sc.geoRef.ToInternal(lat, lon, alt);
-    return glm::dvec3(glm::transpose(glm::dmat3(sc.frameMat)) * enu);
-}
-
-static void DrawGlobe(const GlobeConfig& cfg) {
-    auto& gr = ctx().geoRef;
-    if (!gr.valid) return;
-
-    // Ellipsoid center relative to camera (double precision → float)
-    glm::dvec3 camEcef = gr.ecefRef + glm::transpose(gr.ecefToEnu) * glm::dvec3(sCamPos);
-    glm::vec3 ellCenter = glm::vec3(gr.ecefToEnu * (-camEcef));
-
-    sGlobeShader.Use();
-    sGlobeShader.Set("uInvViewProj",  sInvViewProj);
-    sGlobeShader.Set("uViewProj",     sViewProj);
-    sGlobeShader.Set("uCamPos",       sCamPos);
-    sGlobeShader.Set("uEllCenter",    ellCenter);
-    sGlobeShader.Set("uRadii",        glm::vec3(GeoRef::a, GeoRef::a, GeoRef::b));
-    sGlobeShader.Set("uEcefToLocal",  glm::mat3(gr.ecefToEnu));
-    sGlobeShader.Set("uGratSpacing",  cfg.gratSpacing);
-    sGlobeShader.Set("uGratColor",    cfg.gratColor);
-    sGlobeShader.Set("uSurfaceColor", cfg.surfaceColor);
-
-    glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
-    glEnable(GL_POLYGON_OFFSET_FILL);
-    glPolygonOffset(1.f, 1.f);  // push Globe behind Grid to avoid z-fighting
-    glDepthMask(GL_TRUE);
-    glDisable(GL_CULL_FACE);
-    glBindVertexArray(sGlobeVao);
-    glDrawArrays(GL_TRIANGLES, 0, 6);
-    glDisable(GL_POLYGON_OFFSET_FILL);
-    glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
-    glEnable(GL_CULL_FACE);
-    ++ctx().stats.drawCalls;
 }
 
 // ── DrawSun / DrawGrid ───────────────────────────────────────────────

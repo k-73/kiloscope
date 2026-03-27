@@ -453,6 +453,27 @@ void OBB(const glm::vec3& center, const glm::quat& orient,
     PopMatrix();
 }
 
+// Jacobi eigensolver — diagonalize 3x3 symmetric matrix
+static void Eigen3(const glm::mat3& A, glm::vec3& eigenvalues, glm::mat3& eigenvectors) {
+    glm::mat3 D = A;
+    eigenvectors = glm::mat3(1.f);
+    for (int iter = 0; iter < 50; ++iter) {
+        int p = 0, q = 1;
+        float mx = std::abs(D[0][1]);
+        if (std::abs(D[0][2]) > mx) { p = 0; q = 2; mx = std::abs(D[0][2]); }
+        if (std::abs(D[1][2]) > mx) { p = 1; q = 2; }
+        if (mx < 1e-8f) break;
+        float theta = 0.5f * std::atan2(2.f * D[p][q], D[q][q] - D[p][p]);
+        float c = std::cos(theta), s = std::sin(theta);
+        glm::mat3 J(1.f);
+        J[p][p] = c;  J[q][q] = c;
+        J[p][q] = s;  J[q][p] = -s;
+        D = glm::transpose(J) * D * J;
+        eigenvectors = eigenvectors * J;
+    }
+    eigenvalues = {D[0][0], D[1][1], D[2][2]};
+}
+
 void Covariance(const glm::vec3& pos, const glm::mat3& cov,
                 const glm::vec4& color, float sigma, int seg) {
     glm::vec3 eigvals; glm::mat3 eigvecs;

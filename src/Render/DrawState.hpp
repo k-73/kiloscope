@@ -192,7 +192,7 @@ inline std::vector<MeshVert> sIndexedScratch;
 inline std::unordered_map<uint32_t, std::unique_ptr<SceneData>> sScenes;
 inline FrameState sFrame;
 
-// ── scene accessor ───────────────────────────────────────────────────
+// ── scene accessors ──────────────────────────────────────────────────
 
 inline SceneData& ctx() {
     assert(sFrame.scene && "Draw call outside Begin()/End()");
@@ -206,6 +206,11 @@ inline uint32_t HashName(const char* s) {
     for (; *s; ++s) h = (h ^ static_cast<uint8_t>(*s)) * 16777619u;
     return h;
 }
+
+inline SceneData& GetScene(uint32_t id) {
+    auto& s = sScenes[id]; if (!s) s = std::make_unique<SceneData>(); return *s;
+}
+inline SceneData& GetScene(const char* name) { return GetScene(HashName(name)); }
 
 inline uint32_t AllocPickId() {
     return ctx().pickIdOverride ? ctx().pickIdOverride : ++ctx().nextPickId;
@@ -287,29 +292,6 @@ void AppendMesh(std::vector<MeshVert>& out, const MeshT& mesh,
         out.push_back(sIndexedScratch[t.vertices[1]]);
         out.push_back(sIndexedScratch[t.vertices[2]]);
     }
-}
-
-// ── Jacobi eigensolver ───────────────────────────────────────────────
-
-// Diagonalize 3x3 symmetric matrix into eigenvalues and eigenvectors
-inline void Eigen3(const glm::mat3& A, glm::vec3& eigenvalues, glm::mat3& eigenvectors) {
-    glm::mat3 D = A;
-    eigenvectors = glm::mat3(1.f);
-    for (int iter = 0; iter < 50; ++iter) {
-        int p = 0, q = 1;
-        float mx = std::abs(D[0][1]);
-        if (std::abs(D[0][2]) > mx) { p = 0; q = 2; mx = std::abs(D[0][2]); }
-        if (std::abs(D[1][2]) > mx) { p = 1; q = 2; mx = std::abs(D[1][2]); }
-        if (mx < 1e-8f) break;
-        float theta = 0.5f * std::atan2(2.f * D[p][q], D[q][q] - D[p][p]);
-        float c = std::cos(theta), s = std::sin(theta);
-        glm::mat3 J(1.f);
-        J[p][p] = c;  J[q][q] = c;
-        J[p][q] = s;  J[q][p] = -s;
-        D = glm::transpose(J) * D * J;
-        eigenvectors = eigenvectors * J;
-    }
-    eigenvalues = {D[0][0], D[1][1], D[2][2]};
 }
 
 } // namespace Kilo::Render
