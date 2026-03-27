@@ -13,21 +13,25 @@ public:
 private:
     void DrawControls();
     void HandleInput(float dt, bool focused);
-    void UpdatePhysics(float dt, bool focused);
-    void DrawWorld(const char* scene);
+    void UpdatePhysics(float dt);
+    void DrawWorld(const char* scene, const glm::vec3& pos);
     void SetupEnv(const char* scene);
 
+    // Origin (geodetic reference point)
+    double originLat_ = 52.2297, originLon_ = 21.0122;
+
+    // Aircraft state (geodetic absolute)
     struct AircraftState {
-        glm::vec3 position{0, 0, -2.f};
-        float yaw   = 0.f;
-        float pitch = 0.f;
-        float roll  = 0.f;
-        float speed = 0.f;
+        double lat = 52.2297, lon = 21.0122, alt = 100.0;
+        float  yaw   = 0.f;
+        float  pitch = 0.f;
+        float  roll  = 0.f;
+        float  speed = 0.f;
     } aircraft_;
 
     struct CameraMode {
-        bool chase  = true;
-        bool free   = false;
+        bool chase = true;
+        bool free  = false;
     } cameraMode_;
 
     static constexpr size_t kTrailMax = 128;

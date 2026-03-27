@@ -132,9 +132,9 @@ public:
     glm::vec3 Eye()  const { return pivot_ - ViewDir() * dist_; }
     glm::mat4 View() const { return glm::lookAt(Eye(), pivot_, {0, 0, 1}); }
 
-    glm::mat4 Projection(float aspect) const {
+    glm::mat4 Projection(float aspect, float autoFar = 10000.f) const {
         float nr = nearPlane_ > 0.f ? nearPlane_ : std::max(0.01f, dist_ * 0.005f);
-        float fr = farPlane_  > 0.f ? farPlane_  : 10000.f;
+        float fr = farPlane_  > 0.f ? farPlane_  : autoFar;
         if (ortho_) {
             float h = dist_ * std::tan(glm::radians(fov_ * 0.5f));
             return glm::ortho(-h * aspect, h * aspect, -h, h, nr, fr);

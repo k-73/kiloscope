@@ -682,7 +682,13 @@ void Begin(const char* name, const ViewportConfig& cfg) {
 
     float aspect = static_cast<float>(w) / std::max(1, h);
     sView = cam.View();
-    sProj  = cam.Projection(aspect);
+    // Auto far plane: extend to horizon when Globe is active
+    float autoFar = 10000.f;
+    if (scene->geoRef.valid) {
+        float alt = std::max(1.f, cam.Eye().z);  // camera altitude (internal Z = up)
+        autoFar = std::max(autoFar, std::sqrt(2.f * static_cast<float>(GeoRef::a) * alt + alt * alt));
+    }
+    sProj = cam.Projection(aspect, autoFar);
     sViewProj    = sProj * sView;
     sInvViewProj = glm::inverse(sViewProj);
     sCamPos      = cam.Eye();
