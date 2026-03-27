@@ -52,12 +52,11 @@ public:
     }
 
     // ── coordinate frame ─────────────────────────────────────────
-    // High-level methods (Follow, LookAt, LookDir, SetPose, Focus) auto-convert
-    // positions from this frame to internal XYZ. Low-level accessors (Target(),
-    // Distance(), Yaw(), Pitch()) operate in raw internal coordinates.
-    void SetFrame(FrameId id)              { frameMat_ = FrameMat(id); }
-    void SetFrame(const glm::mat3& m)      { frameMat_ = m; }
-    const glm::mat3& GetFrame() const      { return frameMat_; }
+    // Positioning methods (Follow, LookAt, LookDir, SetPose, Focus) auto-convert
+    // from this frame to internal XYZ. Position()/Pivot() convert back.
+    void SetFrame(FrameId id)         { frameMat_ = FrameMat(id); }
+    void SetFrame(const glm::mat3& m) { frameMat_ = m; }
+    const glm::mat3& GetFrame() const { return frameMat_; }
 
     // ── positioning (frame-aware) ────────────────────────────────
     void Focus(const glm::vec3& pos) { pivot_ = frameMat_ * pos; }
@@ -125,9 +124,8 @@ public:
         return glm::normalize(glm::cross(Right(), ViewDir()));
     }
 
-    // ── transforms ──────────────────────────────────────────────
-    glm::vec3 Eye() const { return pivot_ - ViewDir() * dist_; }
-
+    // ── transforms (internal XYZ — used by renderer) ─────────────
+    glm::vec3 Eye()  const { return pivot_ - ViewDir() * dist_; }
     glm::mat4 View() const { return glm::lookAt(Eye(), pivot_, {0, 0, 1}); }
 
     glm::mat4 Projection(float aspect) const {
@@ -140,26 +138,28 @@ public:
         return glm::perspective(glm::radians(fov_), aspect, nr, fr);
     }
 
-    // ── accessors (in camera's coordinate frame) ──────────────────
+    // ── accessors (frame-aware — for panels/GUI) ──────────────────
     glm::vec3 Position() const { return glm::transpose(frameMat_) * Eye(); }
     glm::vec3 Pivot()    const { return glm::transpose(frameMat_) * pivot_; }
-    float     Distance() const { return dist_; }
-    float            Yaw()       const { return yaw_; }
-    float            Pitch()     const { return pitch_; }
-    float            Fov()       const { return fov_; }
-    bool             Ortho()     const { return ortho_; }
-    float            NearPlane() const { return nearPlane_; }
-    float            FarPlane()  const { return farPlane_; }
 
+    float Distance()  const { return dist_; }
+    float Yaw()       const { return yaw_; }
+    float Pitch()     const { return pitch_; }
+    float Fov()       const { return fov_; }
+    bool  Ortho()     const { return ortho_; }
+    float NearPlane() const { return nearPlane_; }
+    float FarPlane()  const { return farPlane_; }
+
+    // ── mutable refs (raw internal — for DragFloat, renderer) ─────
     const glm::vec3& Target() const { return pivot_; }
     glm::vec3&       Target()       { return pivot_; }
-    float&     Distance()  { return dist_; }
-    float&     Yaw()       { return yaw_; }
-    float&     Pitch()     { return pitch_; }
-    float&     Fov()       { return fov_; }
-    bool&      Ortho()     { return ortho_; }
-    float&     NearPlane() { return nearPlane_; }   // 0 = auto
-    float&     FarPlane()  { return farPlane_; }    // 0 = auto
+    float& Distance()  { return dist_; }
+    float& Yaw()       { return yaw_; }
+    float& Pitch()     { return pitch_; }
+    float& Fov()       { return fov_; }
+    bool&  Ortho()     { return ortho_; }
+    float& NearPlane() { return nearPlane_; }  // 0 = auto
+    float& FarPlane()  { return farPlane_; }   // 0 = auto
 
 private:
     // Decompose eye-to-target vector into distance + yaw/pitch
