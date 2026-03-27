@@ -1,5 +1,4 @@
-// Point vertex shader — perspective-scaled point rendering.
-// Point size thins with distance (clamped to [1, 128] pixels).
+// Point vertex shader — perspective-scaled + logarithmic depth.
 #version 450 core
 
 layout(location = 0) in vec3 aPos;
@@ -8,14 +7,19 @@ layout(location = 1) in vec4 aColor;
 uniform mat4  uView, uProj;
 uniform float uPointSize;
 uniform vec2  uViewportSize;
+uniform float uFarPlane;
 
-out vec4 vColor;
+out vec4  vColor;
+out float vLogZ;
 
 void main() {
     vec4 clip = uProj * uView * vec4(aPos, 1.0);
     gl_Position = clip;
 
-    // Scale point size by perspective projection
+    float Fcoef = 2.0 / log2(uFarPlane + 1.0);
+    gl_Position.z = (log2(max(1e-6, gl_Position.w + 1.0)) * Fcoef - 1.0) * gl_Position.w;
+    vLogZ = 1.0 + clip.w;
+
     float projScale = uProj[1][1] * uViewportSize.y * 0.5;
     gl_PointSize = clamp(uPointSize * projScale / clip.w, 1.0, 128.0);
 

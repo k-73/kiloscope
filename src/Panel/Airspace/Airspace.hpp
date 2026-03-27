@@ -22,7 +22,7 @@ private:
 
     // Aircraft state (geodetic absolute)
     struct AircraftState {
-        double lat = 52.2297, lon = 21.0122, alt = 100.0;
+        double lat = 52.2297, lon = 21.0122, alt = 10.0;
         float  yaw   = 0.f;
         float  pitch = 0.f;
         float  roll  = 0.f;

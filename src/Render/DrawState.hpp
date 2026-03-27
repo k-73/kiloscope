@@ -184,6 +184,7 @@ inline void UploadVbo(GLuint vbo, GLsizeiptr& cap, const void* data, GLsizeiptr 
 
 inline glm::mat4 sView, sProj, sViewProj, sInvViewProj;
 inline glm::vec3 sCamPos, sLightDir;
+inline float sFarPlane = 10000.f;
 inline int sVpW = 1, sVpH = 1;
 
 inline std::vector<MeshVert> sMeshScratch;

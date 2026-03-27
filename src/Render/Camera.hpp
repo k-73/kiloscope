@@ -19,7 +19,7 @@ namespace Kilo::Render {
 //   RMB hold     = fly mode (look + WASD/QE movement)
 class Camera {
     static constexpr float kPitchMin = -89.f, kPitchMax = 89.f;
-    static constexpr float kDistMin  = 0.01f, kDistMax  = 1000.f;
+    static constexpr float kDistMin  = 0.01f, kDistMax  = 1e6f;
 
 public:
     // ── orbit mode ──────────────────────────────────────────────
@@ -133,8 +133,8 @@ public:
     glm::mat4 View() const { return glm::lookAt(Eye(), pivot_, {0, 0, 1}); }
 
     glm::mat4 Projection(float aspect, float autoFar = 10000.f) const {
+        float fr = farPlane_  > 0.f ? farPlane_ : autoFar;
         float nr = nearPlane_ > 0.f ? nearPlane_ : std::max(0.01f, dist_ * 0.005f);
-        float fr = farPlane_  > 0.f ? farPlane_  : autoFar;
         if (ortho_) {
             float h = dist_ * std::tan(glm::radians(fov_ * 0.5f));
             return glm::ortho(-h * aspect, h * aspect, -h, h, nr, fr);

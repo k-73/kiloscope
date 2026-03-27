@@ -108,7 +108,9 @@ struct Environment {
     float roughness  = 0.35f;
     float specular   = 0.15f;
     float fresnel    = 0.25f;
-    float fogDensity = 0.00015f;
+    float fogDensity = 0.00015f;  // legacy (used when fogStart <= 0)
+    float fogStart   = 5000.f;    // atmospheric haze begins (meters)
+    float fogEnd     = 200000.f;  // full fog distance (meters)
     bool  showSun    = false;
 };
 
@@ -141,8 +143,8 @@ struct GridConfig {
     glm::vec4 axisYColor  = {.2f, .8f, .2f, 1.f};
     float     axisThickness = 0.001f;
     bool      axisScaleWithCam = false;
-    float     fadeStart   = 2.5f;
-    float     fadeEnd     = 10.f;
+    float     fadeStart   = 20.f;
+    float     fadeEnd     = 80.f;
 };
 
 void Grid();
@@ -153,9 +155,9 @@ GridConfig& GetGrid(const char* name);
 // ── globe (WGS84 ellipsoid) ─────────────────────────────────────
 struct GlobeConfig {
     bool      enabled      = false;
-    float     gratSpacing  = 10.f;
-    glm::vec4 surfaceColor = {.10f, .14f, .20f, .60f};
-    glm::vec4 gratColor    = {.40f, .50f, .60f, .50f};
+    float     gratSpacing  = 1.f;
+    glm::vec4 surfaceColor = {.12f, .18f, .28f, .85f};
+    glm::vec4 gratColor    = {.50f, .60f, .70f, .70f};
 };
 
 void SetOrigin(double lat, double lon, double alt = 0.0);

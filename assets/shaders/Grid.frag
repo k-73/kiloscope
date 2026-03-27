@@ -20,6 +20,7 @@ uniform int   uAxisScaleWithCam;
 
 // Distance fade range (multiplied by camera distance)
 uniform float uFadeStart, uFadeEnd;
+uniform float uFarPlane;
 
 out vec4 FragColor;
 
@@ -86,8 +87,8 @@ void main() {
         ? (axCol * axA + gridCol * gridA * (1.0 - axA)) / alpha
         : vec3(0);
 
-    // Distance fade — additive base ensures grid stays visible at close zoom
-    float d      = length(fp.xy - uCamPos.xy);
+    // Distance fade — use ray parameter t for precision (avoids large-float subtraction)
+    float d      = t * length(vFar - vNear);
     float scale  = 1.0 + uCamDist;
     float fade   = 1.0 - smoothstep(uFadeStart * scale, uFadeEnd * scale, d);
     alpha *= fade;
@@ -95,5 +96,6 @@ void main() {
 
     FragColor    = vec4(col, alpha);
     vec4 cp      = uViewProj * vec4(fp, 1);
-    gl_FragDepth = cp.z / cp.w * 0.5 + 0.5;  // write correct depth for intersection point
+    float Fcoef_half = 1.0 / log2(uFarPlane + 1.0);
+    gl_FragDepth = log2(max(1e-6, cp.w + 1.0)) * Fcoef_half;
 }

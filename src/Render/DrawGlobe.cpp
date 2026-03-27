@@ -48,9 +48,11 @@ void DrawGlobe(const GlobeConfig& cfg) {
     auto& gr = ctx().geoRef;
     if (!gr.valid) return;
 
-    // Ellipsoid center relative to camera (double precision → float)
-    glm::dvec3 camEcef = gr.ecefRef + glm::transpose(gr.ecefToEnu) * glm::dvec3(sCamPos);
-    glm::vec3 ellCenter = glm::vec3(gr.ecefToEnu * (-camEcef));
+    // Ellipsoid center position in world ENU, relative to camera
+    // Earth center in ENU = ecefToEnu * (0 - ecefRef) = ecefToEnu * (-ecefRef)
+    // Then subtract camera position (sCamPos is already in world ENU)
+    glm::dvec3 earthCenterEnu = gr.ecefToEnu * (-gr.ecefRef);
+    glm::vec3 ellCenter = glm::vec3(earthCenterEnu) - sCamPos;
 
     sGlobeShader.Use();
     sGlobeShader.Set("uInvViewProj",  sInvViewProj);
@@ -62,15 +64,13 @@ void DrawGlobe(const GlobeConfig& cfg) {
     sGlobeShader.Set("uGratSpacing",  cfg.gratSpacing);
     sGlobeShader.Set("uGratColor",    cfg.gratColor);
     sGlobeShader.Set("uSurfaceColor", cfg.surfaceColor);
+    sGlobeShader.Set("uFarPlane",     sFarPlane);
 
     glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
-    glEnable(GL_POLYGON_OFFSET_FILL);
-    glPolygonOffset(1.f, 1.f);
     glDepthMask(GL_TRUE);
     glDisable(GL_CULL_FACE);
     glBindVertexArray(sGlobeVao);
     glDrawArrays(GL_TRIANGLES, 0, 6);
-    glDisable(GL_POLYGON_OFFSET_FILL);
     glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
     glEnable(GL_CULL_FACE);
     ++ctx().stats.drawCalls;

@@ -89,7 +89,6 @@ void Airspace::UpdatePhysics(float dt) {
     constexpr double R = Render::GeoRef::a;
     aircraft_.lat += glm::degrees(dNorth / R);
     aircraft_.lon += glm::degrees(dEast / (R * std::cos(glm::radians(aircraft_.lat))));
-    aircraft_.alt  = std::max(aircraft_.alt + dUp, 1.0);
 
     // Bank autopilot: roll into turns
     float bank = 0.f;
@@ -104,7 +103,6 @@ void Airspace::DrawWorld(const char* scene, const glm::vec3& pos) {
     Render::Begin(scene);
         Render::SetFrame(Render::FrameId::NED);
         Render::Globe();
-        Render::Grid();
 
         // Aircraft
         Render::PushMatrix();

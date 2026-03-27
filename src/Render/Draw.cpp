@@ -163,6 +163,9 @@ void SetMeshFrameUniforms() {
     sMeshShader.Set("uSpecular", env.specular);
     sMeshShader.Set("uFresnel", env.fresnel);
     sMeshShader.Set("uFogDensity", env.fogDensity);
+    sMeshShader.Set("uFogStart", env.fogStart);
+    sMeshShader.Set("uFogEnd", env.fogEnd);
+    sMeshShader.Set("uFarPlane", sFarPlane);
     glUniform1i(sNumLightsLoc, ctx().numPointLights);
     for (int i = 0; i < ctx().numPointLights; ++i) {
         auto& light = ctx().pointLights[i];
@@ -327,6 +330,7 @@ void FlushLines() {
     sLineShader.Set("uProj", sProj);
     sLineShader.Set("uViewportSize", glm::vec2(sVpW, sVpH));
     sLineShader.Set("uLineWidth", ctx().lineWidth);
+    sLineShader.Set("uFarPlane", sFarPlane);
 
     glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
     glDepthMask(GL_FALSE);
@@ -344,6 +348,7 @@ void FlushLines() {
         sPickLineShader.Set("uProj", sProj);
         sPickLineShader.Set("uViewportSize", glm::vec2(sVpW, sVpH));
         sPickLineShader.Set("uLineWidth", ctx().lineWidth);
+        sPickLineShader.Set("uFarPlane", sFarPlane);
         glDisable(GL_CULL_FACE);
         glBindVertexArray(sLineVao);
         glDrawArrays(GL_TRIANGLES, 0, count);
@@ -387,6 +392,7 @@ void FlushPoints() {
     sPointShader.Set("uProj", sProj);
     sPointShader.Set("uPointSize", ctx().pointSize);
     sPointShader.Set("uViewportSize", glm::vec2(sVpW, sVpH));
+    sPointShader.Set("uFarPlane", sFarPlane);
 
     glEnable(GL_PROGRAM_POINT_SIZE);
     glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
@@ -406,6 +412,7 @@ void FlushPoints() {
         sPickPointShader.Set("uProj", sProj);
         sPickPointShader.Set("uPointSize", ctx().pointSize);
         sPickPointShader.Set("uViewportSize", glm::vec2(sVpW, sVpH));
+        sPickPointShader.Set("uFarPlane", sFarPlane);
         glEnable(GL_PROGRAM_POINT_SIZE);
         glDisable(GL_CULL_FACE);
         glBindVertexArray(sPointVao);
@@ -682,12 +689,13 @@ void Begin(const char* name, const ViewportConfig& cfg) {
 
     float aspect = static_cast<float>(w) / std::max(1, h);
     sView = cam.View();
-    // Auto far plane: extend to horizon when Globe is active
-    float autoFar = 10000.f;
+    // Auto far plane: scales with orbit distance + horizon when Globe active
+    float autoFar = std::max(10000.f, cam.Distance() * 100.f);
     if (scene->geoRef.valid) {
-        float alt = std::max(1.f, cam.Eye().z);  // camera altitude (internal Z = up)
+        float alt = std::max(1.f, cam.Eye().z);
         autoFar = std::max(autoFar, std::sqrt(2.f * static_cast<float>(GeoRef::a) * alt + alt * alt));
     }
+    sFarPlane = cam.FarPlane() > 0.f ? cam.FarPlane() : autoFar;
     sProj = cam.Projection(aspect, autoFar);
     sViewProj    = sProj * sView;
     sInvViewProj = glm::inverse(sViewProj);
@@ -776,6 +784,7 @@ static void DrawGrid(const GridConfig& cfg, float camDist) {
     sGridShader.Set("uAxisScaleWithCam", cfg.axisScaleWithCam ? 1 : 0);
     sGridShader.Set("uFadeStart", cfg.fadeStart);
     sGridShader.Set("uFadeEnd",   cfg.fadeEnd);
+    sGridShader.Set("uFarPlane",  sFarPlane);
 
     glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
     glDepthMask(GL_TRUE);
@@ -846,6 +855,7 @@ void End() {
             BeginPickPass();
             sPickMeshShader.Use();
             sPickMeshShader.Set("uViewProj", sViewProj);
+            sPickMeshShader.Set("uFarPlane", sFarPlane);
             for (auto& d : dl) {
                 if (!d.pickId || d.shadingMode == 3) continue;
                 sPickMeshShader.Set("uPickId", d.pickId);

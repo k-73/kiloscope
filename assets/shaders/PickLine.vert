@@ -1,5 +1,4 @@
-// Pick line vertex shader — same quad expansion as Line.vert,
-// but outputs pick ID instead of color for object selection.
+// Pick line vertex shader — quad expansion + logarithmic depth.
 #version 450 core
 
 layout(location = 0) in vec3 aPos;
@@ -11,8 +10,10 @@ layout(location = 4) in uint aPickId;
 uniform mat4  uView, uProj;
 uniform vec2  uViewportSize;
 uniform float uLineWidth;
+uniform float uFarPlane;
 
 flat out uint vPickId;
+out float vLogZ;
 
 void main() {
     vec4 cA = uProj * uView * vec4(aPos, 1);
@@ -36,5 +37,9 @@ void main() {
     clip.xy  += off * clip.w;
 
     gl_Position = clip;
-    vPickId     = aPickId;
+    float Fcoef = 2.0 / log2(uFarPlane + 1.0);
+    gl_Position.z = (log2(max(1e-6, gl_Position.w + 1.0)) * Fcoef - 1.0) * gl_Position.w;
+    vLogZ = 1.0 + gl_Position.w;
+
+    vPickId = aPickId;
 }
