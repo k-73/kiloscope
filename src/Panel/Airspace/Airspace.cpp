@@ -90,7 +90,7 @@ void Airspace::UpdatePhysics(float dt, bool focused) {
     aircraft_.position.z  = std::min(aircraft_.position.z, -0.1f);
 
     // Record trail by distance (adapts to speed: dense in turns, sparse on straights)
-    if (trail_.empty() || glm::distance(aircraft_.position, trail_.back()) > 0.25f) {
+    if (trail_.empty() || glm::distance(aircraft_.position, trail_.back()) > 0.1) {
         trail_.push_back(aircraft_.position);
         if (trail_.size() > kTrailMax) trail_.erase(trail_.begin());
     }
