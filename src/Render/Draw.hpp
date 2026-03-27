@@ -218,6 +218,8 @@ void Circle(const glm::vec3& center, const glm::vec3& axis,
             float radius, const glm::vec4& color, int seg = 32, float width = 2.5f);
 void Spline(const glm::vec3* controlPoints, int count,
             const glm::vec4& color, int segments = 32, float width = 2.5f);
+void Trail(const glm::vec3* points, int count,
+           const glm::vec4& color, float width = 2.5f);
 
 // ── points ───────────────────────────────────────────────────────
 void Points(const glm::vec3* positions, int count,

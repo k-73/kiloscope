@@ -226,15 +226,13 @@ inline glm::vec3 Perpendicular(const glm::vec3& v) {
     return glm::normalize(glm::cross(n, up));
 }
 
+// Build rotation matrix that maps +Z to dir (stable for all directions, no singularity)
 inline glm::mat4 AxisRotation(const glm::vec3& dir) {
-    auto n = glm::normalize(dir);
-    float dot = glm::clamp(glm::dot(glm::vec3(0, 0, 1), n), -1.f, 1.f);
-    if (dot < -0.999f)
-        return glm::rotate(glm::mat4(1.f), glm::pi<float>(), glm::vec3(1, 0, 0));
-    if (dot > 0.999f)
-        return glm::mat4(1.f);
-    return glm::rotate(glm::mat4(1.f), std::acos(dot),
-                       glm::normalize(glm::cross(glm::vec3(0, 0, 1), n)));
+    auto z = glm::normalize(dir);
+    auto ref = std::abs(z.z) < 0.99f ? glm::vec3(0, 0, 1) : glm::vec3(0, 1, 0);
+    auto x = glm::normalize(glm::cross(ref, z));
+    auto y = glm::cross(z, x);
+    return {glm::vec4(x, 0), glm::vec4(y, 0), glm::vec4(z, 0), glm::vec4(0, 0, 0, 1)};
 }
 
 inline glm::mat4 ZAlign(const glm::vec3& a, const glm::vec3& b) {

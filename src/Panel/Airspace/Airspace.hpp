@@ -1,6 +1,7 @@
 #pragma once
 #include "Core/Panel/Panel.hpp"
 #include <glm/glm.hpp>
+#include <vector>
 
 namespace Kilo {
 
@@ -28,6 +29,9 @@ private:
         bool chase  = true;
         bool free   = false;
     } cameraMode_;
+
+    static constexpr size_t kTrailMax = 300;
+    std::vector<glm::vec3> trail_;
 };
 
 } // namespace Kilo

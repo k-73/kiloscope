@@ -2,6 +2,7 @@
 #include "Core/Panel/PanelRegistry.hpp"
 #include "Render/Draw.hpp"
 #include "Render/Camera.hpp"
+#include "Render/Frame.hpp"
 #include <imgui.h>
 #include <cmath>
 
@@ -45,7 +46,8 @@ void Airspace::DrawControls() {
     ImGui::SliderFloat("Pitch", &aircraft_.pitch, -45.f,  45.f, "%.1f\xc2\xb0");
     ImGui::SliderFloat("Yaw",   &aircraft_.yaw,  -180.f, 180.f, "%.1f\xc2\xb0");
     ImGui::Separator();
-    ImGui::Text("N %.1f  E %.1f  Alt %.1f", aircraft_.position.x, aircraft_.position.y, -aircraft_.position.z);
+    ImGui::Text("N %.1f  E %.1f  Alt %.1f",
+        aircraft_.position.x, aircraft_.position.y, -aircraft_.position.z);
     ImGui::TextDisabled(cameraMode_.free ? "RMB+WASD = fly camera" : "WASD = fly  |  MMB = orbit");
     ImGui::End();
 }
@@ -86,6 +88,12 @@ void Airspace::UpdatePhysics(float dt, bool focused) {
     aircraft_.position.y += aircraft_.speed * std::sin(yr) * cp * dt;
     aircraft_.position.z -= aircraft_.speed * std::sin(pr) * dt;
     aircraft_.position.z  = std::min(aircraft_.position.z, -0.1f);
+
+    // Record trail by distance (adapts to speed: dense in turns, sparse on straights)
+    if (trail_.empty() || glm::distance(aircraft_.position, trail_.back()) > 0.15f) {
+        trail_.push_back(aircraft_.position);
+        if (trail_.size() > kTrailMax) trail_.erase(trail_.begin());
+    }
 }
 
 // ── scene ───────────────────────────────────────────────────────
@@ -116,6 +124,10 @@ void Airspace::DrawWorld(const char* scene) {
         // Ground track
         Render::Cross({aircraft_.position.x, aircraft_.position.y, 0}, 0.3f, Render::Color::Hex("#FFFFFF30"), 1.5f);
         Render::Line (aircraft_.position, {aircraft_.position.x, aircraft_.position.y, 0}, Render::Color::Hex("#FFFFFF15"), 1.f);
+
+        // Trail
+        if (trail_.size() > 1)
+            Render::Trail(trail_.data(), static_cast<int>(trail_.size()), Render::Color::Hex("#FFD700"), 2.f);
 
         // Cardinal directions
         constexpr float d = 12.f;
@@ -157,12 +169,18 @@ void Airspace::OnDraw() {
     if (!cameraMode_.free && cameraMode_.chase)
         flightCam.CaptureFollow();
 
-    // Gimbal view — mounted under aircraft, looking at origin
+    // Camera position (read after DrawWorld so it reflects current frame)
+    auto camNED = Render::FromInternal<Render::NED>(flightCam.Position());
+    ImGui::Begin("Airspace");
+    ImGui::TextDisabled("Cam  N %.1f  E %.1f  Alt %.1f", camNED.x, camNED.y, -camNED.z);
+    ImGui::End();
+
+    // Gimbal — mounted under aircraft, looking at origin
     ImGui::Begin("Gimbal");
         SetupEnv("gimbal");
         auto& gimbalCam = Render::GetCamera("gimbal");
         gimbalCam.SetFrame(Render::FrameId::NED);
-        gimbalCam.LookAt(aircraft_.position + glm::vec3(0, 0, 0.3f), {0.f, 0.f, 0.f});
+        gimbalCam.LookAt(aircraft_.position + glm::vec3(0.f, 0.f, 0.3f), {0.f, 0.f, 0.f});
         gimbalCam.Fov() = 50.f;
         DrawWorld("gimbal");
     ImGui::End();

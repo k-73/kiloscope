@@ -97,6 +97,20 @@ void Spline(const glm::vec3* cp, int count,
     }
 }
 
+void Trail(const glm::vec3* points, int count,
+           const glm::vec4& color, float width) {
+    if (count < 2) return;
+    ctx().activePickId = AllocPickId();
+    float inv = 1.f / static_cast<float>(count - 1);
+    for (int i = 0; i + 1 < count; ++i) {
+        float a0 = color.a * static_cast<float>(i) * inv;
+        float a1 = color.a * static_cast<float>(i + 1) * inv;
+        BatchLineGradient(XformPoint(points[i]), XformPoint(points[i + 1]),
+                          {color.r, color.g, color.b, a0},
+                          {color.r, color.g, color.b, a1}, width);
+    }
+}
+
 // ── points ───────────────────────────────────────────────────────────
 
 void Points(const glm::vec3* positions, int count,

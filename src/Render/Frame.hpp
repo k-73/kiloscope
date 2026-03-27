@@ -25,14 +25,18 @@ inline constexpr glm::mat3 FrameMat(FrameId id) {
     return lut[static_cast<int>(id)];
 }
 
-// ── compile-time helpers ────────────────────────────────────────────
+// ── conversions ────────────────────────────────────────────────────
+//   ToInternal<NED>(v)   — convert v from NED to internal XYZ
+//   FromInternal<NED>(v) — convert v from internal XYZ to NED
 
-// Convert a position from frame F to internal (XYZ) coordinates
-template<typename F> constexpr glm::vec3 ToInternal(const glm::vec3& v) { return F::M * v; }
-template<typename F> constexpr glm::vec3 ToInternal(float x, float y, float z) { return F::M * glm::vec3{x,y,z}; }
+template<typename F> constexpr glm::vec3 ToInternal(const glm::vec3& v)   { return F::M * v; }
+template<typename F> constexpr glm::vec3 FromInternal(const glm::vec3& v) { return glm::transpose(F::M) * v; }
 
-template<typename F> constexpr glm::vec3 MapVec(float x, float y, float z) { return F::M * glm::vec3{x,y,z}; }
-template<typename F> constexpr glm::vec3 MapVec(const glm::vec3& v)        { return F::M * v; }
+inline constexpr glm::vec3 ToInternal  (FrameId id, const glm::vec3& v) { return FrameMat(id) * v; }
+inline constexpr glm::vec3 FromInternal(FrameId id, const glm::vec3& v) { return glm::transpose(FrameMat(id)) * v; }
+
+// ── frame axis queries ─────────────────────────────────────────────
+
 template<typename F> constexpr glm::vec3 AxisX() { return F::M[0]; }
 template<typename F> constexpr glm::vec3 AxisY() { return F::M[1]; }
 template<typename F> constexpr glm::vec3 AxisZ() { return F::M[2]; }

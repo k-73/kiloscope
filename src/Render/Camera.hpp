@@ -48,7 +48,7 @@ public:
     void FlyMove(float fwd, float right, float up, float dt) {
         float speed = std::max(dist_, 1.f) * dt;
         pivot_ += ViewDir() * fwd * speed + Right() * right * speed
-                + glm::vec3(0, 0, up * speed);
+                + Up() * up * speed;
     }
 
     // ── coordinate frame ─────────────────────────────────────────
