@@ -1,14 +1,12 @@
 // WGS84 ellipsoid surface + metric grid + lat/lon graticule.
-// vNear is camera-relative (View matrix has eye at origin).
-// uCamPos is world position of camera (for converting to world coords).
 #version 450 core
 
-in vec3 vNear;     // camera-relative near-plane point
-in vec3 vDir;      // unnormalized ray direction
+in vec3 vNear;
+in vec3 vDir;
 
 uniform mat4  uViewProj;
-uniform vec3  uCamPos;       // camera world position (ENU)
-uniform vec3  uEllCenter;    // ellipsoid center, camera-relative
+uniform vec3  uCamPos;
+uniform vec3  uEllCenter;
 uniform vec3  uRadii;
 uniform mat3  uEcefToLocal;
 uniform vec4  uGratColor;
@@ -28,8 +26,6 @@ float SoftLine(vec2 coord, float scale) {
 
 void main() {
     vec3 rd = normalize(vDir);
-
-    // vNear is camera-relative. ro for ellipsoid = vNear (already cam-relative).
     vec3 ro = vNear;
 
     // ── Ellipsoid intersection ───────────────────────────────────
@@ -48,37 +44,33 @@ void main() {
     float tEll = (-B - sqrt(disc)) / A;
     if (tEll < 0.0) discard;
 
-    // ── Metric grid (flat plane Z=0 in world coords) ─────────────
-    // Camera-relative Z: flat plane is at z = -uCamPos.z (since cam is at uCamPos.z above plane)
-    float tPlane = -(vNear.z + uCamPos.z) / rd.z;  // plane at world Z=0 → cam-rel Z = -camPos.z
-    float tGrid = clamp(tPlane, 0.0, tEll);
-    // fp in world coords = camera-relative hit + camera world position
-    vec3 fpWorld = vNear + tGrid * rd + uCamPos;
+    // Distance from camera to surface hit (for fading fine layers)
+    float surfDist = tEll;
 
-    float m1 = SoftLine(fpWorld.xy, 10.0)    * 0.25;
-    float m2 = SoftLine(fpWorld.xy, 100.0)   * 0.4;
-    float m3 = SoftLine(fpWorld.xy, 1000.0)  * 0.6;
-    float m4 = SoftLine(fpWorld.xy, 10000.0) * 0.8;
-    float metricLine = max(max(m1, m2), max(m3, m4));
-
-    // ── Lat/lon graticule ────────────────────────────────────────
+    // ── Lat/lon graticule (all scales) ──────────────────────────
     vec3 hitLocal = ro + rd * tEll;
     vec3 ecef = toEcef * (hitLocal - uEllCenter);
     float lon = degrees(atan(ecef.y, ecef.x));
     float lat = degrees(atan(ecef.z, length(ecef.xy)));
+    vec2 ll = vec2(lon, lat);
 
-    float g1 = SoftLine(vec2(lon, lat), 1.0)  * 0.4;
-    float g2 = SoftLine(vec2(lon, lat), 10.0) * 0.6;
-    float g3 = SoftLine(vec2(lon, lat), 90.0) * 0.9;
-    float geoLine = max(max(g1, g2), g3);
+    // Fine layers fade with distance, coarse always visible
+    float g001 = SoftLine(ll, 0.001) * 0.15 * smoothstep(5000.0,     500.0,     surfDist);
+    float g01  = SoftLine(ll, 0.01)  * 0.25 * smoothstep(50000.0,    5000.0,    surfDist);
+    float g1   = SoftLine(ll, 0.1)   * 0.35 * smoothstep(500000.0,   50000.0,   surfDist);
+    float g10  = SoftLine(ll, 1.0)   * 0.45 * smoothstep(2000000.0,  500000.0,  surfDist);
+    float g50  = SoftLine(ll, 5.0)   * 0.55 * smoothstep(5000000.0,  2000000.0, surfDist);
+    float gA   = SoftLine(ll, 10.0)  * 0.65;
+    float gB   = SoftLine(ll, 30.0)  * 0.8;
+    float gC   = SoftLine(ll, 90.0)  * 1.0;
 
     // ── Compose ──────────────────────────────────────────────────
-    float line = clamp(max(metricLine, geoLine), 0.0, 1.0);
+    float line = max(max(max(g001, g01), max(g1, g10)),
+                     max(max(g50, gA), max(gB, gC)));
     vec3 col = mix(uSurfaceColor.rgb, uGratColor.rgb, line);
 
     FragColor = vec4(col, uSurfaceColor.a);
 
-    // Depth: convert to world coords for projection
     vec3 hitWorld = vNear + tEll * rd + uCamPos;
     vec4 cp = uViewProj * vec4(hitWorld, 1.0);
     float Fcoef_half = 1.0 / log2(uFarPlane + 1.0);
