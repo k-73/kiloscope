@@ -24,6 +24,7 @@ struct GeoRef {
     bool       valid = false;
 
     void Set(double lat, double lon, double alt = 0.0) {
+        if (valid && lat0 == lat && lon0 == lon && alt0 == alt) return;
         lat0 = lat; lon0 = lon; alt0 = alt;
         double phi = glm::radians(lat), lam = glm::radians(lon);
         double sp = std::sin(phi), cp = std::cos(phi);

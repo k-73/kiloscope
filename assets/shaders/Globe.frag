@@ -6,9 +6,11 @@ in vec3 vDir;
 
 uniform mat4  uViewProj;
 uniform vec3  uCamPos;
-uniform vec3  uEllCenter;
+uniform vec3  uEllCenter;      // ellipsoid center (camera-relative, float)
 uniform vec3  uRadii;
 uniform mat3  uEcefToLocal;
+uniform vec2  uOriginLL;      // origin lat, lon in degrees
+uniform float uR;             // Earth radius (meters)
 uniform vec4  uGratColor;
 uniform vec4  uSurfaceColor;
 uniform float uFarPlane;
@@ -55,26 +57,32 @@ void main() {
     // Distance from camera to surface hit (for fading fine layers)
     float surfDist = tEll;
 
-    // ── Lat/lon graticule (all scales) ──────────────────────────
-    vec3 hitLocal = ro + rd * tEll;
-    vec3 ecef = toEcef * (hitLocal - uEllCenter);
-    float lon = degrees(atan(ecef.y, ecef.x));
-    float lat = degrees(atan(ecef.z, length(ecef.xy)));
+    // ── Lat/lon from flat plane hit (stable — no ECEF rotation matrix noise) ──
+    // Flat plane at world Z=0, same as Grid.frag. Numerically stable because
+    // it uses only vNear/rd/uCamPos (no changing rotation matrix).
+    float tPlane = -(vNear.z + uCamPos.z) / rd.z;
+    float tGrid = clamp(tPlane, 0.0, tEll);  // don't exceed ellipsoid surface
+    vec3 hitENU = vNear + tGrid * rd + uCamPos;  // world ENU relative to origin
+
+    // ENU → delta lat/lon (linear, precise for small offsets)
+    float cosLat = cos(radians(uOriginLL.x));
+    float lon = uOriginLL.y + degrees(hitENU.x / (uR * cosLat));
+    float lat = uOriginLL.x + degrees(hitENU.y / uR);
     vec2 ll = vec2(lon, lat);
 
-    // Fine layers fade with distance, coarse always visible
-    float g001 = SoftLine(ll, 0.001) * 0.15 * smoothstep(5000.0,     500.0,     surfDist);
-    float g01  = SoftLine(ll, 0.01)  * 0.25 * smoothstep(50000.0,    5000.0,    surfDist);
-    float g1   = SoftLine(ll, 0.1)   * 0.35 * smoothstep(500000.0,   50000.0,   surfDist);
-    float g10  = SoftLine(ll, 1.0)   * 0.45 * smoothstep(2000000.0,  500000.0,  surfDist);
-    float g50  = SoftLine(ll, 5.0)   * 0.55 * smoothstep(5000000.0,  2000000.0, surfDist);
+    // Lat/lon graticule — all scales stable with GPU double precision ECEF
+    float g001 = SoftLine(ll, 0.001) * 0.15 * smoothstep(5000.0,     500.0,     surfDist);  // ≈111m
+    float g01  = SoftLine(ll, 0.01)  * 0.25 * smoothstep(50000.0,    5000.0,    surfDist);  // ≈1.1km
+    float g1   = SoftLine(ll, 0.1)   * 0.35 * smoothstep(500000.0,   50000.0,   surfDist);  // ≈11km
+    float g10  = SoftLine(ll, 1.0)   * 0.45 * smoothstep(2000000.0,  500000.0,  surfDist);  // ≈111km
+    float g5   = SoftLine(ll, 5.0)   * 0.55 * smoothstep(5000000.0,  2000000.0, surfDist);  // ≈556km
     float gA   = SoftLine(ll, 10.0)  * 0.65;
     float gB   = SoftLine(ll, 30.0)  * 0.8;
     float gC   = SoftLine(ll, 90.0)  * 1.0;
 
     // ── Compose ──────────────────────────────────────────────────
     float line = max(max(max(g001, g01), max(g1, g10)),
-                     max(max(g50, gA), max(gB, gC)));
+                     max(max(g5, gA), max(gB, gC)));
     vec3 col = mix(uSurfaceColor.rgb, uGratColor.rgb, line);
 
     FragColor = vec4(col, uSurfaceColor.a);

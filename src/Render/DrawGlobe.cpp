@@ -59,10 +59,10 @@ void DrawGlobe(const GlobeConfig& cfg) {
     // Ellipsoid center position in world ENU, relative to camera
     // Earth center in ENU = ecefToEnu * (0 - ecefRef) = ecefToEnu * (-ecefRef)
     // Then subtract camera position (sCamPos is already in world ENU)
-    glm::dvec3 earthCenterEnu = gr.ecefToEnu * (-gr.ecefRef);
-    glm::vec3 ellCenter = glm::vec3(earthCenterEnu - glm::dvec3(sCamPos));
+    // Ellipsoid center relative to camera (full double precision → GPU)
+    glm::dvec3 ellCenterD = gr.ecefToEnu * (-gr.ecefRef) - glm::dvec3(sCamPos);
 
-    sDbgEllCenter = ellCenter;
+    sDbgEllCenter = glm::vec3(ellCenterD);
     sDbgFarPlane = sFarPlane;
     sDbgCamZ = sCamPos.z;
 
@@ -70,9 +70,11 @@ void DrawGlobe(const GlobeConfig& cfg) {
     sGlobeShader.Set("uInvViewProj",  sInvViewProj);
     sGlobeShader.Set("uViewProj",     sViewProj);
     sGlobeShader.Set("uCamPos",       sCamPos);
-    sGlobeShader.Set("uEllCenter",    ellCenter);
+    sGlobeShader.Set("uEllCenter",    glm::vec3(ellCenterD));
     sGlobeShader.Set("uRadii",        glm::vec3(GeoRef::a, GeoRef::a, GeoRef::b));
     sGlobeShader.Set("uEcefToLocal",  glm::mat3(gr.ecefToEnu));
+    sGlobeShader.Set("uOriginLL",     glm::vec2(float(gr.lat0), float(gr.lon0)));
+    sGlobeShader.Set("uR",            static_cast<float>(GeoRef::a));
     sGlobeShader.Set("uGratColor",    cfg.gratColor);
     sGlobeShader.Set("uSurfaceColor", cfg.surfaceColor);
     sGlobeShader.Set("uFarPlane",     sFarPlane);
