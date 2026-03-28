@@ -257,6 +257,8 @@ void Points(const glm::vec3* positions, const glm::vec4* colors,
 // ── text ─────────────────────────────────────────────────────────
 void Text(const glm::vec3& pos, const glm::vec4& color,
           const char* fmt, ...) __attribute__((format(printf, 3, 4)));
+void Text2D(float x, float y, const glm::vec4& color,
+            const char* fmt, ...) __attribute__((format(printf, 4, 5)));
 
 // ── basic geometry ───────────────────────────────────────────────
 void Triangle(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c,

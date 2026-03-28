@@ -26,7 +26,8 @@ namespace Kilo::Render {
 struct MeshVert  { glm::vec3 pos, normal; glm::vec2 uv{0.f, 0.f}; };
 struct LineVert  { glm::vec3 pos, otherEnd; glm::vec2 expand; glm::vec4 color; uint32_t pickId; float width; };
 struct PointVert { glm::vec3 pos; glm::vec4 color; uint32_t pickId; };
-struct TextEntry { glm::vec3 worldPos; glm::vec4 color; std::string text; };
+struct TextEntry   { glm::vec3 worldPos; glm::vec4 color; std::string text; };
+struct Text2DEntry { float x, y; glm::vec4 color; std::string text; };
 
 // GPU-resident mesh (uploaded once, drawn with per-instance model matrix)
 struct GpuMesh {
@@ -141,7 +142,8 @@ struct SceneData {
     // Line / point / text batching
     std::vector<LineVert>  lineBatch;
     std::vector<PointVert> pointBatch;
-    std::vector<TextEntry> textBatch;
+    std::vector<TextEntry>   textBatch;
+    std::vector<Text2DEntry> text2dBatch;
     float pointSize  = 4.f;
 
     // Coordinate frame convention (maps user axes → internal axes)

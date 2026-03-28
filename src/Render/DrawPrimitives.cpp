@@ -147,6 +147,15 @@ void Text(const glm::vec3& pos, const glm::vec4& color, const char* fmt, ...) {
     ++ctx().stats.textLabels;
 }
 
+void Text2D(float x, float y, const glm::vec4& color, const char* fmt, ...) {
+    char buf[256];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, args);
+    va_end(args);
+    ctx().text2dBatch.push_back({x, y, color, buf});
+}
+
 // ── basic geometry ───────────────────────────────────────────────────
 
 void Triangle(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c,
