@@ -689,10 +689,13 @@ void Begin(const char* name, const ViewportConfig& cfg) {
 
     float aspect = static_cast<float>(w) / std::max(1, h);
     sView = cam.View();
-    // Auto far plane: scales with orbit distance + horizon when Globe active
+    // Auto far plane: scales with orbit distance + limb distance when Globe active
     float autoFar = std::max(10000.f, cam.Distance() * 100.f);
-    if (scene->geoRef.valid)
-        autoFar = std::max(autoFar, static_cast<float>(GeoRef::a) * 2.f);
+    if (scene->geoRef.valid) {
+        double camAlt = std::max(0.0, double(cam.Eye().z));
+        double limb   = std::sqrt(2.0 * GeoRef::a * camAlt + camAlt * camAlt);
+        autoFar = std::max(autoFar, float(std::max(GeoRef::a * 2.0, limb * 1.1)));
+    }
     sFarPlane = cam.FarPlane() > 0.f ? cam.FarPlane() : autoFar;
     sProj = cam.Projection(aspect, autoFar);
     sViewProj    = sProj * sView;
