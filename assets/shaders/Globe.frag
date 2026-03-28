@@ -142,8 +142,9 @@ void main() {
 
     // ── output ───────────────────────────────────────────────────
     // Smooth limb edge: NdotV → 0 at the horizon → alpha fades → MSAA coverage ramps down.
+    // fwidth scales the fade band to pixel size — works at any zoom level.
     float NdotV = max(dot(normal, -ray), 0.0);
-    float edgeFade = smoothstep(0.0, 0.015, NdotV);
+    float edgeFade = smoothstep(0.0, max(0.002, fwidth(NdotV) * 2.0), NdotV);
     FragColor = vec4(lit, uSurfaceColor.a * edgeFade);
 
     vec4 cp = uViewProj * vec4(hitWorld, 1.0);
