@@ -18,20 +18,37 @@ Airspace::Airspace() : Panel("Airspace", "Airspace") {}
 
 static void DrawAircraft() {
     constexpr auto Body = "#344b61", Wing = "#4D6E8C", Fin = "#7A9CB8";
+    constexpr float kLen     = 3.1f;    // total length
+    constexpr float kRadius  = 0.15f;   // fuselage radius
+    constexpr float kSpan    = 2.2f;    // half wingspan
+    constexpr float kStab    = 0.6f;    // half stabilizer span
+    constexpr float kFinH    = 0.5f;    // vertical fin height
+    constexpr int   kSeg     = 12;
+
+    // Derived positions along X (body axis, center ~ 0)
+    constexpr float rear = -kLen * 0.48f;           // -1.49
+    constexpr float front = kLen * 0.32f;            //  0.99
+    constexpr float nose  = kLen * 0.52f;            //  1.61
+    constexpr float wingLe = kLen * 0.16f;           //  0.50  leading edge
+    constexpr float wingTe = -kLen * 0.03f;          // -0.09  trailing edge
+    constexpr float sweep  = -kLen * 0.16f;          // -0.50  rear sweep
+    constexpr float stabTe = rear + kLen * 0.06f;    // -1.30  stab trailing
+    constexpr float stabLe = rear + kLen * 0.19f;    // -0.90  stab leading
+
+    Render::Frame(glm::mat4(1.f), 0.5f);
 
     // Fuselage
-    Render::Cylinder({-1.5f, 0, 0}, {1.0f, 0, 0}, 0.15f, Render::Color::Hex(Body), 12);
-    Render::Cone    ({1.0f,  0, 0}, {1.6f, 0, 0}, 0.15f, Render::Color::Hex(Body), 12);
-    Render::Sphere  ({-1.5f, 0, 0},               0.15f, Render::Color::Hex(Body), 12);
+    Render::Cylinder({rear, 0, 0}, {front, 0, 0}, kRadius, Render::Color::Hex(Body), kSeg);
+    Render::Cone    ({front, 0, 0}, {nose, 0, 0},  kRadius, Render::Color::Hex(Body), kSeg);
+    Render::Sphere  ({rear, 0, 0},                  kRadius, Render::Color::Hex(Body), kSeg);
 
     // Wings
-    constexpr float s = 2.2f;
-    Render::Triangle({-0.1f, -s, 0}, {-0.1f, s, 0}, {0.5f, 0, 0}, Render::Color::Hex(Wing), true);
-    Render::Triangle({-0.1f, -s, 0}, {-0.5f, 0, 0}, {-0.1f, s, 0}, Render::Color::Hex(Wing), true);
+    Render::Triangle({wingTe, -kSpan, 0}, {wingTe, kSpan, 0}, {wingLe, 0, 0}, Render::Color::Hex(Wing), true);
+    Render::Triangle({wingTe, -kSpan, 0}, {sweep, 0, 0}, {wingTe, kSpan, 0},  Render::Color::Hex(Wing), true);
 
     // Stabilizers + fin
-    Render::Triangle({-1.3f, -0.6f, 0}, {-1.3f, 0.6f, 0}, {-0.9f, 0, 0}, Render::Color::Hex(Wing), true);
-    Render::Triangle({-1.4f, 0, 0}, {-1.0f, 0, 0}, {-1.25f, 0, -0.5f}, Render::Color::Hex(Fin), true);
+    Render::Triangle({stabTe, -kStab, 0}, {stabTe, kStab, 0}, {stabLe, 0, 0}, Render::Color::Hex(Wing), true);
+    Render::Triangle({stabTe - 0.1f, 0, 0}, {stabLe - 0.1f, 0, 0}, {(stabTe + stabLe) * 0.5f, 0, -kFinH}, Render::Color::Hex(Fin), true);
 }
 
 // ── controls ────────────────────────────────────────────────────
@@ -53,8 +70,8 @@ void Airspace::DrawControls() {
     ImGui::InputDouble("Target Lon", &gimbal_.targetLon, 0.01, 0.1, "%.6f");
     ImGui::InputDouble("Target Alt", &gimbal_.targetAlt, 1.0, 10.0, "%.0f");
 
-    auto joy = Widget::Joystick("##gimbal");
-    if (joy.x != 0.f || joy.y != 0.f) {
+    glm::vec2 joy;
+    if (Widget::Joystick("##gimbal", &joy)) {
         float dt   = ImGui::GetIO().DeltaTime;
         float rate = 0.0002f;
         float fx   = joy.x * std::abs(joy.x) * rate * dt;
@@ -187,7 +204,7 @@ void Airspace::DrawFlight() {
         Render::Globe();
         DrawWorld(nedPos);
 
-        Render::Text(nedPos + glm::vec3(0.1f, 0.1f, 1.f), Render::Color::Hex("#FFFFFF80"), "Lat %.6f\nLon %.6f\nAlt %.0f m",
+        Render::Text(nedPos + glm::vec3(0.0f, 0.0f, -0.2f), Render::Color::Hex("#FFFFFF50"), "Lat %.6f\nLon %.6f\nAlt %.0f m",
             aircraft_.lat, aircraft_.lon, aircraft_.alt);
 
         Render::Cross({nedPos.x, nedPos.y, 0.f}, 0.5f, {1,1,1,.5f}, 2.f);
@@ -207,7 +224,7 @@ void Airspace::DrawFlight() {
         Render::Sensor(gimbalNed, gimbalDir, {0,0,-1}, gimbal_.fov, gimbal_.aspect, 0.1,
             Render::Color::Hex("#90B0D0"), 1.0f);
         Render::Line(gimbalNed, targetNed, Render::Color::Hex("#90B0D050"), 1.f);
-        Render::Text(targetNed + glm::vec3(0.1f, 0.1f, 1.f), Render::Color::Hex("#90B0D050"), "Lat %.6f\nLon %.6f\nAlt %.0f m",
+        Render::Text(targetNed, Render::Color::Hex("#90B0D050"), "Lat %.6f\nLon %.6f\nAlt %.0f m",
             gimbal_.targetLat, gimbal_.targetLon, gimbal_.targetAlt);
     Render::End();
 
