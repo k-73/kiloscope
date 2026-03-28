@@ -129,8 +129,13 @@ public:
     }
 
     // ── transforms (internal XYZ — used by renderer) ─────────────
-    glm::vec3 Eye()  const { return pivot_ - ViewDir() * dist_; }
-    glm::mat4 View() const { return glm::lookAt(Eye(), pivot_, {0, 0, 1}); }
+    glm::vec3 Eye() const { return pivot_ - ViewDir() * dist_; }
+
+    // Camera-relative view matrix: eye at origin, small translations → stable inverse
+    glm::mat4 View() const {
+        glm::vec3 pivotRel = ViewDir() * dist_;  // pivot relative to eye
+        return glm::lookAt(glm::vec3(0.f), pivotRel, {0, 0, 1});
+    }
 
     glm::mat4 Projection(float aspect, float autoFar = 10000.f) const {
         float fr = farPlane_  > 0.f ? farPlane_ : autoFar;

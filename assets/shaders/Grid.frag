@@ -53,11 +53,11 @@ void CompOver(inout vec3 bgCol, inout float bgA, vec3 fgCol, float fgA) {
 // ── main ─────────────────────────────────────────────────────────────
 
 void main() {
-    // Ray-plane intersection (Z = 0) using normalized direction.
+    // Ray-plane intersection (world Z=0, camera-relative coords)
     vec3  rd = normalize(vDir);
-    float t  = -vNear.z / rd.z;
+    float t  = -(vNear.z + uCamPos.z) / rd.z;
     if (t < 0.0) discard;
-    vec3 fp = vNear + t * rd;
+    vec3 fp = vNear + t * rd + uCamPos;  // convert to world coords for grid
 
     // Three grid layers
     float g1   = SoftLine(fp.xy, uScaleFine);
