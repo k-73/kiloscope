@@ -835,6 +835,10 @@ void End() {
 
     ctx().stats.pointLights = ctx().numPointLights;
 
+    // ── surface extensions (render FIRST — globe/grid are the farthest geometry) ──
+    if (ctx().globeCfg.enabled) DrawGlobe(ctx().globeCfg);
+    if (ctx().gridCfg.enabled)  DrawGrid(ctx().gridCfg, float(ctx().cam.Distance()));
+
     auto& dl = ctx().drawList;
 
     if (!dl.empty()) {
@@ -915,10 +919,6 @@ void End() {
     }
     FlushPoints();
     FlushLines();
-
-    // ── surface extensions (add new surface renderers here) ──────
-    if (ctx().globeCfg.enabled) DrawGlobe(ctx().globeCfg);
-    if (ctx().gridCfg.enabled)  DrawGrid(ctx().gridCfg, ctx().cam.Distance());
 
     // Async pick readback: read PREVIOUS frame's result (non-blocking),
     // then start THIS frame's read (GPU processes while CPU continues).
