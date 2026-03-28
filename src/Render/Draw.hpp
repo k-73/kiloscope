@@ -324,6 +324,9 @@ void Covariance(const glm::vec3& pos, const glm::mat3& cov,
                 const glm::vec4& color, float sigma = 2.f, int seg = 24);
 void WireGrid(const glm::vec3& center, const glm::vec3& normal,
               float size, int divisions, const glm::vec4& color, float width = 1.f);
+void Sensor(const glm::vec3& pos, const glm::vec3& dir, const glm::vec3& up,
+            float fovDeg, float aspect, float len,
+            const glm::vec4& color, float width = 2.5f);
 void Frustum(const glm::mat4& viewProj,
              const glm::vec4& color, float width = 2.5f);
 

@@ -5,6 +5,7 @@
 #include "Render/Frame.hpp"
 #include "Render/Geo.hpp"
 #include <GeographicLib/Geocentric.hpp>
+#include "Ui/Widget.hpp"
 #include <imgui.h>
 #include <algorithm>
 #include <cmath>
@@ -46,9 +47,23 @@ void Airspace::DrawControls() {
     ImGui::Separator();
 
     // Gimbal
+    ImGui::SliderFloat("FOV", &gimbal_.fov, 5.f, 120.f, "%.1f\xc2\xb0");
+    ImGui::SliderFloat("Aspect", &gimbal_.aspect, 0.5f, 3.f, "%.2f");
     ImGui::InputDouble("Target Lat", &gimbal_.targetLat, 0.01, 0.1, "%.6f");
     ImGui::InputDouble("Target Lon", &gimbal_.targetLon, 0.01, 0.1, "%.6f");
     ImGui::InputDouble("Target Alt", &gimbal_.targetAlt, 1.0, 10.0, "%.0f");
+
+    auto joy = Widget::Joystick("##gimbal");
+    if (joy.x != 0.f || joy.y != 0.f) {
+        float dt   = ImGui::GetIO().DeltaTime;
+        float rate = 0.0002f;
+        float fx   = joy.x * std::abs(joy.x) * rate * dt;
+        float fy   = -joy.y * std::abs(joy.y) * rate * dt;
+        float yr   = glm::radians(aircraft_.yaw);
+        float cosLat = std::cos(glm::radians(float(aircraft_.lat)));
+        gimbal_.targetLat += fy * std::cos(yr) - fx * std::sin(yr);
+        gimbal_.targetLon += (fy * std::sin(yr) + fx * std::cos(yr)) / std::max(cosLat, 0.01f);
+    }
     ImGui::Separator();
 
     // Camera
@@ -154,7 +169,6 @@ void Airspace::DrawWorld(const glm::vec3& pos) {
             Render::Scale(0.4f);
             DrawAircraft();
         Render::PopMatrix();
-        Render::Sphere(gimbal_.bodyOffset, gimbal_.radius, Render::Color::Hex("#90B0D0"));
     Render::PopMatrix();
 }
 
@@ -172,14 +186,29 @@ void Airspace::DrawFlight() {
         Render::SetFrame(Render::FrameId::NED);
         Render::Globe();
         DrawWorld(nedPos);
+
+        Render::Text(nedPos + glm::vec3(0.1f, 0.1f, 1.f), Render::Color::Hex("#FFFFFF80"), "Lat %.6f\nLon %.6f\nAlt %.0f m",
+            aircraft_.lat, aircraft_.lon, aircraft_.alt);
+
         Render::Cross({nedPos.x, nedPos.y, 0.f}, 0.5f, {1,1,1,.5f}, 2.f);
-        Render::Line(nedPos, {nedPos.x, nedPos.y, 0.f}, {1,1,1,.25f}, 1.5f);
+        Render::Line(nedPos, {nedPos.x, nedPos.y, 0.f}, {1,1,1,.15f}, 1.0f);
+
         if (trail_.size() > 1) {
             trailBuf_.resize(trail_.size());
             for (size_t i = 0; i < trail_.size(); ++i)
                 trailBuf_[i] = glm::vec3(Render::GeoToLocal(trail_[i].lat, trail_[i].lon, trail_[i].alt));
             Render::Trail(trailBuf_.data(), int(trailBuf_.size()), Render::Color::Hex("#FFD700"), 2.f);
         }
+
+        auto gimbalNed = nedPos + BodyToNed() * gimbal_.bodyOffset;
+        auto targetNed = glm::vec3(Render::GeoToLocal("flight", gimbal_.targetLat, gimbal_.targetLon, gimbal_.targetAlt));
+        auto gimbalDir = glm::normalize(targetNed - gimbalNed);
+        Render::Line(nedPos, gimbalNed, Render::Color::Hex("#90B0D050"), 1.f);
+        Render::Sensor(gimbalNed, gimbalDir, {0,0,-1}, gimbal_.fov, gimbal_.aspect, 0.1,
+            Render::Color::Hex("#90B0D0"), 1.0f);
+        Render::Line(gimbalNed, targetNed, Render::Color::Hex("#90B0D050"), 1.f);
+        Render::Text(targetNed + glm::vec3(0.1f, 0.1f, 1.f), Render::Color::Hex("#90B0D050"), "Lat %.6f\nLon %.6f\nAlt %.0f m",
+            gimbal_.targetLat, gimbal_.targetLon, gimbal_.targetAlt);
     Render::End();
 
     if (!cameraMode_.free && cameraMode_.chase)
@@ -202,7 +231,7 @@ void Airspace::DrawGimbal() {
 
         auto& cam = Render::GetCamera("gimbal");
         cam.LookAt(gimbalNed, targetNed);
-        cam.Fov() = 50.f;
+        cam.Fov() = gimbal_.fov;
         cam.NearPlane() = 0.05f;
 
         Render::Begin("gimbal");

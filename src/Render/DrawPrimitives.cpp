@@ -515,6 +515,46 @@ void WireGrid(const glm::vec3& center, const glm::vec3& normal,
     }
 }
 
+void Sensor(const glm::vec3& pos, const glm::vec3& dir, const glm::vec3& up,
+            float fovDeg, float aspect, float len,
+            const glm::vec4& color, float width) {
+    PickGroup pg;
+    glm::vec3 fwd   = glm::normalize(dir);
+    glm::vec3 right = glm::normalize(glm::cross(fwd, up));
+    glm::vec3 camUp = glm::cross(right, fwd);
+
+    float halfH = len * std::tan(glm::radians(fovDeg * 0.5f));
+    float halfW = halfH * aspect;
+    glm::vec3 center = pos + fwd * len;
+
+    // Image plane corners
+    glm::vec3 tl = center - right * halfW + camUp * halfH;
+    glm::vec3 tr = center + right * halfW + camUp * halfH;
+    glm::vec3 bl = center - right * halfW - camUp * halfH;
+    glm::vec3 br = center + right * halfW - camUp * halfH;
+
+    // Frustum edges
+    Line(pos, tl, color, width);
+    Line(pos, tr, color, width);
+    Line(pos, bl, color, width);
+    Line(pos, br, color, width);
+
+    // Image plane rectangle
+    Line(tl, tr, color, width);
+    Line(tr, br, color, width);
+    Line(br, bl, color, width);
+    Line(bl, tl, color, width);
+
+    // Up-direction triangle
+    float triH = halfW * 0.35f;
+    glm::vec3 tb1 = tl + (tr - tl) * 0.35f;
+    glm::vec3 tb2 = tl + (tr - tl) * 0.65f;
+    glm::vec3 tip = (tb1 + tb2) * 0.5f + camUp * triH;
+    Line(tb1, tb2, color, width);
+    Line(tb1, tip, color, width);
+    Line(tb2, tip, color, width);
+}
+
 void Frustum(const glm::mat4& viewProj, const glm::vec4& color, float width) {
     PickGroup pg;
     glm::mat4 inv = glm::inverse(viewProj);
