@@ -24,7 +24,16 @@ struct GeoRef {
     bool       valid = false;
 
     void Set(double lat, double lon, double alt = 0.0) {
-        if (valid && lat0 == lat && lon0 == lon && alt0 == alt) return;
+        // Rotation matrix only needs updating every ~1km (intersection shape accuracy)
+        // Lat/lon grid uses flat-plane ENU → independent of this matrix
+        if (valid) {
+            double d = (lat - lat0) * (lat - lat0) + (lon - lon0) * (lon - lon0);
+            if (d < 1e-4) {  // ~0.01° ≈ 1.1km threshold
+                lat0 = lat; lon0 = lon; alt0 = alt;
+                ecefRef = ToEcef(lat, lon, alt);
+                return;  // keep existing rotation, update only position
+            }
+        }
         lat0 = lat; lon0 = lon; alt0 = alt;
         double phi = glm::radians(lat), lam = glm::radians(lon);
         double sp = std::sin(phi), cp = std::cos(phi);
