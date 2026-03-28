@@ -10,10 +10,13 @@ in vec3 vDir;
 
 uniform mat4  uViewProj;
 uniform vec3  uCamPos;
-uniform vec3  uEllCenter;      // camera-relative (float, for intersection)
+uniform vec3  uEllCenter;      // camera-relative (for intersection)
 uniform vec3  uRadii;
 uniform mat3  uEcefToLocal;
-uniform vec3  uCamLLA;         // camera lat°, lon°, alt (m)
+uniform vec2  uCamLLAInt;      // floor(camera lat, lon)
+uniform vec2  uCamLLAFracHi;  // fmod(camera lat/lon, 1°) — high float
+uniform vec2  uCamLLAFracLo;  // fmod residual (double precision)
+uniform float uCamAlt;         // camera altitude (m)
 uniform vec2  uCamLat;         // cos(lat), sin(lat)
 uniform vec2  uCurvature;      // N (prime vertical), M (meridional)
 uniform vec4  uGratColor;
@@ -49,16 +52,17 @@ void main() {
     if (tHit < 0.0) { tHit = (-qb + sd) / qa; if (tHit < 0.0) discard; }
 
     // ── delta lat/lon from camera (Cesium approach) ──────────────
-    // ENU offset of hit from camera (small, camera-relative → precise)
-    vec3 enu = vNear + tHit * ray;  // camera-relative, NOT world
+    // Use tFlat (flat plane) when available — NO dependency on uEllCenter → zero jitter.
+    // Fallback to tHit for far-side-of-globe where tFlat is invalid.
+    float tFlat = -(vNear.z + uCamPos.z) / ray.z;
+    float tEnu  = (tFlat > 0.0) ? tFlat : tHit;
+    vec3 enu = vNear + tEnu * ray;  // camera-relative ENU offset
 
     float cosL = uCamLat.x, sinL = uCamLat.y;
     float Nrad = uCurvature.x, Mrad = uCurvature.y;
 
     // Project onto equatorial plane → delta longitude
-    // Camera on equatorial plane: (N+alt)*cos(lat) along axis, 0 perpendicular
-    // Hit perturbation: East = enu.x, rotated North/Up = -enu.y*sin + enu.z*cos
-    vec2 eqCam = vec2((Nrad + uCamLLA.z) * cosL, 0.0);
+    vec2 eqCam = vec2((Nrad + uCamAlt) * cosL, 0.0);
     vec2 eqHit = eqCam + vec2(-enu.y * sinL + enu.z * cosL, enu.x);
     float dLon = degrees(atan(eqHit.y, eqHit.x));
 
@@ -68,12 +72,15 @@ void main() {
     vec3 enuCorr = enu + vec3(-enu.x, -dx * sinL, dx * cosL);
 
     // Project onto meridional plane → delta latitude
-    vec2 merCam = vec2(Mrad + uCamLLA.z, 0.0);
+    vec2 merCam = vec2(Mrad + uCamAlt, 0.0);
     vec2 merHit = merCam + vec2(enuCorr.z, enuCorr.y);
     float dLat = degrees(atan(merHit.y, merHit.x));
 
-    // Absolute lat/lon = camera (precise) + delta (precise)
-    vec2 ll = vec2(uCamLLA.y + dLon, uCamLLA.x + dLat);
+    // Absolute lat/lon = camera (int + fracHi + delta + fracLo)
+    // Fractional degrees only → ULP ≈ 1.2e-7° (30× finer than full degrees)
+    vec2 ll = uCamLLAInt + vec2(
+        (uCamLLAFracHi.y + dLon) + uCamLLAFracLo.y,
+        (uCamLLAFracHi.x + dLat) + uCamLLAFracLo.x);
 
     // ── graticule ────────────────────────────────────────────────
     float dist = tHit;

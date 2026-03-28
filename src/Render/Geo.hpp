@@ -21,29 +21,35 @@ struct GeoRef {
     // Precomputed transforms (set by Set())
     glm::dvec3 ecefRef{0.0};
     glm::dmat3 ecefToEnu{1.0};
-    bool       valid = false;
+    // Stable geodetic params (only update at full rotation update, not per-frame)
+    double cosLat = 1.0, sinLat = 0.0, Nrad = a, Mrad = a;
+    bool   valid = false;
 
     void Set(double lat, double lon, double alt = 0.0) {
         // Rotation matrix only needs updating every ~1km (intersection shape accuracy)
         // Lat/lon grid uses flat-plane ENU → independent of this matrix
         if (valid) {
-            double d = (lat - lat0) * (lat - lat0) + (lon - lon0) * (lon - lon0);
-            if (d < 1e-4) {  // ~0.01° ≈ 1.1km
-                // Don't update ecefRef or ecefToEnu → uEllCenter stays CONSTANT
-                // → zero grid jitter between updates. sCamPos grows to ~1.1km (float32 OK).
-                return;
-            }
+            // lat0/lon0 track current position (for uCamLLA in shader).
+            // ecefRef/ecefToEnu only update every ~1.1km (for stable uEllCenter).
+            double dlat = lat - lat0, dlon = lon - lon0;
+            lat0 = lat; lon0 = lon; alt0 = alt;
+            if (dlat * dlat + dlon * dlon < 1e-4)  // ~0.01° ≈ 1.1km
+                return;  // keep ecefRef and ecefToEnu stable
         }
         lat0 = lat; lon0 = lon; alt0 = alt;
         double phi = glm::radians(lat), lam = glm::radians(lon);
         double sp = std::sin(phi), cp = std::cos(phi);
         double sl = std::sin(lam), cl = std::cos(lam);
         ecefRef = ToEcef(lat, lon, alt);
-        // ECEF → ENU rotation: rows = ENU unit vectors in ECEF, stored column-major
         ecefToEnu = glm::dmat3(
             glm::dvec3(-sl,      -sp * cl,   cp * cl),
             glm::dvec3( cl,      -sp * sl,   cp * sl),
             glm::dvec3( 0.0,      cp,         sp));
+        // Stable geodetic params for shader (constant between full updates → no quantization)
+        cosLat = cp; sinLat = sp;
+        double w = std::sqrt(1.0 - e2 * sp * sp);
+        Nrad = a / w;
+        Mrad = a * (1.0 - e2) / (w * w * w);
         valid = true;
     }
 

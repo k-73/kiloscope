@@ -47,8 +47,9 @@ void DrawGlobe(const GlobeConfig& cfg) {
 
     // Earth center in world ENU (CONSTANT within 1.1km threshold → no per-frame jitter)
     glm::dvec3 earthCenterEnu = gr.ecefToEnu * (-gr.ecefRef);
-    // Camera-relative for intersection (float, quantizes but self-cancels)
-    glm::vec3 ellCenterF = glm::vec3(earthCenterEnu - glm::dvec3(sCamPos));
+    // Camera-relative: hi/lo split for sub-ULP intersection precision
+    glm::dvec3 ellCenterD = earthCenterEnu - glm::dvec3(sCamPos);
+    glm::vec3 ellCenterF = glm::vec3(ellCenterD);
 
     sGlobeShader.Use();
     sGlobeShader.Set("uInvViewProj",  sInvViewProj);
@@ -57,15 +58,16 @@ void DrawGlobe(const GlobeConfig& cfg) {
     sGlobeShader.Set("uEllCenter",    ellCenterF);
     sGlobeShader.Set("uRadii",        glm::vec3(GeoRef::a, GeoRef::a, GeoRef::b));
     sGlobeShader.Set("uEcefToLocal",  glm::mat3(gr.ecefToEnu));
-    // Camera geodetic parameters for delta lat/lon computation (Cesium approach)
-    double sinLat = std::sin(glm::radians(gr.lat0));
-    double cosLat = std::cos(glm::radians(gr.lat0));
-    double w      = std::sqrt(1.0 - GeoRef::e2 * sinLat * sinLat);
-    double N      = GeoRef::a / w;
-    double M      = GeoRef::a * (1.0 - GeoRef::e2) / (w * w * w);
-    sGlobeShader.Set("uCamLat",       glm::vec2(float(cosLat), float(sinLat)));
-    sGlobeShader.Set("uCamLLA",       glm::vec3(float(gr.lat0), float(gr.lon0), float(sCamPos.z)));
-    sGlobeShader.Set("uCurvature",    glm::vec2(float(N), float(M)));
+    // Stable geodetic params (from GeoRef full update — constant between 1.1km updates)
+    sGlobeShader.Set("uCamLat",       glm::vec2(float(gr.cosLat), float(gr.sinLat)));
+    sGlobeShader.Set("uCurvature",    glm::vec2(float(gr.Nrad), float(gr.Mrad)));
+    // Camera lat/lon: integer + fractional hi/lo (updates every frame, smooth)
+    double latFrac = std::fmod(gr.lat0, 1.0), lonFrac = std::fmod(gr.lon0, 1.0);
+    float latFHi = float(latFrac), lonFHi = float(lonFrac);
+    sGlobeShader.Set("uCamLLAInt",    glm::vec2(float(std::floor(gr.lat0)), float(std::floor(gr.lon0))));
+    sGlobeShader.Set("uCamLLAFracHi", glm::vec2(latFHi, lonFHi));
+    sGlobeShader.Set("uCamLLAFracLo", glm::vec2(float(latFrac - double(latFHi)), float(lonFrac - double(lonFHi))));
+    sGlobeShader.Set("uCamAlt",       sCamPos.z);
     sGlobeShader.Set("uGratColor",    cfg.gratColor);
     sGlobeShader.Set("uSurfaceColor", cfg.surfaceColor);
     sGlobeShader.Set("uFarPlane",     sFarPlane);
