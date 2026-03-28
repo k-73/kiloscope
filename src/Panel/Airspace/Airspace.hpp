@@ -15,8 +15,8 @@ private:
     void DrawControls();
     void HandleInput(float dt, bool focused);
     void UpdatePhysics(float dt);
-    void DrawAircraftModel(const glm::vec3& pos);
-    void DrawFlight(const glm::vec3& nedPos);
+    void DrawWorld(const glm::vec3& pos);
+    void DrawFlight();
     void DrawGimbal();
     void SetupEnv(const char* scene);
 

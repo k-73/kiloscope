@@ -135,7 +135,7 @@ void Airspace::UpdatePhysics(float dt) {
 
 // ── scene ───────────────────────────────────────────────────────
 
-void Airspace::DrawAircraftModel(const glm::vec3& pos) {
+void Airspace::DrawWorld(const glm::vec3& pos) {
     Render::PushMatrix();
         Render::Translate(pos);
         Render::RotateZ(aircraft_.yaw);
@@ -148,11 +148,20 @@ void Airspace::DrawAircraftModel(const glm::vec3& pos) {
     Render::PopMatrix();
 }
 
-void Airspace::DrawFlight(const glm::vec3& nedPos) {
+void Airspace::DrawFlight() {
+    SetupEnv("flight");
+    auto nedPos = glm::vec3(Render::GeoToLocal("flight", aircraft_.lat, aircraft_.lon, aircraft_.alt));
+
+    auto& flightCam = Render::GetCamera("flight");
+    if (!cameraMode_.free && cameraMode_.chase)
+        flightCam.Follow(nedPos, aircraft_.yaw);
+    else
+        flightCam.Unfollow();
+
     Render::Begin("flight");
         Render::SetFrame(Render::FrameId::NED);
         Render::Globe();
-        DrawAircraftModel(nedPos);
+        DrawWorld(nedPos);
         Render::Cross({nedPos.x, nedPos.y, 0.f}, 0.5f, {1,1,1,.5f}, 2.f);
         Render::Line(nedPos, {nedPos.x, nedPos.y, 0.f}, {1,1,1,.25f}, 1.5f);
         if (trail_.size() > 1) {
@@ -162,6 +171,16 @@ void Airspace::DrawFlight(const glm::vec3& nedPos) {
             Render::Trail(trailBuf_.data(), int(trailBuf_.size()), Render::Color::Hex("#FFD700"), 2.f);
         }
     Render::End();
+
+    if (!cameraMode_.free && cameraMode_.chase)
+        flightCam.CaptureFollow();
+
+    Render::GeoCoord gc{aircraft_.lat, aircraft_.lon, aircraft_.alt};
+    if (trail_.empty() || std::abs(gc.lat - trail_.back().lat) > 1e-7
+                       || std::abs(gc.lon - trail_.back().lon) > 1e-7) {
+        trail_.push_back(gc);
+        if (trail_.size() > kTrailMax) trail_.erase(trail_.begin());
+    }
 }
 
 void Airspace::DrawGimbal() {
@@ -175,7 +194,7 @@ void Airspace::DrawGimbal() {
         Render::Begin("gimbal");
             Render::SetFrame(Render::FrameId::NED);
             Render::Globe();
-            DrawAircraftModel(pos);
+            DrawWorld(pos);
         Render::End();
         Render::Crosshair();
     ImGui::End();
@@ -200,29 +219,7 @@ void Airspace::OnDraw() {
     HandleInput(dt, focused);
     UpdatePhysics(dt);
 
-    // ── Flight view ────────────────────────────────────────────────
-    SetupEnv("flight");
-    auto nedPos = glm::vec3(Render::GeoToLocal("flight", aircraft_.lat, aircraft_.lon, aircraft_.alt));
-
-    auto& flightCam = Render::GetCamera("flight");
-    if (!cameraMode_.free && cameraMode_.chase)
-        flightCam.Follow(nedPos, aircraft_.yaw);
-    else
-        flightCam.Unfollow();
-
-    DrawFlight(nedPos);
-
-    if (!cameraMode_.free && cameraMode_.chase)
-        flightCam.CaptureFollow();
-
-    Render::GeoCoord gc{aircraft_.lat, aircraft_.lon, aircraft_.alt};
-    if (trail_.empty() || std::abs(gc.lat - trail_.back().lat) > 1e-7
-                       || std::abs(gc.lon - trail_.back().lon) > 1e-7) {
-        trail_.push_back(gc);
-        if (trail_.size() > kTrailMax) trail_.erase(trail_.begin());
-    }
-
-    // ── Gimbal view ──────────────────────────────────────────────
+    DrawFlight();
     DrawGimbal();
 }
 
