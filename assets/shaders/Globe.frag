@@ -141,7 +141,10 @@ void main() {
     lit += uAtmoColor * rim * uAtmoParams.y;
 
     // ── output ───────────────────────────────────────────────────
-    FragColor = vec4(lit, uSurfaceColor.a);
+    // Smooth limb edge: NdotV → 0 at the horizon → alpha fades → MSAA coverage ramps down.
+    float NdotV = max(dot(normal, -ray), 0.0);
+    float edgeFade = smoothstep(0.0, 0.015, NdotV);
+    FragColor = vec4(lit, uSurfaceColor.a * edgeFade);
 
     vec4 cp = uViewProj * vec4(hitWorld, 1.0);
     gl_FragDepth = clamp(log2(max(1e-6, cp.w + 1.0)) / log2(uFarPlane + 1.0), 0.0, 1.0);
