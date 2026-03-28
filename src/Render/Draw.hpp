@@ -334,5 +334,6 @@ void Frustum(const glm::mat4& viewProj,
 // ── 2D overlays (call after End(), draws on current ImGui window) ────
 void Crosshair(float gap = 4.f, float len = 12.f,
                const glm::vec4& color = {1, 1, 1, .6f});
+void HUD();
 
 } // namespace Kilo::Render

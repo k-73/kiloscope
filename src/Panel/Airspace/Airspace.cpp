@@ -224,6 +224,7 @@ void Airspace::DrawFlight() {
         Render::Text(targetNed, Render::Color::Hex("#90B0D050"), "Lat %.6f\nLon %.6f\nAlt %.0f m",
             gimbal_.targetLat, gimbal_.targetLon, gimbal_.targetAlt);
     Render::End();
+    Render::HUD();
 
     if (!cameraMode_.free && cameraMode_.chase)
         cam.CaptureFollow();
