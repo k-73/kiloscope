@@ -71,12 +71,14 @@ void DrawGlobe(const GlobeConfig& cfg) {
     sGlobeShader.Set("uOriginLat",    glm::vec2(float(gr.cosLat), float(gr.sinLat)));
     sGlobeShader.Set("uOriginNM",     glm::vec2(float(gr.Nrad), float(gr.Mrad)));
 
-    // Origin lat/lon: int + fracHi + fracLo → ~1.2e-7° effective ULP in shader.
-    // Packed as vec2(lon, lat) to match shader's ll coordinate order.
-    double latFrac = gr.lat0 - std::floor(gr.lat0);
-    double lonFrac = gr.lon0 - std::floor(gr.lon0);
+    // Origin lat/lon for the shader: must use refLat/refLon (the frozen reference),
+    // NOT lat0/lon0 (which update every frame).  dLon/dLat in the shader are deltas
+    // from the frozen ENU origin — adding them to refLat/refLon gives correct absolute coords.
+    double rlat = gr.refLat(), rlon = gr.refLon();
+    double latFrac = rlat - std::floor(rlat);
+    double lonFrac = rlon - std::floor(rlon);
     float  latFHi  = float(latFrac), lonFHi = float(lonFrac);
-    sGlobeShader.Set("uOriginLLInt",    glm::vec2(float(std::floor(gr.lon0)), float(std::floor(gr.lat0))));
+    sGlobeShader.Set("uOriginLLInt",    glm::vec2(float(std::floor(rlon)), float(std::floor(rlat))));
     sGlobeShader.Set("uOriginLLFracHi", glm::vec2(lonFHi, latFHi));
     sGlobeShader.Set("uOriginLLFracLo", glm::vec2(float(lonFrac - double(lonFHi)),
                                                     float(latFrac - double(latFHi))));

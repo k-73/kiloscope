@@ -188,6 +188,9 @@ void Airspace::OnDraw() {
     UpdatePhysics(dt);
 
     // ── Main view ────────────────────────────────────────────────
+    // GeoToLocal and Follow BEFORE Begin — camera must be positioned
+    // before Begin() computes the view matrix.  frameMat from the
+    // previous frame's SetFrame(NED) is correct and consistent.
     SetupEnv("flight");
     auto nedPos = glm::vec3(Render::GeoToLocal("flight", aircraft_.lat, aircraft_.lon, aircraft_.alt));
 

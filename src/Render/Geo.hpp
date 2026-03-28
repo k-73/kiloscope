@@ -41,36 +41,36 @@ struct GeoRef {
 
     void Set(double lat, double lon, double alt = 0.0) {
         lon = std::remainder(lon, 360.0);  // normalize to [-180, 180]
-
-        if (valid) {
-            double dlat = lat - refLat_;
-            double dlon = std::remainder(lon - refLon_, 360.0);  // handles antimeridian
-            // Approximate geodetic distance in degrees (cosine-weighted for longitude)
-            double cosRef = std::cos(glm::radians(refLat_));
-            double d2 = dlat * dlat + (dlon * cosRef) * (dlon * cosRef);
-            // Always update the tracking position (for shader uCamLLA uniforms)
-            lat0 = lat; lon0 = lon; alt0 = alt;
-            if (d2 < kUpdateThresholdDeg * kUpdateThresholdDeg)
-                return;  // keep ecefToEnu and curvature params stable
-        }
-
         lat0 = lat; lon0 = lon; alt0 = alt;
-        refLat_ = lat; refLon_ = lon;
 
-        double phi = glm::radians(lat), lam = glm::radians(lon);
+        // Curvature params update every frame — smooth transitions.
+        // Float32 ULP step of cosLat ≈ 6e-8 → sub-mm grid shift — invisible.
+        double phi = glm::radians(lat);
         double sp = std::sin(phi), cp = std::cos(phi);
-        double sl = std::sin(lam), cl = std::cos(lam);
-
-        ecefRef = ToEcef(lat, lon, alt);
-        ecefToEnu = glm::dmat3(
-            glm::dvec3(-sl,       -sp * cl,   cp * cl),   // East
-            glm::dvec3( cl,       -sp * sl,   cp * sl),   // North
-            glm::dvec3( 0.0,       cp,         sp));      // Up
-
         cosLat = cp; sinLat = sp;
         double w = std::sqrt(1.0 - e2 * sp * sp);
         Nrad = a / w;
         Mrad = a * (1.0 - e2) / (w * w * w);
+
+        // ecefRef + ecefToEnu only update at threshold — stable for intersection.
+        if (valid) {
+            double dlat = lat - refLat_;
+            double dlon = std::remainder(lon - refLon_, 360.0);
+            double cosRef = std::cos(glm::radians(refLat_));
+            double d2 = dlat * dlat + (dlon * cosRef) * (dlon * cosRef);
+            if (d2 < kUpdateThresholdDeg * kUpdateThresholdDeg)
+                return;
+        }
+
+        refLat_ = lat; refLon_ = lon;
+        double lam = glm::radians(lon);
+        double sl = std::sin(lam), cl = std::cos(lam);
+
+        ecefRef = ToEcef(lat, lon, alt);
+        ecefToEnu = glm::dmat3(
+            glm::dvec3(-sl,       -sp * cl,   cp * cl),
+            glm::dvec3( cl,       -sp * sl,   cp * sl),
+            glm::dvec3( 0.0,       cp,         sp));
         valid = true;
     }
 
@@ -96,8 +96,13 @@ struct GeoRef {
         return {lat, lon, alt};
     }
 
+    // Frozen reference — last full-update position (matches ecefRef/ecefToEnu frame).
+    // Shader uOriginLL* must use these, not lat0/lon0, because dLon/dLat are deltas from this frame.
+    double refLat() const { return refLat_; }
+    double refLon() const { return refLon_; }
+
 private:
-    double refLat_ = 0.0, refLon_ = 0.0;  // position at last full update
+    double refLat_ = 0.0, refLon_ = 0.0;
 };
 
 } // namespace Kilo::Render
