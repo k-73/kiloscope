@@ -41,8 +41,16 @@ void main() {
     float disc = B * B - A * C;
     if (disc < 0.0) discard;
 
-    float tEll = (-B - sqrt(disc)) / A;
-    if (tEll < 0.0) discard;
+    // Numerically stable near-root: avoids catastrophic cancellation when camera near surface
+    // Standard: t = (-B - sqrt(disc)) / A  ← cancels when B<0 and |B|≈sqrt(disc)
+    // Stable:   t = C / (-B + sqrt(disc))  ← algebraically equivalent, no cancellation
+    float sqrtDisc = sqrt(disc);
+    float tEll = C / (-B + sqrtDisc);
+    if (tEll < 0.0) {
+        // Try far root (camera inside ellipsoid or looking away)
+        tEll = (-B + sqrtDisc) / A;
+        if (tEll < 0.0) discard;
+    }
 
     // Distance from camera to surface hit (for fading fine layers)
     float surfDist = tEll;
