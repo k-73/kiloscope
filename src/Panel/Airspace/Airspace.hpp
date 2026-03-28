@@ -1,5 +1,6 @@
 #pragma once
 #include "Core/Panel/Panel.hpp"
+#include "Render/Geo.hpp"
 #include <glm/glm.hpp>
 #include <vector>
 
@@ -17,10 +18,7 @@ private:
     void DrawWorld(const char* scene, const glm::vec3& pos);
     void SetupEnv(const char* scene);
 
-    // Origin (geodetic reference point)
-    double originLat_ = 52.2297, originLon_ = 21.0122;
-
-    // Aircraft state (geodetic absolute)
+    // Aircraft state (geodetic absolute — source of truth)
     struct AircraftState {
         double lat = 52.2297, lon = 21.0122, alt = 20.0;
         float  yaw   = 0.f;
@@ -34,8 +32,10 @@ private:
         bool free  = false;
     } cameraMode_;
 
+    // Trail stored in geodetic (survives origin shifts)
     static constexpr size_t kTrailMax = 128;
-    std::vector<glm::vec3> trail_;
+    std::vector<Render::GeoCoord> trail_;
+    std::vector<glm::vec3> trailBuf_;  // reused buffer for NED conversion
 };
 
 } // namespace Kilo
