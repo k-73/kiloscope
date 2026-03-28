@@ -90,17 +90,6 @@ void main() {
         (uOriginLLFracHi.x + dLon) + uOriginLLFracLo.x,
         (uOriginLLFracHi.y + dLat) + uOriginLLFracLo.y);
 
-    // ── ECEF Bowring geodetic (far hemisphere fallback) ──────────
-    dvec3 hitD = dvec3(vNear) + tD * dvec3(ray);
-    vec3 ecef = vec3(toEcef * (hitD - uEllCenterD));
-    float r  = length(ecef.xy);
-    float th = atan(ecef.z * uRadii.x, r * uRadii.z);
-    float sT = sin(th), cT = cos(th);
-    float d2 = uRadii.x * uRadii.x - uRadii.z * uRadii.z;
-    vec2 llFar = vec2(degrees(atan(ecef.y, ecef.x)),
-                      degrees(atan(ecef.z + d2 / uRadii.z * sT*sT*sT,
-                                   r - d2 / uRadii.x * cT*cT*cT)));
-
     // ── graticule ────────────────────────────────────────────────
     float dist = tHit;
 
@@ -111,9 +100,21 @@ void main() {
             gridLine(ll, 0.01)  * 0.25 * smoothstep(50000.0,  5000.0,  dist)),
             gridLine(ll, 0.1)   * 0.35 * smoothstep(200000.0, 20000.0, dist));
 
-    // Coarse grids — Cesium delta near origin, ECEF beyond 120° (atan wrap zone)
+    // Coarse grids — Cesium delta near origin, ECEF Bowring beyond 120° (atan wrap zone).
+    // The Bowring path (~27 double + 80 float ops) is skipped when the entire warp is < 110°.
     float angDist = max(abs(dLon), abs(dLat));
-    vec2 llC = angDist < 120.0 ? ll : llFar;
+    vec2 llC = ll;
+    if (angDist > 110.0) {
+        dvec3 hitD = dvec3(vNear) + tD * dvec3(ray);
+        vec3 ecef = vec3(toEcef * (hitD - uEllCenterD));
+        float r  = length(ecef.xy);
+        float th = atan(ecef.z * uRadii.x, r * uRadii.z);
+        float sT = sin(th), cT = cos(th);
+        float ab = uRadii.x * uRadii.x - uRadii.z * uRadii.z;
+        llC = vec2(degrees(atan(ecef.y, ecef.x)),
+                   degrees(atan(ecef.z + ab / uRadii.z * sT*sT*sT,
+                                r - ab / uRadii.x * cT*cT*cT)));
+    }
     float coarse = max(
         max(gridLine(llC, 1.0)  * 0.4,
             gridLine(llC, 5.0)  * 0.55),
