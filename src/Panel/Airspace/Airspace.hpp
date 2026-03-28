@@ -29,7 +29,7 @@ private:
 
     // Gimbal (mounted under aircraft)
     struct GimbalState {
-        glm::vec3 bodyOffset = {0.0f, 0.f, 0.20f};  // body frame (X=fwd, Y=right, Z=down)
+        glm::vec3 bodyOffset = {0.0f, 0.f, 0.5f};  // body frame (X=fwd, Y=right, Z=down)
         float     fov        = 50.f;                 // vertical FOV (degrees)
         float     aspect     = 16.f / 9.f;           // width / height
         double    targetLat  = 52.2297, targetLon = 21.0122, targetAlt = 0.0;

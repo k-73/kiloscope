@@ -405,13 +405,18 @@ void Axes(const glm::vec3& origin, float len) {
     Arrow(origin, origin + glm::vec3(0, 0, len), {.35f, .50f, .95f, 1}, s, h);
 }
 
-void Frame(const glm::mat4& pose, float len) {
+void Pose(const glm::vec3& pos, float len) {
+    PickGroup pg;
+    Axes(pos, len);
+}
+
+void Pose(const glm::mat4& pose, float len) {
     PickGroup pg;
     PushMatrix(); Transform(pose); Axes({0, 0, 0}, len); PopMatrix();
 }
 
-void Frame(const glm::vec3& pos, const glm::quat& orient, float len) {
-    Frame(glm::translate(glm::mat4(1.f), pos) * glm::mat4_cast(orient), len);
+void Pose(const glm::vec3& pos, const glm::quat& orient, float len) {
+    Pose(glm::translate(glm::mat4(1.f), pos) * glm::mat4_cast(orient), len);
 }
 
 void Point(const glm::vec3& pos, const glm::vec4& color, float size) {

@@ -307,8 +307,9 @@ void WireCapsule(const glm::vec3& a, const glm::vec3& b,
 void Arrow(const glm::vec3& from, const glm::vec3& to,
            const glm::vec4& color, float shaftR = 0.02f, float headR = 0.06f);
 void Axes(const glm::vec3& origin, float len = 1.f);
-void Frame(const glm::mat4& pose, float len = 0.3f);
-void Frame(const glm::vec3& pos, const glm::quat& orient, float len = 0.3f);
+void Pose(const glm::vec3& pos, float len = 0.3f);
+void Pose(const glm::mat4& pose, float len = 0.3f);
+void Pose(const glm::vec3& pos, const glm::quat& orient, float len = 0.3f);
 void Point(const glm::vec3& pos, const glm::vec4& color, float size = 0.05f);
 void SphereLight(const glm::vec3& pos, float radius,
                  const glm::vec4& color, float range);

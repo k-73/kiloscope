@@ -35,8 +35,6 @@ static void DrawAircraft() {
     constexpr float stabTe = rear + kLen * 0.06f;    // -1.30  stab trailing
     constexpr float stabLe = rear + kLen * 0.19f;    // -0.90  stab leading
 
-    Render::Frame(glm::mat4(1.f), 0.5f);
-
     // Fuselage
     Render::Cylinder({rear, 0, 0}, {front, 0, 0}, kRadius, Render::Color::Hex(Body), kSeg);
     Render::Cone    ({front, 0, 0}, {nose, 0, 0},  kRadius, Render::Color::Hex(Body), kSeg);
@@ -182,10 +180,7 @@ void Airspace::DrawWorld(const glm::vec3& pos) {
         Render::RotateZ(aircraft_.yaw);
         Render::RotateY(aircraft_.pitch);
         Render::RotateX(aircraft_.roll);
-        Render::PushMatrix();
-            Render::Scale(0.4f);
-            DrawAircraft();
-        Render::PopMatrix();
+        DrawAircraft();
     Render::PopMatrix();
 }
 
@@ -203,6 +198,8 @@ void Airspace::DrawFlight() {
         Render::SetFrame(Render::FrameId::NED);
         Render::Globe();
         DrawWorld(nedPos);
+
+        Render::Pose(nedPos, 0.5f);
 
         Render::Text(nedPos + glm::vec3(0.0f, 0.0f, -0.2f), Render::Color::Hex("#FFFFFF50"), "Lat %.6f\nLon %.6f\nAlt %.0f m",
             aircraft_.lat, aircraft_.lon, aircraft_.alt);

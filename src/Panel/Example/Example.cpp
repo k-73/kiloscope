@@ -59,7 +59,7 @@ void Example::OnDraw() {
                 Render::Cylinder({0, 0, 0}, {0, 0, len[i]}, 0.03f, color);
                 Render::Translate(0, 0, len[i]);
             }
-            Render::Frame(glm::mat4(1.f), 0.15f);
+            Render::Pose(glm::mat4(1.f), 0.15f);
             Render::PopMatrix();
         Render::End();
     ImGui::End();
@@ -70,7 +70,7 @@ void Example::OnDraw() {
         // Origin frame (click to dismiss)
         static bool showFrame = true;
         if (showFrame) {
-            Render::Frame(glm::mat4(1.f), 1.f);
+            Render::Pose(glm::mat4(1.f), 1.f);
             if (Render::Event().Clicked())
                 showFrame = false;
             if (Render::Event().Hovered())
