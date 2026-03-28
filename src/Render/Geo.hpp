@@ -34,7 +34,7 @@ struct GeoRef {
     glm::dvec3 ecefRef{0.0};
     glm::dmat3 ecefToEnu{1.0};
 
-    // Stable geodetic params for the shader (same update cadence as ecefToEnu)
+    // Geodetic curvature params — updated every frame for smooth Cesium delta transitions.
     double cosLat = 1.0, sinLat = 0.0, Nrad = a, Mrad = a;
 
     bool valid = false;

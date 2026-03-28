@@ -77,6 +77,8 @@ void main() {
     dvec3 pN        = oc + tD * rd;
     vec3 ecef       = vec3(pN * uRadiiD);
     vec3 normalEcef = normalize(vec3(pN / uRadiiD));
+    // Flip normal when camera is inside the ellipsoid (qc < 0) so lighting is correct from below.
+    if (qc < 0.0lf) normalEcef = -normalEcef;
     vec3 normal     = vec3(mat3(uEcefToLocalD) * normalEcef);
 
     // ── Cesium delta lat/lon ─────────────────────────────────────
@@ -148,5 +150,7 @@ void main() {
     FragColor = vec4(lit, uSurfaceColor.a * edgeFade);
 
     vec4 cp = uViewProj * vec4(hitWorld, 1.0);
-    gl_FragDepth = clamp(log2(max(1e-6, cp.w + 1.0)) / log2(uFarPlane + 1.0), 0.0, 1.0);
+    // Depth bias: globe always loses to lines/meshes at similar depth.
+    // 1e-4 ≈ 0.2m at 1km distance — objects on/near the surface always win.
+    gl_FragDepth = clamp(log2(max(1e-6, cp.w + 1.0)) / log2(uFarPlane + 1.0) + 1e-4, 0.0, 1.0);
 }

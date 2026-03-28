@@ -6,10 +6,10 @@ layout(location = 1) in vec3 aOther;
 layout(location = 2) in vec2 aExpand;
 layout(location = 3) in vec4 aColor;
 layout(location = 4) in uint aPickId;
+layout(location = 5) in float aWidth;
 
 uniform mat4  uView, uProj;
 uniform vec2  uViewportSize;
-uniform float uLineWidth;
 uniform float uFarPlane;
 
 flat out uint vPickId;
@@ -30,7 +30,7 @@ void main() {
     float projScale = uProj[1][1] * uViewportSize.y * 0.005;
     float scale     = clamp(projScale / depth, 0.15, 3.0);
 
-    float hw  = uLineWidth * 0.5 * scale + 0.5;
+    float hw  = aWidth * 0.5 * scale + 0.5;
     vec2  off = perp * aExpand.x * hw / (uViewportSize * 0.5);
 
     vec4 clip = mix(cA, cB, aExpand.y);

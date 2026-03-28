@@ -24,7 +24,7 @@ namespace Kilo::Render {
 // ── types ────────────────────────────────────────────────────────────
 
 struct MeshVert  { glm::vec3 pos, normal; glm::vec2 uv{0.f, 0.f}; };
-struct LineVert  { glm::vec3 pos, otherEnd; glm::vec2 expand; glm::vec4 color; uint32_t pickId; };
+struct LineVert  { glm::vec3 pos, otherEnd; glm::vec2 expand; glm::vec4 color; uint32_t pickId; float width; };
 struct PointVert { glm::vec3 pos; glm::vec4 color; uint32_t pickId; };
 struct TextEntry { glm::vec3 worldPos; glm::vec4 color; std::string text; };
 
@@ -142,7 +142,6 @@ struct SceneData {
     std::vector<LineVert>  lineBatch;
     std::vector<PointVert> pointBatch;
     std::vector<TextEntry> textBatch;
-    float lineWidth  = 2.5f;
     float pointSize  = 4.f;
 
     // Coordinate frame convention (maps user axes → internal axes)

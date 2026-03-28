@@ -6,10 +6,10 @@ layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec3 aOther;
 layout(location = 2) in vec2 aExpand;
 layout(location = 3) in vec4 aColor;
+layout(location = 5) in float aWidth;
 
 uniform mat4  uView, uProj;
 uniform vec2  uViewportSize;
-uniform float uLineWidth;
 uniform float uFarPlane;
 
 out vec4  vColor;
@@ -32,7 +32,7 @@ void main() {
     float projScale = uProj[1][1] * uViewportSize.y * 0.005;
     float scale     = clamp(projScale / depth, 0.15, 3.0);
 
-    float trueHW = uLineWidth * 0.5 * scale;
+    float trueHW = aWidth * 0.5 * scale;
     float hw     = trueHW + 0.5;
     vec2  off    = perp * aExpand.x * hw / (uViewportSize * 0.5);
 

@@ -152,10 +152,10 @@ void Airspace::DrawWorld(const char* scene, const glm::vec3& pos) {
             Render::PopMatrix();
         Render::PopMatrix();
 
-        // Ground track (0.1m above surface to avoid z-fighting with Globe)
-        glm::vec3 ground{pos.x, pos.y, -0.1f};
-        Render::Cross(ground, 0.3f, Render::Color::Hex("#FFFFFF30"), 1.5f);
-        Render::Line(pos, ground, Render::Color::Hex("#FFFFFF15"), 1.f);
+        // Ground track
+        glm::vec3 ground{pos.x, pos.y, 0.0f};
+        Render::Cross(ground, 0.5f, {1,1,1,.5f}, 2.f);
+        Render::Line(pos, ground, {1,1,1,.25f}, 1.5f);
 
         // Trail (geodetic → local NED, reusing buffer)
         if (trail_.size() > 1) {

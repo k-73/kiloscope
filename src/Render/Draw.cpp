@@ -334,7 +334,6 @@ void FlushLines() {
     sLineShader.Set("uView", sView);
     sLineShader.Set("uProj", sProj);
     sLineShader.Set("uViewportSize", glm::vec2(sVpW, sVpH));
-    sLineShader.Set("uLineWidth", ctx().lineWidth);
     sLineShader.Set("uFarPlane", sFarPlane);
 
     glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
@@ -352,7 +351,6 @@ void FlushLines() {
         sPickLineShader.Set("uView", sView);
         sPickLineShader.Set("uProj", sProj);
         sPickLineShader.Set("uViewportSize", glm::vec2(sVpW, sVpH));
-        sPickLineShader.Set("uLineWidth", ctx().lineWidth);
         sPickLineShader.Set("uFarPlane", sFarPlane);
         glDisable(GL_CULL_FACE);
         glBindVertexArray(sLineVao);
@@ -366,16 +364,14 @@ void FlushLines() {
 
 void BatchLineGradient(const glm::vec3& a, const glm::vec3& b,
                         const glm::vec4& ca, const glm::vec4& cb, float width) {
-    if (!ctx().lineBatch.empty() && width != ctx().lineWidth) FlushLines();
-    ctx().lineWidth = width;
     uint32_t pid = ctx().activePickId;
     auto& batch = ctx().lineBatch;
-    batch.push_back({a, b, {-1, 0}, ca, pid});
-    batch.push_back({a, b, { 1, 0}, ca, pid});
-    batch.push_back({a, b, { 1, 1}, cb, pid});
-    batch.push_back({a, b, {-1, 0}, ca, pid});
-    batch.push_back({a, b, { 1, 1}, cb, pid});
-    batch.push_back({a, b, {-1, 1}, cb, pid});
+    batch.push_back({a, b, {-1, 0}, ca, pid, width});
+    batch.push_back({a, b, { 1, 0}, ca, pid, width});
+    batch.push_back({a, b, { 1, 1}, cb, pid, width});
+    batch.push_back({a, b, {-1, 0}, ca, pid, width});
+    batch.push_back({a, b, { 1, 1}, cb, pid, width});
+    batch.push_back({a, b, {-1, 1}, cb, pid, width});
 }
 
 void BatchLine(const glm::vec3& a, const glm::vec3& b,
@@ -538,7 +534,8 @@ void Init(const std::string& dir) {
     glCreateBuffers(1, &sLineVbo);
     SetupVao(sLineVao, sLineVbo, sizeof(LineVert), {
         {0, {3, offsetof(LineVert, pos)}}, {1, {3, offsetof(LineVert, otherEnd)}},
-        {2, {2, offsetof(LineVert, expand)}}, {3, {4, offsetof(LineVert, color)}}});
+        {2, {2, offsetof(LineVert, expand)}}, {3, {4, offsetof(LineVert, color)}},
+        {5, {1, offsetof(LineVert, width)}}});
     // Integer attributes (pickId) need IFormat — can't use SetupVao
     auto bindPickAttr = [](GLuint vao, GLuint idx, GLuint offset) {
         glEnableVertexArrayAttrib(vao, idx);
