@@ -18,24 +18,26 @@ private:
     void DrawWorld(const char* scene, const glm::vec3& pos);
     void SetupEnv(const char* scene);
 
-    // Aircraft state (geodetic absolute — source of truth)
+    // Aircraft (geodetic absolute)
     struct AircraftState {
         double lat = 52.2297, lon = 21.0122, alt = 20.0;
-        float  yaw   = 0.f;
-        float  pitch = 0.f;
-        float  roll  = 0.f;
-        float  speed = 0.f;
+        float  yaw = 0.f, pitch = 0.f, roll = 0.f, speed = 0.f;
     } aircraft_;
+
+    // Gimbal target (geodetic)
+    struct GimbalTarget {
+        double lat = 52.2297, lon = 21.0122, alt = 0.0;
+    } gimbal_;
 
     struct CameraMode {
         bool chase = true;
         bool free  = false;
     } cameraMode_;
 
-    // Trail stored in geodetic (survives origin shifts)
+    // Trail (geodetic — survives origin shifts)
     static constexpr size_t kTrailMax = 128;
     std::vector<Render::GeoCoord> trail_;
-    std::vector<glm::vec3> trailBuf_;  // reused buffer for NED conversion
+    std::vector<glm::vec3> trailBuf_;
 };
 
 } // namespace Kilo
