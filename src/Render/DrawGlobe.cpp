@@ -3,7 +3,6 @@
 
 namespace Kilo::Render {
 
-// Globe-owned GPU resources (not shared — only used here)
 static Shader sGlobeShader;
 static GLuint sGlobeVao = 0;
 
@@ -31,62 +30,42 @@ GlobeConfig& GetGlobe(const char* n){ return GetScene(n).globeCfg; }
 glm::dvec3 GeoToLocal(double lat, double lon, double alt) {
     auto& gr = ctx().geoRef;
     if (!gr.valid) return glm::dvec3(0.0);
-    auto enu = gr.ToInternal(lat, lon, alt);
-    return glm::dvec3(glm::transpose(glm::dmat3(ctx().frameMat)) * enu);
+    return glm::dvec3(glm::transpose(glm::dmat3(ctx().frameMat)) * gr.ToInternal(lat, lon, alt));
 }
 
 glm::dvec3 GeoToLocal(const char* name, double lat, double lon, double alt) {
     auto& sc = GetScene(name);
     if (!sc.geoRef.valid) return glm::dvec3(0.0);
-    auto enu = sc.geoRef.ToInternal(lat, lon, alt);
-    return glm::dvec3(glm::transpose(glm::dmat3(sc.frameMat)) * enu);
+    return glm::dvec3(glm::transpose(glm::dmat3(sc.frameMat)) * sc.geoRef.ToInternal(lat, lon, alt));
 }
 
 // ── rendering ───────────────────────────────────────────────────────
-
-// Diagnostics (accessible from panels)
-static glm::vec3 sDbgEllCenter{0};
-static float sDbgFarPlane = 0;
-static float sDbgCamZ = 0;
-glm::vec3 GlobeDbgEllCenter() { return sDbgEllCenter; }
-float GlobeDbgFarPlane() { return sDbgFarPlane; }
-float GlobeDbgCamZ() { return sDbgCamZ; }
 
 void DrawGlobe(const GlobeConfig& cfg) {
     auto& gr = ctx().geoRef;
     if (!gr.valid) return;
 
-    // Ellipsoid center position in world ENU, relative to camera
-    // Earth center in ENU = ecefToEnu * (0 - ecefRef) = ecefToEnu * (-ecefRef)
-    // Then subtract camera position (sCamPos is already in world ENU)
-    // Ellipsoid center relative to camera (full double precision → GPU)
-    glm::dvec3 ellCenterD = gr.ecefToEnu * (-gr.ecefRef) - glm::dvec3(sCamPos);
+    // Ellipsoid center relative to camera (double → float)
+    glm::vec3 ellCenter = glm::vec3(gr.ecefToEnu * (-gr.ecefRef) - glm::dvec3(sCamPos));
 
-    sDbgEllCenter = glm::vec3(ellCenterD);
-    sDbgFarPlane = sFarPlane;
-    sDbgCamZ = sCamPos.z;
+    // Origin lat/lon: integer + fractional hi/lo split (double precision in two floats)
+    double latFrac = std::fmod(gr.lat0, 1.0), lonFrac = std::fmod(gr.lon0, 1.0);
+    float latHi = float(latFrac), lonHi = float(lonFrac);
 
     sGlobeShader.Use();
-    sGlobeShader.Set("uInvViewProj",  sInvViewProj);
-    sGlobeShader.Set("uViewProj",     sViewProj);
-    sGlobeShader.Set("uCamPos",       sCamPos);
-    sGlobeShader.Set("uEllCenter",    glm::vec3(ellCenterD));
-    sGlobeShader.Set("uRadii",        glm::vec3(GeoRef::a, GeoRef::a, GeoRef::b));
-    sGlobeShader.Set("uEcefToLocal",  glm::mat3(gr.ecefToEnu));
-    // Origin: integer degrees + fractional degrees (hi/lo split of fractional part)
-    // Fine grids (< 1°) use only fractional → full float32 precision in 0-1 range
-    double latFrac = std::fmod(gr.lat0, 1.0), lonFrac = std::fmod(gr.lon0, 1.0);
-    float latFracHi = float(latFrac), lonFracHi = float(lonFrac);
-    float latFracLo = float(latFrac - double(latFracHi));
-    float lonFracLo = float(lonFrac - double(lonFracHi));
+    sGlobeShader.Set("uInvViewProj",   sInvViewProj);
+    sGlobeShader.Set("uViewProj",      sViewProj);
+    sGlobeShader.Set("uCamPos",        sCamPos);
+    sGlobeShader.Set("uEllCenter",     ellCenter);
+    sGlobeShader.Set("uRadii",         glm::vec3(GeoRef::a, GeoRef::a, GeoRef::b));
+    sGlobeShader.Set("uEcefToLocal",   glm::mat3(gr.ecefToEnu));
     sGlobeShader.Set("uOriginInt",     glm::vec2(float(std::floor(gr.lat0)), float(std::floor(gr.lon0))));
-    sGlobeShader.Set("uOriginFracHi",  glm::vec2(latFracHi, lonFracHi));
-    sGlobeShader.Set("uOriginFracLo",  glm::vec2(latFracLo, lonFracLo));
-    sGlobeShader.Set("uR",            static_cast<float>(GeoRef::a));
-    sGlobeShader.Set("uGratColor",    cfg.gratColor);
-    sGlobeShader.Set("uSurfaceColor", cfg.surfaceColor);
-    sGlobeShader.Set("uFarPlane",     sFarPlane);
-    sGlobeShader.Set("uCamDist",     ctx().cam.Distance());
+    sGlobeShader.Set("uOriginFracHi",  glm::vec2(latHi, lonHi));
+    sGlobeShader.Set("uOriginFracLo",  glm::vec2(float(latFrac - double(latHi)), float(lonFrac - double(lonHi))));
+    sGlobeShader.Set("uR",             static_cast<float>(GeoRef::a));
+    sGlobeShader.Set("uGratColor",     cfg.gratColor);
+    sGlobeShader.Set("uSurfaceColor",  cfg.surfaceColor);
+    sGlobeShader.Set("uFarPlane",      sFarPlane);
 
     glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
     glDepthMask(GL_TRUE);

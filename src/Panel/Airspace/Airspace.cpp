@@ -4,7 +4,6 @@
 #include "Render/Camera.hpp"
 #include "Render/Frame.hpp"
 #include "Render/Geo.hpp"
-#include "Render/DrawGlobe.hpp"
 #include <imgui.h>
 #include <algorithm>
 #include <cmath>

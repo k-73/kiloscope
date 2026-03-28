@@ -10,7 +10,4 @@ struct GlobeConfig;
 void InitGlobe(const std::string& shaderDir);
 void ShutdownGlobe();
 void DrawGlobe(const GlobeConfig& cfg);
-glm::vec3 GlobeDbgEllCenter();
-float GlobeDbgFarPlane();
-float GlobeDbgCamZ();
 } // namespace Kilo::Render
