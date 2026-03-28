@@ -63,8 +63,7 @@ void main() {
     // Flat plane at world Z=0, same as Grid.frag. Numerically stable because
     // it uses only vNear/rd/uCamPos (no changing rotation matrix).
     float tPlane = -(vNear.z + uCamPos.z) / rd.z;
-    float tGrid = clamp(tPlane, 0.0, tEll);  // don't exceed ellipsoid surface
-    vec3 hitENU = vNear + tGrid * rd + uCamPos;  // world ENU relative to origin
+    vec3 hitENU = vNear + tPlane * rd + uCamPos;  // world ENU relative to origin
 
     // ENU → delta lat/lon
     float cosLat = cos(radians(uOriginInt.x + uOriginFracHi.x));
