@@ -73,7 +73,15 @@ void DrawGlobe(const GlobeConfig& cfg) {
     sGlobeShader.Set("uEllCenter",    glm::vec3(ellCenterD));
     sGlobeShader.Set("uRadii",        glm::vec3(GeoRef::a, GeoRef::a, GeoRef::b));
     sGlobeShader.Set("uEcefToLocal",  glm::mat3(gr.ecefToEnu));
-    sGlobeShader.Set("uOriginLL",     glm::vec2(float(gr.lat0), float(gr.lon0)));
+    // Origin: integer degrees + fractional degrees (hi/lo split of fractional part)
+    // Fine grids (< 1°) use only fractional → full float32 precision in 0-1 range
+    double latFrac = std::fmod(gr.lat0, 1.0), lonFrac = std::fmod(gr.lon0, 1.0);
+    float latFracHi = float(latFrac), lonFracHi = float(lonFrac);
+    float latFracLo = float(latFrac - double(latFracHi));
+    float lonFracLo = float(lonFrac - double(lonFracHi));
+    sGlobeShader.Set("uOriginInt",     glm::vec2(float(std::floor(gr.lat0)), float(std::floor(gr.lon0))));
+    sGlobeShader.Set("uOriginFracHi",  glm::vec2(latFracHi, lonFracHi));
+    sGlobeShader.Set("uOriginFracLo",  glm::vec2(latFracLo, lonFracLo));
     sGlobeShader.Set("uR",            static_cast<float>(GeoRef::a));
     sGlobeShader.Set("uGratColor",    cfg.gratColor);
     sGlobeShader.Set("uSurfaceColor", cfg.surfaceColor);

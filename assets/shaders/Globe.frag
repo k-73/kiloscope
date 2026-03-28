@@ -9,7 +9,9 @@ uniform vec3  uCamPos;
 uniform vec3  uEllCenter;      // ellipsoid center (camera-relative, float)
 uniform vec3  uRadii;
 uniform mat3  uEcefToLocal;
-uniform vec2  uOriginLL;      // origin lat, lon in degrees
+uniform vec2  uOriginInt;      // floor(origin lat, lon) — integer degrees
+uniform vec2  uOriginFracHi;  // fmod(origin, 1°) high part
+uniform vec2  uOriginFracLo;  // fmod(origin, 1°) low part (double residual)
 uniform float uR;             // Earth radius (meters)
 uniform vec4  uGratColor;
 uniform vec4  uSurfaceColor;
@@ -64,21 +66,28 @@ void main() {
     float tGrid = clamp(tPlane, 0.0, tEll);  // don't exceed ellipsoid surface
     vec3 hitENU = vNear + tGrid * rd + uCamPos;  // world ENU relative to origin
 
-    // ENU → delta lat/lon (linear, precise for small offsets)
-    float cosLat = cos(radians(uOriginLL.x));
-    float lon = uOriginLL.y + degrees(hitENU.x / (uR * cosLat));
-    float lat = uOriginLL.x + degrees(hitENU.y / uR);
-    vec2 ll = vec2(lon, lat);
+    // ENU → delta lat/lon
+    float cosLat = cos(radians(uOriginInt.x + uOriginFracHi.x));
+    float dLon = degrees(hitENU.x / (uR * cosLat));
+    float dLat = degrees(hitENU.y / uR);
 
-    // Lat/lon graticule — all scales stable with GPU double precision ECEF
-    float g001 = SoftLine(ll, 0.001) * 0.15 * smoothstep(5000.0,     500.0,     surfDist);  // ≈111m
-    float g01  = SoftLine(ll, 0.01)  * 0.25 * smoothstep(50000.0,    5000.0,    surfDist);  // ≈1.1km
-    float g1   = SoftLine(ll, 0.1)   * 0.35 * smoothstep(500000.0,   50000.0,   surfDist);  // ≈11km
-    float g10  = SoftLine(ll, 1.0)   * 0.45 * smoothstep(2000000.0,  500000.0,  surfDist);  // ≈111km
-    float g5   = SoftLine(ll, 5.0)   * 0.55 * smoothstep(5000000.0,  2000000.0, surfDist);  // ≈556km
-    float gA   = SoftLine(ll, 10.0)  * 0.65;
-    float gB   = SoftLine(ll, 30.0)  * 0.8;
-    float gC   = SoftLine(ll, 90.0)  * 1.0;
+    // Precise fractional degrees: frac(origin) + delta + lo  (all small → float32 precise)
+    // For fine grids (< 1° spacing): fract() removes integer degrees → only this matters
+    vec2 llFrac = vec2((uOriginFracHi.y + dLon) + uOriginFracLo.y,
+                       (uOriginFracHi.x + dLat) + uOriginFracLo.x);
+    // For coarse grids (≥ 1° spacing): need full degrees
+    vec2 ll = uOriginInt + llFrac;
+
+    // Fine grids use llFrac (0-1° range → full float32 precision, no quantization)
+    // Coarse grids use ll (full degrees → adequate precision at those scales)
+    float g001 = SoftLine(llFrac, 0.001) * 0.15 * smoothstep(5000.0,     500.0,     surfDist);
+    float g01  = SoftLine(llFrac, 0.01)  * 0.25 * smoothstep(50000.0,    5000.0,    surfDist);
+    float g1   = SoftLine(llFrac, 0.1)   * 0.35 * smoothstep(500000.0,   50000.0,   surfDist);
+    float g10  = SoftLine(ll, 1.0)       * 0.45 * smoothstep(2000000.0,  500000.0,  surfDist);
+    float g5   = SoftLine(ll, 5.0)       * 0.55 * smoothstep(5000000.0,  2000000.0, surfDist);
+    float gA   = SoftLine(ll, 10.0)      * 0.65;
+    float gB   = SoftLine(ll, 30.0)      * 0.8;
+    float gC   = SoftLine(ll, 90.0)      * 1.0;
 
     // ── Compose ──────────────────────────────────────────────────
     float line = max(max(max(g001, g01), max(g1, g10)),
