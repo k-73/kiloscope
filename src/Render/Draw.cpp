@@ -331,8 +331,8 @@ void FlushLines() {
     ctx().stats.lineSegments += count / 6; // 6 verts = 2 triangles per line segment
 
     sLineShader.Use();
-    sLineShader.Set("uView", sView);
-    sLineShader.Set("uProj", sProj);
+    sLineShader.Set("uViewProj", sViewProj);
+    sLineShader.Set("uProjScale", sProj[1][1] * float(sVpH) * 0.005f);
     sLineShader.Set("uViewportSize", glm::vec2(sVpW, sVpH));
     sLineShader.Set("uFarPlane", sFarPlane);
 
@@ -348,8 +348,8 @@ void FlushLines() {
     if (ctx().pickEnabled) {
         BeginPickPass();
         sPickLineShader.Use();
-        sPickLineShader.Set("uView", sView);
-        sPickLineShader.Set("uProj", sProj);
+        sPickLineShader.Set("uViewProj", sViewProj);
+        sPickLineShader.Set("uProjScale", sProj[1][1] * float(sVpH) * 0.005f);
         sPickLineShader.Set("uViewportSize", glm::vec2(sVpW, sVpH));
         sPickLineShader.Set("uFarPlane", sFarPlane);
         glDisable(GL_CULL_FACE);
