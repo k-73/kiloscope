@@ -4,6 +4,7 @@
 #include "Render/Camera.hpp"
 #include "Render/Frame.hpp"
 #include "Render/Geo.hpp"
+#include <GeographicLib/Geocentric.hpp>
 #include <imgui.h>
 #include <algorithm>
 #include <cmath>
@@ -120,26 +121,10 @@ void Airspace::UpdatePhysics(float dt) {
 
     ecef += N * dN + E * dE + U * dU;
 
-    // ECEF → geodetic (Bowring iterative, 3 iterations → sub-mm)
-    double p = std::sqrt(ecef.x * ecef.x + ecef.y * ecef.y);
-    double latR = std::atan2(ecef.z, p * (1.0 - GR::e2));
-    for (int i = 0; i < 3; ++i) {
-        double s = std::sin(latR);
-        latR = std::atan2(ecef.z + GR::e2 * GR::a / std::sqrt(1.0 - GR::e2 * s * s) * s, p);
-    }
-
-    aircraft_.lat = glm::degrees(latR);
-    aircraft_.lon = glm::degrees(std::atan2(ecef.y, ecef.x));
-
-    // Altitude (equatorial formula or polar formula — avoids /0 at poles)
-    double sL = std::sin(latR), cL = std::cos(latR);
-    double nL = GR::a / std::sqrt(1.0 - GR::e2 * sL * sL);
-    aircraft_.alt = (std::abs(cL) > 0.1)
-        ? std::max(p / cL - nL, 1.0)
-        : std::max(ecef.z / sL - nL * (1.0 - GR::e2), 1.0);
-
-    // Normalize longitude to [-180, 180]
-    aircraft_.lon = std::fmod(aircraft_.lon + 540.0, 360.0) - 180.0;
+    // ECEF → geodetic via GeographicLib (7nm precision, correct at poles)
+    static const auto& earth = GeographicLib::Geocentric::WGS84();
+    earth.Reverse(ecef.x, ecef.y, ecef.z, aircraft_.lat, aircraft_.lon, aircraft_.alt);
+    aircraft_.alt = std::max(aircraft_.alt, 1.0);
 
     // Bank autopilot
     float bank = 0.f;

@@ -55,8 +55,14 @@ void DrawGlobe(const GlobeConfig& cfg) {
     sGlobeShader.Set("uViewProj",     sViewProj);
     sGlobeShader.Set("uCamPos",       sCamPos);
 
-    // Double-precision ellipsoid — intersection in the shader avoids float32 cancellation
+    // Combined matrix: transpose(ecefToEnu) * diag(1/radii).
+    // Folds the constant radii division into the rotation — avoids 6 double divides per fragment.
+    glm::dvec3 invRadii(1.0 / GeoRef::a, 1.0 / GeoRef::a, 1.0 / GeoRef::b);
+    glm::dmat3 toEcef = glm::transpose(gr.ecefToEnu);
+    glm::dmat3 toEcefNorm(toEcef[0] * invRadii, toEcef[1] * invRadii, toEcef[2] * invRadii);
+
     sGlobeShader.Set("uEllCenterD",   ellCenterD);
+    sGlobeShader.Set("uToEcefNorm",   toEcefNorm);
     sGlobeShader.Set("uEcefToLocalD", gr.ecefToEnu);
     sGlobeShader.Set("uRadiiD",       glm::dvec3(GeoRef::a, GeoRef::a, GeoRef::b));
     sGlobeShader.Set("uRadii",        glm::vec3(GeoRef::a, GeoRef::a, GeoRef::b));

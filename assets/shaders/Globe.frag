@@ -17,6 +17,7 @@ uniform float uFarPlane;
 
 // ── ellipsoid (double for intersection) ──────────────────────────
 uniform dvec3 uEllCenterD;
+uniform dmat3 uToEcefNorm;      // transpose(ecefToEnu) * diag(1/radii) — precomputed
 uniform dmat3 uEcefToLocalD;
 uniform dvec3 uRadiiD;
 uniform vec3  uRadii;
@@ -54,9 +55,9 @@ void main() {
     vec3 ray = normalize(vDir);
 
     // ── ray-ellipsoid intersection (double precision) ────────────
-    dmat3 toEcef = transpose(uEcefToLocalD);
-    dvec3 oc = (toEcef * (dvec3(vNear) - uEllCenterD)) / uRadiiD;
-    dvec3 rd = (toEcef * dvec3(ray)) / uRadiiD;
+    // uToEcefNorm = transpose(ecefToEnu) * diag(1/radii), precomputed on CPU.
+    dvec3 oc = uToEcefNorm * (dvec3(vNear) - uEllCenterD);
+    dvec3 rd = uToEcefNorm * dvec3(ray);
 
     double qa = dot(rd, rd);
     double qb = dot(oc, rd);
@@ -98,11 +99,14 @@ void main() {
     // ── graticule ────────────────────────────────────────────────
     float dist = tHit;
 
-    // Fine grids — configurable fade distances
-    float fine = max(
-        max(gridLine(ll, 0.001) * 0.15 * smoothstep(uGridFades.x, uGridFades.x * 0.1, dist),
-            gridLine(ll, 0.01)  * 0.25 * smoothstep(uGridFades.y, uGridFades.y * 0.1, dist)),
-            gridLine(ll, 0.1)   * 0.35 * smoothstep(uGridFades.z, uGridFades.z * 0.1, dist));
+    // Fine grids — skip scales that are fully faded (avoids dead gridLine calls)
+    float fine = 0.0;
+    if (dist < uGridFades.z)
+        fine = gridLine(ll, 0.1) * 0.35 * smoothstep(uGridFades.z, uGridFades.z * 0.1, dist);
+    if (dist < uGridFades.y)
+        fine = max(fine, gridLine(ll, 0.01) * 0.25 * smoothstep(uGridFades.y, uGridFades.y * 0.1, dist));
+    if (dist < uGridFades.x)
+        fine = max(fine, gridLine(ll, 0.001) * 0.15 * smoothstep(uGridFades.x, uGridFades.x * 0.1, dist));
 
     // Coarse grids — ECEF Bowring fallback beyond 120°
     float angDist = max(abs(dLon), abs(dLat));
