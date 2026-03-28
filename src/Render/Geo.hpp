@@ -28,7 +28,7 @@ struct GeoRef {
         // Lat/lon grid uses flat-plane ENU → independent of this matrix
         if (valid) {
             double d = (lat - lat0) * (lat - lat0) + (lon - lon0) * (lon - lon0);
-            if (d < 1e-4) {  // ~0.01° ≈ 1.1km threshold
+            if (d < 1e-4) {  // ~0.01° ≈ 1.1km
                 lat0 = lat; lon0 = lon; alt0 = alt;
                 ecefRef = ToEcef(lat, lon, alt);
                 return;  // keep existing rotation, update only position
