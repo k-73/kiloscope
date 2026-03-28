@@ -135,37 +135,50 @@ void Airspace::UpdatePhysics(float dt) {
 
 // ── scene ───────────────────────────────────────────────────────
 
-void Airspace::DrawWorld(const char* scene, const glm::vec3& pos) {
-    Render::Begin(scene);
+void Airspace::DrawAircraftModel(const glm::vec3& pos) {
+    Render::PushMatrix();
+        Render::Translate(pos);
+        Render::RotateZ(aircraft_.yaw);
+        Render::RotateY(aircraft_.pitch);
+        Render::RotateX(aircraft_.roll);
+        Render::PushMatrix();
+            Render::Scale(0.4f);
+            DrawAircraft();
+        Render::PopMatrix();
+    Render::PopMatrix();
+}
+
+void Airspace::DrawFlight(const glm::vec3& nedPos) {
+    Render::Begin("flight");
         Render::SetFrame(Render::FrameId::NED);
         Render::Globe();
-
-        // Aircraft at NED position with ZYX rotation
-        Render::PushMatrix();
-            Render::Translate(pos);
-            Render::RotateZ(aircraft_.yaw);
-            Render::RotateY(aircraft_.pitch);
-            Render::RotateX(aircraft_.roll);
-            Render::PushMatrix();
-                Render::Scale(0.4f);
-                DrawAircraft();
-            Render::PopMatrix();
-        Render::PopMatrix();
-
-        // Ground track
-        glm::vec3 ground{pos.x, pos.y, 0.0f};
-        Render::Cross(ground, 0.5f, {1,1,1,.5f}, 2.f);
-        Render::Line(pos, ground, {1,1,1,.25f}, 1.5f);
-
-        // Trail (geodetic → local NED, reusing buffer)
+        DrawAircraftModel(nedPos);
+        Render::Cross({nedPos.x, nedPos.y, 0.f}, 0.5f, {1,1,1,.5f}, 2.f);
+        Render::Line(nedPos, {nedPos.x, nedPos.y, 0.f}, {1,1,1,.25f}, 1.5f);
         if (trail_.size() > 1) {
             trailBuf_.resize(trail_.size());
             for (size_t i = 0; i < trail_.size(); ++i)
                 trailBuf_[i] = glm::vec3(Render::GeoToLocal(trail_[i].lat, trail_[i].lon, trail_[i].alt));
-            Render::Trail(trailBuf_.data(), static_cast<int>(trailBuf_.size()),
-                          Render::Color::Hex("#FFD700"), 2.f);
+            Render::Trail(trailBuf_.data(), int(trailBuf_.size()), Render::Color::Hex("#FFD700"), 2.f);
         }
     Render::End();
+}
+
+void Airspace::DrawGimbal() {
+    ImGui::Begin("Gimbal");
+        SetupEnv("gimbal");
+        auto pos = glm::vec3(Render::GeoToLocal("gimbal", aircraft_.lat, aircraft_.lon, aircraft_.alt));
+        auto tgt = glm::vec3(Render::GeoToLocal("gimbal", gimbal_.lat, gimbal_.lon, gimbal_.alt));
+        auto& cam = Render::GetCamera("gimbal");
+        cam.LookAt(pos + glm::vec3(0.f, 0.f, 0.3f), tgt);
+        cam.Fov() = 50.f;
+        Render::Begin("gimbal");
+            Render::SetFrame(Render::FrameId::NED);
+            Render::Globe();
+            DrawAircraftModel(pos);
+        Render::End();
+        Render::Crosshair();
+    ImGui::End();
 }
 
 void Airspace::SetupEnv(const char* scene) {
@@ -187,10 +200,7 @@ void Airspace::OnDraw() {
     HandleInput(dt, focused);
     UpdatePhysics(dt);
 
-    // ── Main view ────────────────────────────────────────────────
-    // GeoToLocal and Follow BEFORE Begin — camera must be positioned
-    // before Begin() computes the view matrix.  frameMat from the
-    // previous frame's SetFrame(NED) is correct and consistent.
+    // ── Flight view ────────────────────────────────────────────────
     SetupEnv("flight");
     auto nedPos = glm::vec3(Render::GeoToLocal("flight", aircraft_.lat, aircraft_.lon, aircraft_.alt));
 
@@ -200,12 +210,11 @@ void Airspace::OnDraw() {
     else
         flightCam.Unfollow();
 
-    DrawWorld("flight", nedPos);
+    DrawFlight(nedPos);
 
     if (!cameraMode_.free && cameraMode_.chase)
         flightCam.CaptureFollow();
 
-    // Record trail in geodetic
     Render::GeoCoord gc{aircraft_.lat, aircraft_.lon, aircraft_.alt};
     if (trail_.empty() || std::abs(gc.lat - trail_.back().lat) > 1e-7
                        || std::abs(gc.lon - trail_.back().lon) > 1e-7) {
@@ -213,21 +222,8 @@ void Airspace::OnDraw() {
         if (trail_.size() > kTrailMax) trail_.erase(trail_.begin());
     }
 
-    // ── Gimbal — mounted under aircraft, looking at target ───────
-    ImGui::Begin("Gimbal");
-        SetupEnv("gimbal");
-        auto gimbalPos = glm::vec3(Render::GeoToLocal("gimbal",
-            aircraft_.lat, aircraft_.lon, aircraft_.alt));
-        auto gimbalTarget = glm::vec3(Render::GeoToLocal("gimbal",
-            gimbal_.lat, gimbal_.lon, gimbal_.alt));
-
-        auto& gimbalCam = Render::GetCamera("gimbal");
-        gimbalCam.LookAt(gimbalPos + glm::vec3(0.f, 0.f, 0.3f), gimbalTarget);
-        gimbalCam.Fov() = 50.f;
-
-        DrawWorld("gimbal", gimbalPos);
-        Render::Crosshair();
-    ImGui::End();
+    // ── Gimbal view ──────────────────────────────────────────────
+    DrawGimbal();
 }
 
 static const bool reg_ = RegisterPanel<Airspace>("Airspace", "Airspace");
