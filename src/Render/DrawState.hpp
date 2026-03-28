@@ -57,8 +57,34 @@ struct MeshDraw {
     uint32_t pickId;
     const GpuMesh* gpuMesh = nullptr;   // non-null → GPU-side indexed draw
     glm::mat4 model{1.f};
-    glm::mat3 normalMat{1.f};           // precomputed transpose(inverse(mat3(model)))
+    glm::mat3 normalMat{1.f};
+    float worldRadius = 1.f;  // bounding sphere radius in world space (for frustum culling)
 };
+
+// ── Frustum culling ─────────────────────────────────────────────────
+
+struct ViewFrustum {
+    glm::vec4 planes[6];  // left, right, bottom, top, near, far
+};
+
+inline ViewFrustum ExtractFrustum(const glm::mat4& vp) {
+    ViewFrustum f;
+    for (int i = 0; i < 3; ++i) {
+        f.planes[i*2+0] = glm::vec4(vp[0][3]+vp[0][i], vp[1][3]+vp[1][i],
+                                     vp[2][3]+vp[2][i], vp[3][3]+vp[3][i]);
+        f.planes[i*2+1] = glm::vec4(vp[0][3]-vp[0][i], vp[1][3]-vp[1][i],
+                                     vp[2][3]-vp[2][i], vp[3][3]-vp[3][i]);
+    }
+    for (auto& p : f.planes) p /= glm::length(glm::vec3(p));
+    return f;
+}
+
+inline bool InsideFrustum(const ViewFrustum& f, const glm::vec3& center, float radius) {
+    for (int i = 0; i < 6; ++i)
+        if (glm::dot(glm::vec3(f.planes[i]), center) + f.planes[i].w < -radius)
+            return false;
+    return true;
+}
 
 // ── FBO types ────────────────────────────────────────────────────────
 
@@ -185,6 +211,7 @@ inline void UploadVbo(GLuint vbo, GLsizeiptr& cap, const void* data, GLsizeiptr 
 inline glm::mat4 sView, sProj, sViewProj, sInvViewProj;
 inline glm::dvec3 sCamPosD;          // double — for Globe/Geo precision
 inline glm::vec3 sCamPos, sLightDir;
+inline ViewFrustum sFrustum;
 inline float sFarPlane = 10000.f;
 inline int sVpW = 1, sVpH = 1;
 

@@ -77,6 +77,11 @@ void DrawGlobe(const GlobeConfig& cfg) {
 
     sGlobeShader.Set("uGratColor",    cfg.gratColor);
     sGlobeShader.Set("uSurfaceColor", cfg.surfaceColor);
+    sGlobeShader.Set("uLightDir",     sLightDir);
+    sGlobeShader.Set("uAmbient",      cfg.lighting ? cfg.ambient : 1.f);
+    sGlobeShader.Set("uAtmoColor",    cfg.atmosphereColor);
+    sGlobeShader.Set("uAtmoParams",   glm::vec2(cfg.atmospherePow, cfg.atmosphereStr));
+    sGlobeShader.Set("uGridFades",    cfg.gridFades);
     sGlobeShader.Set("uFarPlane",     sFarPlane);
 
     glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);

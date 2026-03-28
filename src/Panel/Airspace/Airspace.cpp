@@ -51,7 +51,29 @@ void Airspace::DrawControls() {
     ImGui::Separator();
 
     // Camera
+    auto& cam = Render::GetCamera("flight");
     ImGui::Text("Camera: %s  [C]", cameraMode_.free ? "FreeCam" : "Chase");
+    ImGui::Text("Eye: %.1f, %.1f, %.1f  Dist: %.1f",
+        cam.Position().x, cam.Position().y, cam.Position().z, cam.Distance());
+
+    // Globe
+    if (ImGui::CollapsingHeader("Globe")) {
+        auto& g = Render::GetGlobe("flight");
+        ImGui::Checkbox("Lighting", &g.lighting);
+        if (g.lighting) ImGui::SliderFloat("Ambient", &g.ambient, 0.f, 1.f);
+        ImGui::ColorEdit3("Surface", &g.surfaceColor.x);
+        ImGui::ColorEdit3("Grid",    &g.gratColor.x);
+        ImGui::Separator();
+        ImGui::Text("Atmosphere");
+        ImGui::ColorEdit3("Atmo Color", &g.atmosphereColor.x);
+        ImGui::SliderFloat("Atmo Power", &g.atmospherePow, 1.f, 10.f);
+        ImGui::SliderFloat("Atmo Str",   &g.atmosphereStr, 0.f, 2.f);
+        ImGui::Separator();
+        ImGui::Text("Grid Fades (m)");
+        ImGui::DragFloat("0.001\xc2\xb0", &g.gridFades.x, 100.f, 100.f, 50000.f, "%.0f");
+        ImGui::DragFloat("0.01\xc2\xb0",  &g.gridFades.y, 1000.f, 1000.f, 500000.f, "%.0f");
+        ImGui::DragFloat("0.1\xc2\xb0",   &g.gridFades.z, 5000.f, 5000.f, 2000000.f, "%.0f");
+    }
 
     ImGui::End();
 }

@@ -1,13 +1,9 @@
 // WGS84 ellipsoid with multi-scale lat/lon graticule.
 //
 // Precision strategy:
-//   • Double-precision ray-ellipsoid intersection: eliminates float32
-//     cancellation in qc = dot(oc,oc) - 1 (~1m → ~2nm tHit).
-//   • Origin-relative Cesium delta: ENU offset from GeoRef origin projected
-//     onto equatorial/meridional planes → atan on small vectors.  Hi/lo float
-//     split for origin lat/lon gives effective ULP ~1.2e-7° (~0.01m).
-//   • ECEF Bowring geodetic fallback for the far hemisphere (>120° from origin)
-//     where the Cesium delta atan wraps at ±180°.
+//   • Double-precision ray-ellipsoid intersection (~2nm tHit).
+//   • Origin-relative Cesium delta → atan on small vectors (~0.01m).
+//   • ECEF Bowring geodetic fallback for the far hemisphere (>120°).
 //   • Logarithmic depth buffer (Outerra method).
 #version 450 core
 
@@ -16,30 +12,35 @@ in vec3 vDir;
 
 // ── camera / projection ──────────────────────────────────────────
 uniform mat4  uViewProj;
-uniform vec3  uCamPos;          // camera position in world ENU
+uniform vec3  uCamPos;
 uniform float uFarPlane;
 
 // ── ellipsoid (double for intersection) ──────────────────────────
-uniform dvec3 uEllCenterD;     // earth center, camera-relative (double)
-uniform dmat3 uEcefToLocalD;   // ECEF→ENU rotation (double)
-uniform dvec3 uRadiiD;         // semi-axes a, a, b (double)
-uniform vec3  uRadii;          // semi-axes a, a, b (float — for Bowring)
+uniform dvec3 uEllCenterD;
+uniform dmat3 uEcefToLocalD;
+uniform dvec3 uRadiiD;
+uniform vec3  uRadii;
 
 // ── geodetic reference (GeoRef origin ≈ aircraft) ────────────────
-// All packed as vec2(lon, lat) to match ll coordinate order.
-uniform vec2  uOriginLLInt;    // vec2(floor(lon), floor(lat))
-uniform vec2  uOriginLLFracHi; // vec2(fract(lon), fract(lat)) — high bits
-uniform vec2  uOriginLLFracLo; // residual low bits
-uniform vec2  uOriginLat;      // vec2(cos(lat), sin(lat)) at origin
-uniform vec2  uOriginNM;       // vec2(N, M) — prime-vertical / meridional radii
+uniform vec2  uOriginLLInt;
+uniform vec2  uOriginLLFracHi;
+uniform vec2  uOriginLLFracLo;
+uniform vec2  uOriginLat;       // vec2(cos(lat), sin(lat))
+uniform vec2  uOriginNM;        // vec2(N, M)
 
 // ── appearance ───────────────────────────────────────────────────
 uniform vec4  uGratColor;
 uniform vec4  uSurfaceColor;
+uniform vec3  uLightDir;        // world-ENU light direction (normalized)
+uniform float uAmbient;
+uniform vec3  uAtmoColor;
+uniform vec2  uAtmoParams;      // x = power, y = intensity
+uniform vec3  uGridFades;       // max visible distance for 0.001°, 0.01°, 0.1° grids
 
 out vec4 FragColor;
 
-// Anti-aliased grid line with automatic density fade.
+// ── helpers ──────────────────────────────────────────────────────
+
 float gridLine(vec2 coord, float spacing) {
     vec2 c = coord / spacing;
     vec2 d = fwidth(c);
@@ -64,28 +65,32 @@ void main() {
     if (disc < 0.0lf) discard;
 
     double sd = sqrt(disc);
-    double tD = qc / (-qb + sd);                          // citardauq form
+    double tD = qc / (-qb + sd);
     if (tD < 0.0lf) { tD = (-qb + sd) / qa; if (tD < 0.0lf) discard; }
     float tHit = float(tD);
 
+    // ── surface point and normal ─────────────────────────────────
+    vec3 hitWorld = vNear + tHit * ray + uCamPos;              // world ENU (float)
+    // Reuse normalized intersection point: pN = oc + tD*rd lies on the unit ellipsoid.
+    // ecef = pN * radii, normal = normalize(pN / radii).  Saves a full dmat3*dvec3.
+    dvec3 pN        = oc + tD * rd;
+    vec3 ecef       = vec3(pN * uRadiiD);
+    vec3 normalEcef = normalize(vec3(pN / uRadiiD));
+    vec3 normal     = vec3(mat3(uEcefToLocalD) * normalEcef);
+
     // ── Cesium delta lat/lon ─────────────────────────────────────
-    // ENU offset from the GeoRef origin (not camera) — view-independent.
-    vec3 enu  = vNear + tHit * ray + uCamPos;
+    vec3 enu  = hitWorld;
     float cosL = uOriginLat.x, sinL = uOriginLat.y;
     float N = uOriginNM.x, M = uOriginNM.y;
 
-    // Equatorial plane projection → delta longitude
     vec2 eq = vec2(N * cosL - enu.y * sinL + enu.z * cosL, enu.x);
     float dLon = degrees(atan(eq.y, eq.x));
 
-    // Remove longitude component from ENU via versine (avoids cancellation)
     float sh = sin(radians(dLon) * 0.5);
     float dx = length(eq) * 2.0 * sh * sh;
 
-    // Meridional plane projection → delta latitude
     float dLat = degrees(atan(enu.y - dx * sinL, M + enu.z + dx * cosL));
 
-    // Absolute lat/lon = origin + delta.  vec2(lon, lat) throughout.
     vec2 ll = uOriginLLInt + vec2(
         (uOriginLLFracHi.x + dLon) + uOriginLLFracLo.x,
         (uOriginLLFracHi.y + dLat) + uOriginLLFracLo.y);
@@ -93,20 +98,16 @@ void main() {
     // ── graticule ────────────────────────────────────────────────
     float dist = tHit;
 
-    // Fine grids — Cesium delta only (distance fade → zero well before ±180° wrap)
-    // smoothstep(far, near, dist) fades from 1 (close) to 0 (far).
+    // Fine grids — configurable fade distances
     float fine = max(
-        max(gridLine(ll, 0.001) * 0.15 * smoothstep(5000.0,   500.0,   dist),
-            gridLine(ll, 0.01)  * 0.25 * smoothstep(50000.0,  5000.0,  dist)),
-            gridLine(ll, 0.1)   * 0.35 * smoothstep(200000.0, 20000.0, dist));
+        max(gridLine(ll, 0.001) * 0.15 * smoothstep(uGridFades.x, uGridFades.x * 0.1, dist),
+            gridLine(ll, 0.01)  * 0.25 * smoothstep(uGridFades.y, uGridFades.y * 0.1, dist)),
+            gridLine(ll, 0.1)   * 0.35 * smoothstep(uGridFades.z, uGridFades.z * 0.1, dist));
 
-    // Coarse grids — Cesium delta near origin, ECEF Bowring beyond 120° (atan wrap zone).
-    // The Bowring path (~27 double + 80 float ops) is skipped when the entire warp is < 110°.
+    // Coarse grids — ECEF Bowring fallback beyond 120°
     float angDist = max(abs(dLon), abs(dLat));
     vec2 llC = ll;
     if (angDist > 110.0) {
-        dvec3 hitD = dvec3(vNear) + tD * dvec3(ray);
-        vec3 ecef = vec3(toEcef * (hitD - uEllCenterD));
         float r  = length(ecef.xy);
         float th = atan(ecef.z * uRadii.x, r * uRadii.z);
         float sT = sin(th), cT = cos(th);
@@ -124,10 +125,20 @@ void main() {
 
     float line = clamp(max(fine, coarse), 0.0, 1.0);
 
-    // ── output ───────────────────────────────────────────────────
-    FragColor = vec4(mix(uSurfaceColor.rgb, uGratColor.rgb, line), uSurfaceColor.a);
+    // ── shading ──────────────────────────────────────────────────
+    vec3 baseColor = mix(uSurfaceColor.rgb, uGratColor.rgb, line);
 
-    // Logarithmic depth (Outerra method)
-    vec4 cp = uViewProj * vec4(vNear + tHit * ray + uCamPos, 1.0);
+    // Diffuse lighting
+    float diffuse = max(dot(normal, uLightDir), 0.0);
+    vec3 lit = baseColor * (uAmbient + (1.0 - uAmbient) * diffuse);
+
+    // Atmosphere rim (Fresnel-like: bright at limb where view ⊥ normal)
+    float rim = pow(1.0 - max(dot(normal, -ray), 0.0), uAtmoParams.x);
+    lit += uAtmoColor * rim * uAtmoParams.y;
+
+    // ── output ───────────────────────────────────────────────────
+    FragColor = vec4(lit, uSurfaceColor.a);
+
+    vec4 cp = uViewProj * vec4(hitWorld, 1.0);
     gl_FragDepth = clamp(log2(max(1e-6, cp.w + 1.0)) / log2(uFarPlane + 1.0), 0.0, 1.0);
 }

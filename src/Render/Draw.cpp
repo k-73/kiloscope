@@ -27,8 +27,9 @@ void PickFbo::Resize(int nw, int nh) {
     glNamedFramebufferRenderbuffer(fbo, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depth);
     // Double-buffered PBOs for async pick readback
     glCreateBuffers(2, pbo);
+    uint32_t zero = 0;
     for (auto p : pbo)
-        glNamedBufferStorage(p, sizeof(uint32_t), nullptr, GL_MAP_READ_BIT);
+        glNamedBufferStorage(p, sizeof(uint32_t), &zero, GL_MAP_READ_BIT);
     pboIdx = 0;
     pboReady = false;
 }
@@ -286,8 +287,12 @@ void UploadGpuDraw(IndexedMesh& mesh, const glm::mat4& model) {
     UploadGpuMesh(mesh);
     auto& s = ctx();
     auto nmat = NormalMatrix(model);
+    float maxScale = std::max({glm::length(glm::vec3(model[0])),
+                               glm::length(glm::vec3(model[1])),
+                               glm::length(glm::vec3(model[2]))});
     s.drawList.push_back({0, 0, s.currentColor, s.currentShadingMode,
-                          s.activePickId, &mesh.gpu, model, nmat});
+                          s.activePickId, &mesh.gpu, model, nmat,
+                          mesh.boundingRadius * maxScale});
     s.stats.vertices += mesh.gpu.indexCount;
 
     // Emissive glow sphere (centroid from model translation, radius from bounding sphere)
@@ -703,6 +708,7 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     sInvViewProj = glm::inverse(sProj * cam.ViewCamRelative());
     sCamPosD     = cam.Eye();
     sCamPos      = glm::vec3(sCamPosD);
+    sFrustum     = ExtractFrustum(sViewProj);
     sLightDir = glm::normalize(scene->env.lightDir);
     sVpW = w; sVpH = h;
 
@@ -879,6 +885,11 @@ void End() {
 
         bool inGlow = false;
         for (auto& d : dl) {
+            // Frustum culling — only for GPU-indexed draws with a proper bounding sphere.
+            // Flat draws (gpuMesh == null) have pre-transformed vertices with model = identity,
+            // so model[3] doesn't represent their actual world position.
+            if (d.gpuMesh && !InsideFrustum(sFrustum, glm::vec3(d.model[3]), d.worldRadius))
+                continue;
             if (!inGlow && d.shadingMode == 3) {
                 glEnable(GL_BLEND);
                 glBlendFunc(GL_ONE, GL_ONE);
