@@ -226,6 +226,7 @@ void Airspace::OnDraw() {
         gimbalCam.Fov() = 50.f;
 
         DrawWorld("gimbal", gimbalPos);
+        Render::Crosshair();
     ImGui::End();
 }
 

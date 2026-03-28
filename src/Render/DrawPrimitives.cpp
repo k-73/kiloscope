@@ -440,6 +440,19 @@ void Cross(const glm::vec3& pos, float size, const glm::vec4& color, float width
     Line(pos - glm::vec3(0, 0, hs), pos + glm::vec3(0, 0, hs), color, width);
 }
 
+void Crosshair(float gap, float len, const glm::vec4& color) {
+    auto p  = ImGui::GetWindowContentRegionMin();
+    auto sz = ImGui::GetWindowContentRegionMax();
+    auto wp = ImGui::GetWindowPos();
+    auto* dl = ImGui::GetWindowDrawList();
+    float cx = wp.x + (p.x + sz.x) * 0.5f, cy = wp.y + (p.y + sz.y) * 0.5f;
+    ImU32 c = ImGui::ColorConvertFloat4ToU32({color.r, color.g, color.b, color.a});
+    dl->AddLine({cx - gap - len, cy}, {cx - gap, cy}, c);
+    dl->AddLine({cx + gap, cy}, {cx + gap + len, cy}, c);
+    dl->AddLine({cx, cy - gap - len}, {cx, cy - gap}, c);
+    dl->AddLine({cx, cy + gap}, {cx, cy + gap + len}, c);
+}
+
 void AABB(const glm::vec3& mn, const glm::vec3& mx,
           const glm::vec4& color, float width) {
     PickGroup pg; WireBox((mn + mx) * 0.5f, mx - mn, color, width);
