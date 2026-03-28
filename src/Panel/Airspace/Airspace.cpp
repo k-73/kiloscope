@@ -4,6 +4,7 @@
 #include "Render/Camera.hpp"
 #include "Render/Frame.hpp"
 #include "Render/Geo.hpp"
+#include "Render/DrawGlobe.hpp"
 #include <imgui.h>
 #include <algorithm>
 #include <cmath>
@@ -52,6 +53,19 @@ void Airspace::DrawControls() {
     ImGui::Separator();
 
     ImGui::Text("Camera: %s  [C]", cameraMode_.free ? "FreeCam" : "Chase");
+
+    // Diagnostics
+    auto& cam = Render::GetCamera("flight");
+    auto eye = cam.Eye();
+    ImGui::Separator();
+    ImGui::TextDisabled("Eye  %.1f  %.1f  %.1f", eye.x, eye.y, eye.z);
+    ImGui::TextDisabled("Dist %.1f  Yaw %.1f  Pitch %.1f  FOV %.0f",
+        cam.Distance(), cam.Yaw(), cam.Pitch(), cam.Fov());
+    auto nedDbg = Render::GeoToLocal("flight", aircraft_.lat, aircraft_.lon, aircraft_.alt);
+    ImGui::TextDisabled("NED  %.1f  %.1f  %.1f", nedDbg.x, nedDbg.y, nedDbg.z);
+    auto ec = Render::GlobeDbgEllCenter();
+    ImGui::TextDisabled("EllC  %.0f  %.0f  %.0f", ec.x, ec.y, ec.z);
+    ImGui::TextDisabled("Far  %.0f  CamZ  %.1f", Render::GlobeDbgFarPlane(), Render::GlobeDbgCamZ());
 
     ImGui::End();
 }

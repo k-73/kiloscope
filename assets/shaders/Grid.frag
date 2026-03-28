@@ -3,7 +3,8 @@
 // Axis lines drawn on top. Fades with camera distance.
 #version 450 core
 
-in vec3 vNear, vFar;  // ray endpoints from vertex shader
+in vec3 vNear;
+in vec3 vDir;    // unnormalized ray direction from vertex shader
 
 uniform mat4  uViewProj;
 uniform vec3  uCamPos;
@@ -52,10 +53,11 @@ void CompOver(inout vec3 bgCol, inout float bgA, vec3 fgCol, float fgA) {
 // ── main ─────────────────────────────────────────────────────────────
 
 void main() {
-    // Ray-plane intersection (Z = 0)
-    float t = -vNear.z / (vFar.z - vNear.z);
+    // Ray-plane intersection (Z = 0) using normalized direction.
+    vec3  rd = normalize(vDir);
+    float t  = -vNear.z / rd.z;
     if (t < 0.0) discard;
-    vec3 fp = vNear + t * (vFar - vNear);
+    vec3 fp = vNear + t * rd;
 
     // Three grid layers
     float g1   = SoftLine(fp.xy, uScaleFine);
@@ -87,8 +89,8 @@ void main() {
         ? (axCol * axA + gridCol * gridA * (1.0 - axA)) / alpha
         : vec3(0);
 
-    // Distance fade — use ray parameter t for precision (avoids large-float subtraction)
-    float d      = t * length(vFar - vNear);
+    // Distance fade
+    float d      = length(fp.xy - uCamPos.xy);
     float scale  = 1.0 + uCamDist;
     float fade   = 1.0 - smoothstep(uFadeStart * scale, uFadeEnd * scale, d);
     alpha *= fade;

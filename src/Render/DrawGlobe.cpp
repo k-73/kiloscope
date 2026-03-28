@@ -44,6 +44,14 @@ glm::dvec3 GeoToLocal(const char* name, double lat, double lon, double alt) {
 
 // ── rendering ───────────────────────────────────────────────────────
 
+// Diagnostics (accessible from panels)
+static glm::vec3 sDbgEllCenter{0};
+static float sDbgFarPlane = 0;
+static float sDbgCamZ = 0;
+glm::vec3 GlobeDbgEllCenter() { return sDbgEllCenter; }
+float GlobeDbgFarPlane() { return sDbgFarPlane; }
+float GlobeDbgCamZ() { return sDbgCamZ; }
+
 void DrawGlobe(const GlobeConfig& cfg) {
     auto& gr = ctx().geoRef;
     if (!gr.valid) return;
@@ -53,6 +61,10 @@ void DrawGlobe(const GlobeConfig& cfg) {
     // Then subtract camera position (sCamPos is already in world ENU)
     glm::dvec3 earthCenterEnu = gr.ecefToEnu * (-gr.ecefRef);
     glm::vec3 ellCenter = glm::vec3(earthCenterEnu - glm::dvec3(sCamPos));
+
+    sDbgEllCenter = ellCenter;
+    sDbgFarPlane = sFarPlane;
+    sDbgCamZ = sCamPos.z;
 
     sGlobeShader.Use();
     sGlobeShader.Set("uInvViewProj",  sInvViewProj);
@@ -64,6 +76,7 @@ void DrawGlobe(const GlobeConfig& cfg) {
     sGlobeShader.Set("uGratColor",    cfg.gratColor);
     sGlobeShader.Set("uSurfaceColor", cfg.surfaceColor);
     sGlobeShader.Set("uFarPlane",     sFarPlane);
+    sGlobeShader.Set("uCamDist",     ctx().cam.Distance());
 
     glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
     glDepthMask(GL_TRUE);
