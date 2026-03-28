@@ -692,11 +692,12 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     // Auto far plane: scales with orbit distance + horizon when Globe active
     float autoFar = std::max(10000.f, cam.Distance() * 100.f);
     if (scene->geoRef.valid)
-        autoFar = std::max(autoFar, static_cast<float>(GeoRef::a) * 2.f);  // Earth diameter
+        autoFar = std::max(autoFar, static_cast<float>(GeoRef::a) * 2.f);
     sFarPlane = cam.FarPlane() > 0.f ? cam.FarPlane() : autoFar;
     sProj = cam.Projection(aspect, autoFar);
     sViewProj    = sProj * sView;
-    sInvViewProj = glm::inverse(sViewProj);
+    // Camera-relative InvViewProj for grid/globe unprojection (stable at large distances)
+    sInvViewProj = glm::inverse(sProj * cam.ViewCamRelative());
     sCamPos      = cam.Eye();
     sLightDir = glm::normalize(scene->env.lightDir);
     sVpW = w; sVpH = h;

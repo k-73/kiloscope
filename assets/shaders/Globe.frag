@@ -78,9 +78,9 @@ void main() {
 
     FragColor = vec4(col, uSurfaceColor.a);
 
-    // Depth: hitWorld in camera-relative, project with camera-relative ViewProj
-    vec3 hitCamRel = vNear + tEll * rd;
-    vec4 cp = uViewProj * vec4(hitCamRel, 1.0);
+    // Depth: convert to world coords for projection
+    vec3 hitWorld = vNear + tEll * rd + uCamPos;
+    vec4 cp = uViewProj * vec4(hitWorld, 1.0);
     float Fcoef_half = 1.0 / log2(uFarPlane + 1.0);
     gl_FragDepth = clamp(log2(max(1e-6, cp.w + 1.0)) * Fcoef_half, 0.0, 1.0);
 }
