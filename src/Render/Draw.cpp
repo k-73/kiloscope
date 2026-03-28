@@ -691,10 +691,8 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     sView = cam.View();
     // Auto far plane: scales with orbit distance + horizon when Globe active
     float autoFar = std::max(10000.f, cam.Distance() * 100.f);
-    if (scene->geoRef.valid) {
-        float alt = std::max(1.f, cam.Eye().z);
-        autoFar = std::max(autoFar, std::sqrt(2.f * static_cast<float>(GeoRef::a) * alt + alt * alt));
-    }
+    if (scene->geoRef.valid)
+        autoFar = std::max(autoFar, static_cast<float>(GeoRef::a) * 2.f);  // Earth diameter
     sFarPlane = cam.FarPlane() > 0.f ? cam.FarPlane() : autoFar;
     sProj = cam.Projection(aspect, autoFar);
     sViewProj    = sProj * sView;

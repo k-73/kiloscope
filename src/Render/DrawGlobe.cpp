@@ -52,7 +52,7 @@ void DrawGlobe(const GlobeConfig& cfg) {
     // Earth center in ENU = ecefToEnu * (0 - ecefRef) = ecefToEnu * (-ecefRef)
     // Then subtract camera position (sCamPos is already in world ENU)
     glm::dvec3 earthCenterEnu = gr.ecefToEnu * (-gr.ecefRef);
-    glm::vec3 ellCenter = glm::vec3(earthCenterEnu) - sCamPos;
+    glm::vec3 ellCenter = glm::vec3(earthCenterEnu - glm::dvec3(sCamPos));
 
     sGlobeShader.Use();
     sGlobeShader.Set("uInvViewProj",  sInvViewProj);
@@ -61,7 +61,6 @@ void DrawGlobe(const GlobeConfig& cfg) {
     sGlobeShader.Set("uEllCenter",    ellCenter);
     sGlobeShader.Set("uRadii",        glm::vec3(GeoRef::a, GeoRef::a, GeoRef::b));
     sGlobeShader.Set("uEcefToLocal",  glm::mat3(gr.ecefToEnu));
-    sGlobeShader.Set("uGratSpacing",  cfg.gratSpacing);
     sGlobeShader.Set("uGratColor",    cfg.gratColor);
     sGlobeShader.Set("uSurfaceColor", cfg.surfaceColor);
     sGlobeShader.Set("uFarPlane",     sFarPlane);

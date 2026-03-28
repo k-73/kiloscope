@@ -155,9 +155,8 @@ GridConfig& GetGrid(const char* name);
 // ── globe (WGS84 ellipsoid) ─────────────────────────────────────
 struct GlobeConfig {
     bool      enabled      = false;
-    float     gratSpacing  = 1.f;
-    glm::vec4 surfaceColor = {.12f, .18f, .28f, .85f};
-    glm::vec4 gratColor    = {.50f, .60f, .70f, .70f};
+    glm::vec4 surfaceColor = {.08f, .10f, .16f, 1.f};
+    glm::vec4 gratColor    = {.35f, .45f, .55f, 1.f};
 };
 
 void SetOrigin(double lat, double lon, double alt = 0.0);
