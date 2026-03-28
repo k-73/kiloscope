@@ -15,6 +15,7 @@ private:
     void DrawControls();
     void HandleInput(float dt, bool focused);
     void UpdatePhysics(float dt);
+    glm::mat3 BodyToNed() const;
     void DrawWorld(const glm::vec3& pos);
     void DrawFlight();
     void DrawGimbal();
@@ -26,9 +27,11 @@ private:
         float  yaw = 0.f, pitch = 0.f, roll = 0.f, speed = 0.f;
     } aircraft_;
 
-    // Gimbal target (geodetic)
-    struct GimbalTarget {
-        double lat = 52.2297, lon = 21.0122, alt = 0.0;
+    // Gimbal (mounted under aircraft)
+    struct GimbalState {
+        glm::vec3 bodyOffset = {-0.12f, 0.f, 0.16f};  // body frame (X=fwd, Y=right, Z=down)
+        float     radius     = 0.04f;                   // visual sphere size
+        double    targetLat  = 52.2297, targetLon = 21.0122, targetAlt = 0.0;
     } gimbal_;
 
     struct CameraMode {

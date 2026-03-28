@@ -45,10 +45,10 @@ void Airspace::DrawControls() {
     ImGui::SliderFloat("Pitch", &aircraft_.pitch, -45.f,  45.f, "%.1f\xc2\xb0");
     ImGui::Separator();
 
-    // Gimbal target
-    ImGui::InputDouble("Gimbal Lat", &gimbal_.lat, 0.01, 0.1, "%.6f");
-    ImGui::InputDouble("Gimbal Lon", &gimbal_.lon, 0.01, 0.1, "%.6f");
-    ImGui::InputDouble("Gimbal Alt", &gimbal_.alt, 1.0, 10.0, "%.0f");
+    // Gimbal
+    ImGui::InputDouble("Target Lat", &gimbal_.targetLat, 0.01, 0.1, "%.6f");
+    ImGui::InputDouble("Target Lon", &gimbal_.targetLon, 0.01, 0.1, "%.6f");
+    ImGui::InputDouble("Target Alt", &gimbal_.targetAlt, 1.0, 10.0, "%.0f");
     ImGui::Separator();
 
     // Camera
@@ -135,6 +135,15 @@ void Airspace::UpdatePhysics(float dt) {
 
 // ── scene ───────────────────────────────────────────────────────
 
+// Aircraft body → NED rotation (ZYX Euler)
+glm::mat3 Airspace::BodyToNed() const {
+    return glm::mat3(glm::rotate(glm::rotate(glm::rotate(
+        glm::mat4(1.f),
+        glm::radians(aircraft_.yaw),   glm::vec3(0,0,1)),
+        glm::radians(aircraft_.pitch), glm::vec3(0,1,0)),
+        glm::radians(aircraft_.roll),  glm::vec3(1,0,0)));
+}
+
 void Airspace::DrawWorld(const glm::vec3& pos) {
     Render::PushMatrix();
         Render::Translate(pos);
@@ -145,6 +154,7 @@ void Airspace::DrawWorld(const glm::vec3& pos) {
             Render::Scale(0.4f);
             DrawAircraft();
         Render::PopMatrix();
+        Render::Sphere(gimbal_.bodyOffset, gimbal_.radius, Render::Color::Hex("#90B0D0"));
     Render::PopMatrix();
 }
 
@@ -152,11 +162,11 @@ void Airspace::DrawFlight() {
     SetupEnv("flight");
     auto nedPos = glm::vec3(Render::GeoToLocal("flight", aircraft_.lat, aircraft_.lon, aircraft_.alt));
 
-    auto& flightCam = Render::GetCamera("flight");
+    auto& cam = Render::GetCamera("flight");
     if (!cameraMode_.free && cameraMode_.chase)
-        flightCam.Follow(nedPos, aircraft_.yaw);
+        cam.Follow(nedPos, aircraft_.yaw);
     else
-        flightCam.Unfollow();
+        cam.Unfollow();
 
     Render::Begin("flight");
         Render::SetFrame(Render::FrameId::NED);
@@ -173,7 +183,7 @@ void Airspace::DrawFlight() {
     Render::End();
 
     if (!cameraMode_.free && cameraMode_.chase)
-        flightCam.CaptureFollow();
+        cam.CaptureFollow();
 
     Render::GeoCoord gc{aircraft_.lat, aircraft_.lon, aircraft_.alt};
     if (trail_.empty() || std::abs(gc.lat - trail_.back().lat) > 1e-7
@@ -186,15 +196,18 @@ void Airspace::DrawFlight() {
 void Airspace::DrawGimbal() {
     ImGui::Begin("Gimbal");
         SetupEnv("gimbal");
-        auto pos = glm::vec3(Render::GeoToLocal("gimbal", aircraft_.lat, aircraft_.lon, aircraft_.alt));
-        auto tgt = glm::vec3(Render::GeoToLocal("gimbal", gimbal_.lat, gimbal_.lon, gimbal_.alt));
+        auto aircraftNed = glm::vec3(Render::GeoToLocal("gimbal", aircraft_.lat, aircraft_.lon, aircraft_.alt));
+        auto gimbalNed   = aircraftNed + BodyToNed() * gimbal_.bodyOffset;
+        auto targetNed   = glm::vec3(Render::GeoToLocal("gimbal", gimbal_.targetLat, gimbal_.targetLon, gimbal_.targetAlt));
+
         auto& cam = Render::GetCamera("gimbal");
-        cam.LookAt(pos + glm::vec3(0.f, 0.f, 0.3f), tgt);
+        cam.LookAt(gimbalNed, targetNed);
         cam.Fov() = 50.f;
+
         Render::Begin("gimbal");
             Render::SetFrame(Render::FrameId::NED);
             Render::Globe();
-            DrawWorld(pos);
+            DrawWorld(aircraftNed);
         Render::End();
         Render::Crosshair();
     ImGui::End();
