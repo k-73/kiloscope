@@ -177,7 +177,7 @@ void Airspace::OnDraw() {
     DrawControls();
     bool focused = ImGui::IsWindowFocused();
     HandleInput(dt, focused);
-    if (focused && !cameraMode_.free) UpdatePhysics(dt);
+    UpdatePhysics(dt);
 
     // ── Main view ────────────────────────────────────────────────
     SetupEnv("flight");

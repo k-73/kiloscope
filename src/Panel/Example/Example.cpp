@@ -169,8 +169,10 @@ void Example::OnDraw() {
         auto eye = cam.Position();
         ImGui::Text("Eye:   %.1f, %.1f, %.1f", eye.x, eye.y, eye.z);
         ImGui::Text("Pivot: %.1f, %.1f, %.1f", cam.Pivot().x, cam.Pivot().y, cam.Pivot().z);
-        ImGui::DragFloat3("Pivot",    &cam.Target().x, 0.05f);
-        ImGui::DragFloat("Distance",  &cam.Distance(), 0.1f, 0.01f, 1000.f);
+        { glm::vec3 p = glm::vec3(cam.Target());
+          if (ImGui::DragFloat3("Pivot", &p.x, 0.05f)) cam.Target() = glm::dvec3(p); }
+        { float d = float(cam.Distance());
+          if (ImGui::DragFloat("Distance", &d, 0.1f, 0.01f, 1000.f)) cam.Distance() = double(d); }
         ImGui::SliderFloat("Yaw",     &cam.Yaw(), -180.f, 180.f, "%.1f\xc2\xb0");
         ImGui::SliderFloat("Pitch",   &cam.Pitch(), -89.f, 89.f, "%.1f\xc2\xb0");
         ImGui::SliderFloat("FOV",     &cam.Fov(), 10.f, 120.f, "%.0f\xc2\xb0");

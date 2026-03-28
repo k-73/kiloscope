@@ -285,7 +285,7 @@ static void UploadGpuMesh(IndexedMesh& mesh) {
 void UploadGpuDraw(IndexedMesh& mesh, const glm::mat4& model) {
     UploadGpuMesh(mesh);
     auto& s = ctx();
-    auto nmat = glm::transpose(glm::inverse(glm::mat3(model)));
+    auto nmat = NormalMatrix(model);
     s.drawList.push_back({0, 0, s.currentColor, s.currentShadingMode,
                           s.activePickId, &mesh.gpu, model, nmat});
     s.stats.vertices += mesh.gpu.indexCount;
@@ -690,18 +690,19 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     float aspect = static_cast<float>(w) / std::max(1, h);
     sView = cam.View();
     // Auto far plane: scales with orbit distance + limb distance when Globe active
-    float autoFar = std::max(10000.f, cam.Distance() * 100.f);
+    float autoFar = float(std::max(10000.0, cam.Distance() * 100.0));
     if (scene->geoRef.valid) {
-        double camAlt = std::max(0.0, double(cam.Eye().z));
+        double camAlt = std::max(0.0, cam.Eye().z);
         double limb   = std::sqrt(2.0 * GeoRef::a * camAlt + camAlt * camAlt);
-        autoFar = std::max(autoFar, float(std::max(GeoRef::a * 2.0, limb * 1.1)));
+        autoFar = float(std::max(double(autoFar), std::max(GeoRef::a * 2.0, limb * 1.1)));
     }
     sFarPlane = cam.FarPlane() > 0.f ? cam.FarPlane() : autoFar;
     sProj = cam.Projection(aspect, autoFar);
     sViewProj    = sProj * sView;
     // Camera-relative InvViewProj for grid/globe unprojection (stable at large distances)
     sInvViewProj = glm::inverse(sProj * cam.ViewCamRelative());
-    sCamPos      = cam.Eye();
+    sCamPosD     = cam.Eye();
+    sCamPos      = glm::vec3(sCamPosD);
     sLightDir = glm::normalize(scene->env.lightDir);
     sVpW = w; sVpH = h;
 
@@ -810,7 +811,7 @@ void End() {
 
     if (sFrame.fly) {
         auto& cam   = ctx().cam;
-        auto  pivot = cam.Target();
+        glm::vec3 pivot = glm::vec3(cam.Target());
         float s     = cam.Distance() * 0.03f;
         const glm::mat3& fm = ctx().frameMat;
         const glm::vec4 axColors[3] = {
@@ -818,7 +819,7 @@ void End() {
         Line(pivot, pivot + fm[0] * s, axColors[0], 2.f);
         Line(pivot, pivot + fm[1] * s, axColors[1], 2.f);
         Line(pivot, pivot + fm[2] * s, axColors[2], 2.f);
-        Line(cam.Eye(), pivot, {1,1,1,.15f}, 1.f);
+        Line(glm::vec3(cam.Eye()), pivot, {1,1,1,.15f}, 1.f);
         Text(pivot + fm[0]*s*.4f + fm[2]*s*.4f, {1,1,1,.6f}, "%.1f", cam.Distance());
     }
 

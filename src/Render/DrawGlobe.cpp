@@ -48,7 +48,7 @@ void DrawGlobe(const GlobeConfig& cfg) {
     // Earth center in camera-relative ENU (double).
     // earthCenterEnu is stable — only changes at the 1.1km GeoRef update threshold.
     glm::dvec3 earthCenterEnu = gr.ecefToEnu * (-gr.ecefRef);
-    glm::dvec3 ellCenterD     = earthCenterEnu - glm::dvec3(sCamPos);
+    glm::dvec3 ellCenterD     = earthCenterEnu - sCamPosD;
 
     sGlobeShader.Use();
     sGlobeShader.Set("uInvViewProj",  sInvViewProj);

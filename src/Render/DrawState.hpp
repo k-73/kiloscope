@@ -183,6 +183,7 @@ inline void UploadVbo(GLuint vbo, GLsizeiptr& cap, const void* data, GLsizeiptr 
 }
 
 inline glm::mat4 sView, sProj, sViewProj, sInvViewProj;
+inline glm::dvec3 sCamPosD;          // double — for Globe/Geo precision
 inline glm::vec3 sCamPos, sLightDir;
 inline float sFarPlane = 10000.f;
 inline int sVpW = 1, sVpH = 1;
@@ -201,6 +202,13 @@ inline SceneData& ctx() {
 }
 
 // ── inline helpers ───────────────────────────────────────────────────
+
+// Normal matrix with singularity guard (prevents NaN from zero-scale transforms).
+inline glm::mat3 NormalMatrix(const glm::mat4& model) {
+    auto m = glm::mat3(model);
+    float det = glm::determinant(m);
+    return std::abs(det) > 1e-30f ? glm::transpose(glm::inverse(m)) : glm::mat3(1.f);
+}
 
 inline uint32_t HashName(const char* s) {
     uint32_t h = 2166136261u;
@@ -277,7 +285,7 @@ void SetMeshFrameUniforms();
 template <typename MeshT>
 void AppendMesh(std::vector<MeshVert>& out, const MeshT& mesh,
                 const glm::mat4& xform) {
-    auto nmat = glm::transpose(glm::inverse(glm::mat3(xform)));
+    auto nmat = NormalMatrix(xform);
     sIndexedScratch.clear();
     for (auto it = mesh.vertices(); !it.done(); it.next()) {
         auto v = it.generate();
