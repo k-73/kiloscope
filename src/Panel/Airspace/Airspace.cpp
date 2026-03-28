@@ -203,6 +203,7 @@ void Airspace::DrawGimbal() {
         auto& cam = Render::GetCamera("gimbal");
         cam.LookAt(gimbalNed, targetNed);
         cam.Fov() = 50.f;
+        cam.NearPlane() = 0.05f;  // fixed near — aircraft is very close to gimbal eye
 
         Render::Begin("gimbal");
             Render::SetFrame(Render::FrameId::NED);
