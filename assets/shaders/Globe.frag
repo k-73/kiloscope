@@ -1,5 +1,8 @@
 // WGS84 ellipsoid with multi-scale lat/lon graticule.
-// Single ECEF source → all grids perfectly aligned.
+//
+// Lat/lon via delta from camera (Cesium voxel approach):
+//   Project ENU offset onto equatorial/meridional planes → atan on small vectors
+//   → ~1000× better precision than atan on ~6.4M ECEF, no temporal jitter.
 #version 450 core
 
 in vec3 vNear;
@@ -7,9 +10,12 @@ in vec3 vDir;
 
 uniform mat4  uViewProj;
 uniform vec3  uCamPos;
-uniform vec3  uEllCenter;
+uniform vec3  uEllCenter;      // camera-relative (float, for intersection)
 uniform vec3  uRadii;
 uniform mat3  uEcefToLocal;
+uniform vec3  uCamLLA;         // camera lat°, lon°, alt (m)
+uniform vec2  uCamLat;         // cos(lat), sin(lat)
+uniform vec2  uCurvature;      // N (prime vertical), M (meridional)
 uniform vec4  uGratColor;
 uniform vec4  uSurfaceColor;
 uniform float uFarPlane;
@@ -42,12 +48,34 @@ void main() {
     float tHit = qc / (-qb + sd);
     if (tHit < 0.0) { tHit = (-qb + sd) / qa; if (tHit < 0.0) discard; }
 
-    // ── lat/lon from ECEF (single source, all grids aligned) ────
-    vec3  ecef = localToEcef * (vNear + tHit * ray - uEllCenter);
-    vec2  ll   = vec2(degrees(atan(ecef.y, ecef.x)),
-                      degrees(atan(ecef.z, length(ecef.xy))));
+    // ── delta lat/lon from camera (Cesium approach) ──────────────
+    // ENU offset of hit from camera (small, camera-relative → precise)
+    vec3 enu = vNear + tHit * ray;  // camera-relative, NOT world
 
-    // ── graticule (fine fades with distance, coarse always on) ───
+    float cosL = uCamLat.x, sinL = uCamLat.y;
+    float Nrad = uCurvature.x, Mrad = uCurvature.y;
+
+    // Project onto equatorial plane → delta longitude
+    // Camera on equatorial plane: (N+alt)*cos(lat) along axis, 0 perpendicular
+    // Hit perturbation: East = enu.x, rotated North/Up = -enu.y*sin + enu.z*cos
+    vec2 eqCam = vec2((Nrad + uCamLLA.z) * cosL, 0.0);
+    vec2 eqHit = eqCam + vec2(-enu.y * sinL + enu.z * cosL, enu.x);
+    float dLon = degrees(atan(eqHit.y, eqHit.x));
+
+    // Remove longitude component from ENU (versine: avoids cancellation)
+    float sinHalfLon = sin(radians(dLon) * 0.5);
+    float dx = length(eqHit) * 2.0 * sinHalfLon * sinHalfLon;
+    vec3 enuCorr = enu + vec3(-enu.x, -dx * sinL, dx * cosL);
+
+    // Project onto meridional plane → delta latitude
+    vec2 merCam = vec2(Mrad + uCamLLA.z, 0.0);
+    vec2 merHit = merCam + vec2(enuCorr.z, enuCorr.y);
+    float dLat = degrees(atan(merHit.y, merHit.x));
+
+    // Absolute lat/lon = camera (precise) + delta (precise)
+    vec2 ll = vec2(uCamLLA.y + dLon, uCamLLA.x + dLat);
+
+    // ── graticule ────────────────────────────────────────────────
     float dist = tHit;
 
     float line = max(

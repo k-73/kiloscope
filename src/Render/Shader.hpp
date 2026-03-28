@@ -29,6 +29,7 @@ public:
     void Set(const char* n, float f) const;
     void Set(const char* n, int i) const;
     void Set(const char* n, unsigned int u) const;
+    void Set(const char* n, const glm::dvec3& v) const;
 
 private:
     GLuint prog_ = 0;

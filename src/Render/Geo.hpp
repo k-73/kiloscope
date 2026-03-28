@@ -29,9 +29,9 @@ struct GeoRef {
         if (valid) {
             double d = (lat - lat0) * (lat - lat0) + (lon - lon0) * (lon - lon0);
             if (d < 1e-4) {  // ~0.01° ≈ 1.1km
-                lat0 = lat; lon0 = lon; alt0 = alt;
-                ecefRef = ToEcef(lat, lon, alt);
-                return;  // keep existing rotation, update only position
+                // Don't update ecefRef or ecefToEnu → uEllCenter stays CONSTANT
+                // → zero grid jitter between updates. sCamPos grows to ~1.1km (float32 OK).
+                return;
             }
         }
         lat0 = lat; lon0 = lon; alt0 = alt;

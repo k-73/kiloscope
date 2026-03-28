@@ -45,16 +45,27 @@ void DrawGlobe(const GlobeConfig& cfg) {
     auto& gr = ctx().geoRef;
     if (!gr.valid) return;
 
-    // Ellipsoid center relative to camera (double → float)
-    glm::vec3 ellCenter = glm::vec3(gr.ecefToEnu * (-gr.ecefRef) - glm::dvec3(sCamPos));
+    // Earth center in world ENU (CONSTANT within 1.1km threshold → no per-frame jitter)
+    glm::dvec3 earthCenterEnu = gr.ecefToEnu * (-gr.ecefRef);
+    // Camera-relative for intersection (float, quantizes but self-cancels)
+    glm::vec3 ellCenterF = glm::vec3(earthCenterEnu - glm::dvec3(sCamPos));
 
     sGlobeShader.Use();
     sGlobeShader.Set("uInvViewProj",  sInvViewProj);
     sGlobeShader.Set("uViewProj",     sViewProj);
     sGlobeShader.Set("uCamPos",       sCamPos);
-    sGlobeShader.Set("uEllCenter",    ellCenter);
+    sGlobeShader.Set("uEllCenter",    ellCenterF);
     sGlobeShader.Set("uRadii",        glm::vec3(GeoRef::a, GeoRef::a, GeoRef::b));
     sGlobeShader.Set("uEcefToLocal",  glm::mat3(gr.ecefToEnu));
+    // Camera geodetic parameters for delta lat/lon computation (Cesium approach)
+    double sinLat = std::sin(glm::radians(gr.lat0));
+    double cosLat = std::cos(glm::radians(gr.lat0));
+    double w      = std::sqrt(1.0 - GeoRef::e2 * sinLat * sinLat);
+    double N      = GeoRef::a / w;
+    double M      = GeoRef::a * (1.0 - GeoRef::e2) / (w * w * w);
+    sGlobeShader.Set("uCamLat",       glm::vec2(float(cosLat), float(sinLat)));
+    sGlobeShader.Set("uCamLLA",       glm::vec3(float(gr.lat0), float(gr.lon0), float(sCamPos.z)));
+    sGlobeShader.Set("uCurvature",    glm::vec2(float(N), float(M)));
     sGlobeShader.Set("uGratColor",    cfg.gratColor);
     sGlobeShader.Set("uSurfaceColor", cfg.surfaceColor);
     sGlobeShader.Set("uFarPlane",     sFarPlane);
