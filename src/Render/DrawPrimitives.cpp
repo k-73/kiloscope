@@ -497,15 +497,17 @@ void HUD() {
     snprintf(buf, sizeof buf, "Eye %7.1f %7.1f %7.1f", pos.x, pos.y, pos.z);
     put(buf, val, "Eye -0000.0 -0000.0 -0000.0"); gap();
 
-    // Heading
-    snprintf(buf, sizeof buf, "%s %4.0f\xc2\xb0", geo ? "H" : "Yaw", cam.Yaw());
+    // Heading from view direction (internal X=East, Y=North → atan2 gives NED heading)
+    auto vd = cam.ViewDir();
+    float heading = glm::degrees(std::atan2(vd.x, vd.y));
+    snprintf(buf, sizeof buf, "%s %4.0f\xc2\xb0", geo ? "H" : "Yaw", heading);
     put(buf, val, "Yaw -000\xc2\xb0");
 
     // Compass (geo frames only)
     if (geo) {
         static const char* kN[] = {"N", "E", "S", "W"};
         float r = h * .3f, cx = x + r + 4, cy = y + h * .5f;
-        float hr = glm::radians(-cam.Yaw() + 90.f);
+        float hr = glm::radians(-heading + 90.f);
         dl->AddCircle({cx, cy}, r, IM_COL32(60, 70, 90, 200), 20);
         for (int i = 0; i < 4; ++i) {
             float a = hr - glm::half_pi<float>() * float(i);
