@@ -48,24 +48,16 @@ void DrawGlobe(const GlobeConfig& cfg) {
     // Ellipsoid center relative to camera (double → float)
     glm::vec3 ellCenter = glm::vec3(gr.ecefToEnu * (-gr.ecefRef) - glm::dvec3(sCamPos));
 
-    // Origin lat/lon: integer + fractional hi/lo split (double precision in two floats)
-    double latFrac = std::fmod(gr.lat0, 1.0), lonFrac = std::fmod(gr.lon0, 1.0);
-    float latHi = float(latFrac), lonHi = float(lonFrac);
-
     sGlobeShader.Use();
-    sGlobeShader.Set("uInvViewProj",   sInvViewProj);
-    sGlobeShader.Set("uViewProj",      sViewProj);
-    sGlobeShader.Set("uCamPos",        sCamPos);
-    sGlobeShader.Set("uEllCenter",     ellCenter);
-    sGlobeShader.Set("uRadii",         glm::vec3(GeoRef::a, GeoRef::a, GeoRef::b));
-    sGlobeShader.Set("uEcefToLocal",   glm::mat3(gr.ecefToEnu));
-    sGlobeShader.Set("uOriginInt",     glm::vec2(float(std::floor(gr.lat0)), float(std::floor(gr.lon0))));
-    sGlobeShader.Set("uOriginFracHi",  glm::vec2(latHi, lonHi));
-    sGlobeShader.Set("uOriginFracLo",  glm::vec2(float(latFrac - double(latHi)), float(lonFrac - double(lonHi))));
-    sGlobeShader.Set("uR",             static_cast<float>(GeoRef::a));
-    sGlobeShader.Set("uGratColor",     cfg.gratColor);
-    sGlobeShader.Set("uSurfaceColor",  cfg.surfaceColor);
-    sGlobeShader.Set("uFarPlane",      sFarPlane);
+    sGlobeShader.Set("uInvViewProj",  sInvViewProj);
+    sGlobeShader.Set("uViewProj",     sViewProj);
+    sGlobeShader.Set("uCamPos",       sCamPos);
+    sGlobeShader.Set("uEllCenter",    ellCenter);
+    sGlobeShader.Set("uRadii",        glm::vec3(GeoRef::a, GeoRef::a, GeoRef::b));
+    sGlobeShader.Set("uEcefToLocal",  glm::mat3(gr.ecefToEnu));
+    sGlobeShader.Set("uGratColor",    cfg.gratColor);
+    sGlobeShader.Set("uSurfaceColor", cfg.surfaceColor);
+    sGlobeShader.Set("uFarPlane",     sFarPlane);
 
     glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
     glDepthMask(GL_TRUE);
