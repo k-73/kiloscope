@@ -67,7 +67,6 @@ void DrawGlobe(const GlobeConfig& cfg) {
     sGlobeShader.Set("uCamLLAInt",    glm::vec2(float(std::floor(gr.lat0)), float(std::floor(gr.lon0))));
     sGlobeShader.Set("uCamLLAFracHi", glm::vec2(latFHi, lonFHi));
     sGlobeShader.Set("uCamLLAFracLo", glm::vec2(float(latFrac - double(latFHi)), float(lonFrac - double(lonFHi))));
-    sGlobeShader.Set("uCamAlt",       sCamPos.z);
     sGlobeShader.Set("uGratColor",    cfg.gratColor);
     sGlobeShader.Set("uSurfaceColor", cfg.surfaceColor);
     sGlobeShader.Set("uFarPlane",     sFarPlane);

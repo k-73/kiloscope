@@ -15,11 +15,10 @@ uniform dvec3 uEllCenterD;     // camera-relative earth center (double)
 uniform dmat3 uEcefToLocalD;   // ECEF→ENU rotation (double)
 uniform dvec3 uRadiiD;         // ellipsoid semi-axes (double)
 uniform vec3  uRadii;          // ellipsoid semi-axes (float, for Bowring)
-uniform vec2  uCamLLAInt;      // floor(camera lat, lon)
-uniform vec2  uCamLLAFracHi;   // fmod(camera lat/lon, 1°) — high float
+uniform vec2  uCamLLAInt;      // floor(origin lat, lon)
+uniform vec2  uCamLLAFracHi;   // fmod(origin lat/lon, 1°) — high float
 uniform vec2  uCamLLAFracLo;   // fmod residual
-uniform float uCamAlt;         // camera altitude (m)
-uniform vec2  uCamLat;         // cos(lat), sin(lat)
+uniform vec2  uCamLat;         // cos(lat), sin(lat) at origin
 uniform vec2  uCurvature;      // N (prime vertical), M (meridional)
 uniform vec4  uGratColor;
 uniform vec4  uSurfaceColor;
@@ -58,14 +57,15 @@ void main() {
     if (tD < 0.0lf) { tD = (-qb + sd) / qa; if (tD < 0.0lf) discard; }
     float tHit = float(tD);
 
-    // ── delta lat/lon from camera (Cesium approach) ──────────────
-    // tHit from double → stable, view-independent, same surface as ECEF.
-    vec3 enu = vNear + tHit * ray;
+    // ── delta lat/lon from origin (Cesium approach) ────────────
+    // enu is origin-relative (not camera-relative) → delta matches uCamLLA reference.
+    // Eliminates view-dependent shift when camera orbits around aircraft.
+    vec3 enu = vNear + tHit * ray + uCamPos;
 
     float cosL = uCamLat.x, sinL = uCamLat.y;
     float Nrad = uCurvature.x, Mrad = uCurvature.y;
 
-    vec2 eqCam = vec2((Nrad + uCamAlt) * cosL, 0.0);
+    vec2 eqCam = vec2(Nrad * cosL, 0.0);
     vec2 eqHit = eqCam + vec2(-enu.y * sinL + enu.z * cosL, enu.x);
     float dLon = degrees(atan(eqHit.y, eqHit.x));
 
@@ -73,7 +73,7 @@ void main() {
     float dx = length(eqHit) * 2.0 * sinHalfLon * sinHalfLon;
     vec3 enuCorr = enu + vec3(-enu.x, -dx * sinL, dx * cosL);
 
-    vec2 merCam = vec2(Mrad + uCamAlt, 0.0);
+    vec2 merCam = vec2(Mrad, 0.0);
     vec2 merHit = merCam + vec2(enuCorr.z, enuCorr.y);
     float dLat = degrees(atan(merHit.y, merHit.x));
 
