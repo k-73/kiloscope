@@ -212,18 +212,15 @@ void Airspace::OnDraw() {
     // ── Gimbal — mounted under aircraft, looking at target ───────
     ImGui::Begin("Gimbal");
         SetupEnv("gimbal");
-        auto gimbalEye = glm::vec3(Render::GeoToLocal("gimbal",
-            aircraft_.lat, aircraft_.lon, aircraft_.alt))
-            + glm::vec3(0.f, 0.f, 0.3f);  // 0.3m below aircraft (NED +Z = down)
+        auto gimbalPos = glm::vec3(Render::GeoToLocal("gimbal",
+            aircraft_.lat, aircraft_.lon, aircraft_.alt));
         auto gimbalTarget = glm::vec3(Render::GeoToLocal("gimbal",
             gimbal_.lat, gimbal_.lon, gimbal_.alt));
 
         auto& gimbalCam = Render::GetCamera("gimbal");
-        gimbalCam.LookAt(gimbalEye, gimbalTarget);
+        gimbalCam.LookAt(gimbalPos + glm::vec3(0.f, 0.f, 0.3f), gimbalTarget);
         gimbalCam.Fov() = 50.f;
 
-        auto gimbalPos = glm::vec3(Render::GeoToLocal("gimbal",
-            aircraft_.lat, aircraft_.lon, aircraft_.alt));
         DrawWorld("gimbal", gimbalPos);
     ImGui::End();
 }
