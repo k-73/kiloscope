@@ -1,8 +1,13 @@
 #pragma once
 // WGS84 ellipsoid reference and geodetic conversions.
 // All internal positions are ENU (X=East, Y=North, Z=Up) relative to a reference point.
+//
+// Uses GeographicLib for ECEF↔geodetic (7nm precision, correct at poles).
+// The ENU rotation matrix and curvature radii are maintained explicitly
+// for the Globe shader's double-precision intersection and Cesium delta.
 
 #include <glm/glm.hpp>
+#include <GeographicLib/Geocentric.hpp>
 #include <cmath>
 
 namespace Kilo::Render {
@@ -15,37 +20,53 @@ struct GeoRef {
     static constexpr double b  = 6356752.314245;
     static constexpr double e2 = 1.0 - (b * b) / (a * a);
 
-    // Reference point (degrees, meters)
+    // How far the origin can drift from the last full rotation update
+    // before ecefToEnu is recomputed.  0.01° ≈ 1.1km at the equator.
+    // At this distance the ENU frame rotation error is < 0.01° — negligible
+    // for ellipsoid intersection shape but important to keep stable for the
+    // shader (avoids per-frame quantization of cosLat/sinLat/Nrad/Mrad).
+    static constexpr double kUpdateThresholdDeg = 0.01;
+
+    // Current origin position (degrees, meters) — updated every frame
     double lat0 = 0.0, lon0 = 0.0, alt0 = 0.0;
 
-    // Precomputed transforms (set by Set())
+    // Precomputed transforms (only update when origin drifts > kUpdateThresholdDeg)
     glm::dvec3 ecefRef{0.0};
     glm::dmat3 ecefToEnu{1.0};
-    // Stable geodetic params (only update at full rotation update, not per-frame)
+
+    // Stable geodetic params for the shader (same update cadence as ecefToEnu)
     double cosLat = 1.0, sinLat = 0.0, Nrad = a, Mrad = a;
-    bool   valid = false;
+
+    bool valid = false;
 
     void Set(double lat, double lon, double alt = 0.0) {
-        // Rotation matrix only needs updating every ~1km (intersection shape accuracy)
-        // Lat/lon grid uses flat-plane ENU → independent of this matrix
+        lon = std::remainder(lon, 360.0);  // normalize to [-180, 180]
+
         if (valid) {
-            // lat0/lon0 track current position (for uCamLLA in shader).
-            // ecefRef/ecefToEnu only update every ~1.1km (for stable uEllCenter).
-            double dlat = lat - lat0, dlon = lon - lon0;
+            double dlat = lat - refLat_;
+            double dlon = std::remainder(lon - refLon_, 360.0);  // handles antimeridian
+            // Approximate geodetic distance in degrees (cosine-weighted for longitude)
+            double cosRef = std::cos(glm::radians(refLat_));
+            double d2 = dlat * dlat + (dlon * cosRef) * (dlon * cosRef);
+            // Always update the tracking position (for shader uCamLLA uniforms)
             lat0 = lat; lon0 = lon; alt0 = alt;
-            if (dlat * dlat + dlon * dlon < 1e-4)  // ~0.01° ≈ 1.1km
-                return;  // keep ecefRef and ecefToEnu stable
+            if (d2 < kUpdateThresholdDeg * kUpdateThresholdDeg)
+                return;  // keep ecefToEnu and curvature params stable
         }
+
         lat0 = lat; lon0 = lon; alt0 = alt;
+        refLat_ = lat; refLon_ = lon;
+
         double phi = glm::radians(lat), lam = glm::radians(lon);
         double sp = std::sin(phi), cp = std::cos(phi);
         double sl = std::sin(lam), cl = std::cos(lam);
+
         ecefRef = ToEcef(lat, lon, alt);
         ecefToEnu = glm::dmat3(
-            glm::dvec3(-sl,      -sp * cl,   cp * cl),
-            glm::dvec3( cl,      -sp * sl,   cp * sl),
-            glm::dvec3( 0.0,      cp,         sp));
-        // Stable geodetic params for shader (constant between full updates → no quantization)
+            glm::dvec3(-sl,       -sp * cl,   cp * cl),   // East
+            glm::dvec3( cl,       -sp * sl,   cp * sl),   // North
+            glm::dvec3( 0.0,       cp,         sp));      // Up
+
         cosLat = cp; sinLat = sp;
         double w = std::sqrt(1.0 - e2 * sp * sp);
         Nrad = a / w;
@@ -53,14 +74,12 @@ struct GeoRef {
         valid = true;
     }
 
-    // Geodetic (deg, deg, m) → ECEF (m)
+    // Geodetic (deg, deg, m) → ECEF (m)  —  GeographicLib, 7nm precision
     static glm::dvec3 ToEcef(double lat, double lon, double alt) {
-        double phi = glm::radians(lat), lam = glm::radians(lon);
-        double sp = std::sin(phi), cp = std::cos(phi);
-        double n = a / std::sqrt(1.0 - e2 * sp * sp);
-        return {(n + alt) * cp * std::cos(lam),
-                (n + alt) * cp * std::sin(lam),
-                (n * (1.0 - e2) + alt) * sp};
+        static const auto& earth = GeographicLib::Geocentric::WGS84();
+        double X, Y, Z;
+        earth.Forward(lat, lon, alt, X, Y, Z);
+        return {X, Y, Z};
     }
 
     // Geodetic → internal ENU (relative to reference)
@@ -68,22 +87,17 @@ struct GeoRef {
         return ecefToEnu * (ToEcef(lat, lon, alt) - ecefRef);
     }
 
-    // Internal ENU → geodetic (iterative, ~2 iterations)
+    // Internal ENU → geodetic  —  GeographicLib, 7nm precision, correct at poles
     GeoCoord FromInternal(const glm::dvec3& enu) const {
         glm::dvec3 ecef = glm::transpose(ecefToEnu) * enu + ecefRef;
-        double p = std::sqrt(ecef.x * ecef.x + ecef.y * ecef.y);
-        double lon = glm::degrees(std::atan2(ecef.y, ecef.x));
-        double lat = std::atan2(ecef.z, p * (1.0 - e2));
-        for (int i = 0; i < 3; ++i) {
-            double sp = std::sin(lat);
-            double n = a / std::sqrt(1.0 - e2 * sp * sp);
-            lat = std::atan2(ecef.z + e2 * n * sp, p);
-        }
-        double sp = std::sin(lat);
-        double n = a / std::sqrt(1.0 - e2 * sp * sp);
-        double alt = p / std::cos(lat) - n;
-        return {glm::degrees(lat), lon, alt};
+        static const auto& earth = GeographicLib::Geocentric::WGS84();
+        double lat, lon, alt;
+        earth.Reverse(ecef.x, ecef.y, ecef.z, lat, lon, alt);
+        return {lat, lon, alt};
     }
+
+private:
+    double refLat_ = 0.0, refLon_ = 0.0;  // position at last full update
 };
 
 } // namespace Kilo::Render

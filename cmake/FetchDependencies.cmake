@@ -91,6 +91,17 @@ FetchContent_Declare(glaze
 )
 FetchContent_MakeAvailable(glaze)
 
+# ── GeographicLib ───────────────────────────────────────────────────
+FetchContent_Declare(geographiclib
+    GIT_REPOSITORY https://github.com/geographiclib/geographiclib.git
+    GIT_TAG        v2.3
+    GIT_SHALLOW    ON
+)
+set(GEOGRAPHICLIB_LIB_TYPE STATIC CACHE STRING "" FORCE)
+set(BUILD_DOCUMENTATION OFF CACHE BOOL "" FORCE)
+set(BUILD_MANPAGES OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(geographiclib)
+
 # ── generator (procedural geometry) ─────────────────────────────────
 FetchContent_Declare(generator
     GIT_REPOSITORY https://github.com/ilmola/generator.git

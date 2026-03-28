@@ -26,19 +26,18 @@ uniform dvec3 uRadiiD;         // semi-axes a, a, b (double)
 uniform vec3  uRadii;          // semi-axes a, a, b (float — for Bowring)
 
 // ── geodetic reference (GeoRef origin ≈ aircraft) ────────────────
-uniform vec2  uCamLLAInt;      // vec2(floor(lat), floor(lon)) of origin
-uniform vec2  uCamLLAFracHi;   // vec2(fract(lat), fract(lon)) — high bits
-uniform vec2  uCamLLAFracLo;   // residual low bits (double→float remainder)
-uniform vec2  uCamLat;         // vec2(cos(lat), sin(lat)) at origin
-uniform vec2  uCurvature;      // vec2(N, M) — prime-vertical / meridional radii
+// All packed as vec2(lon, lat) to match ll coordinate order.
+uniform vec2  uOriginLLInt;    // vec2(floor(lon), floor(lat))
+uniform vec2  uOriginLLFracHi; // vec2(fract(lon), fract(lat)) — high bits
+uniform vec2  uOriginLLFracLo; // residual low bits
+uniform vec2  uOriginLat;      // vec2(cos(lat), sin(lat)) at origin
+uniform vec2  uOriginNM;       // vec2(N, M) — prime-vertical / meridional radii
 
 // ── appearance ───────────────────────────────────────────────────
 uniform vec4  uGratColor;
 uniform vec4  uSurfaceColor;
 
 out vec4 FragColor;
-
-// ── helpers ──────────────────────────────────────────────────────
 
 // Anti-aliased grid line with automatic density fade.
 float gridLine(vec2 coord, float spacing) {
@@ -49,8 +48,6 @@ float gridLine(vec2 coord, float spacing) {
     return max(1.0 - smoothstep(0.3, 1.5, g.x),
                1.0 - smoothstep(0.3, 1.5, g.y)) * vis;
 }
-
-// ── main ─────────────────────────────────────────────────────────
 
 void main() {
     vec3 ray = normalize(vDir);
@@ -72,11 +69,10 @@ void main() {
     float tHit = float(tD);
 
     // ── Cesium delta lat/lon ─────────────────────────────────────
-    // ENU offset is from the GeoRef origin (not camera) so the result
-    // matches uCamLLA* and stays fixed regardless of camera orientation.
+    // ENU offset from the GeoRef origin (not camera) — view-independent.
     vec3 enu  = vNear + tHit * ray + uCamPos;
-    float cosL = uCamLat.x, sinL = uCamLat.y;
-    float N = uCurvature.x, M = uCurvature.y;
+    float cosL = uOriginLat.x, sinL = uOriginLat.y;
+    float N = uOriginNM.x, M = uOriginNM.y;
 
     // Equatorial plane projection → delta longitude
     vec2 eq = vec2(N * cosL - enu.y * sinL + enu.z * cosL, enu.x);
@@ -89,13 +85,10 @@ void main() {
     // Meridional plane projection → delta latitude
     float dLat = degrees(atan(enu.y - dx * sinL, M + enu.z + dx * cosL));
 
-    // Absolute lat/lon = origin (int + fracHi + delta + fracLo).
-    // Note: ll.x carries longitude, ll.y carries latitude.  The integer parts
-    // are cross-swapped (floor(lat) in x, floor(lon) in y) but this is harmless
-    // because gridLine uses fract() which cancels any integer-multiple offset.
-    vec2 ll = uCamLLAInt + vec2(
-        (uCamLLAFracHi.y + dLon) + uCamLLAFracLo.y,
-        (uCamLLAFracHi.x + dLat) + uCamLLAFracLo.x);
+    // Absolute lat/lon = origin + delta.  vec2(lon, lat) throughout.
+    vec2 ll = uOriginLLInt + vec2(
+        (uOriginLLFracHi.x + dLon) + uOriginLLFracLo.x,
+        (uOriginLLFracHi.y + dLat) + uOriginLLFracLo.y);
 
     // ── ECEF Bowring geodetic (far hemisphere fallback) ──────────
     dvec3 hitD = dvec3(vNear) + tD * dvec3(ray);
@@ -112,6 +105,7 @@ void main() {
     float dist = tHit;
 
     // Fine grids — Cesium delta only (distance fade → zero well before ±180° wrap)
+    // smoothstep(far, near, dist) fades from 1 (close) to 0 (far).
     float fine = max(
         max(gridLine(ll, 0.001) * 0.15 * smoothstep(5000.0,   500.0,   dist),
             gridLine(ll, 0.01)  * 0.25 * smoothstep(50000.0,  5000.0,  dist)),

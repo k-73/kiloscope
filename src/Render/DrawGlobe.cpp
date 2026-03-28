@@ -45,8 +45,8 @@ void DrawGlobe(const GlobeConfig& cfg) {
     auto& gr = ctx().geoRef;
     if (!gr.valid) return;
 
-    // Earth center in camera-relative ENU (double precision).
-    // earthCenterEnu is stable (constant within the 1.1km GeoRef update threshold).
+    // Earth center in camera-relative ENU (double).
+    // earthCenterEnu is stable — only changes at the 1.1km GeoRef update threshold.
     glm::dvec3 earthCenterEnu = gr.ecefToEnu * (-gr.ecefRef);
     glm::dvec3 ellCenterD     = earthCenterEnu - glm::dvec3(sCamPos);
 
@@ -61,18 +61,19 @@ void DrawGlobe(const GlobeConfig& cfg) {
     sGlobeShader.Set("uRadiiD",       glm::dvec3(GeoRef::a, GeoRef::a, GeoRef::b));
     sGlobeShader.Set("uRadii",        glm::vec3(GeoRef::a, GeoRef::a, GeoRef::b));
 
-    // Geodetic params at origin — stable (only update every ~1.1km, not per-frame)
-    sGlobeShader.Set("uCamLat",       glm::vec2(float(gr.cosLat), float(gr.sinLat)));
-    sGlobeShader.Set("uCurvature",    glm::vec2(float(gr.Nrad), float(gr.Mrad)));
+    // Geodetic params at origin — stable (only update at kUpdateThresholdDeg interval)
+    sGlobeShader.Set("uOriginLat",    glm::vec2(float(gr.cosLat), float(gr.sinLat)));
+    sGlobeShader.Set("uOriginNM",     glm::vec2(float(gr.Nrad), float(gr.Mrad)));
 
-    // Origin lat/lon split: int + fracHi + fracLo → ~1.2e-7° effective ULP in shader
+    // Origin lat/lon: int + fracHi + fracLo → ~1.2e-7° effective ULP in shader.
+    // Packed as vec2(lon, lat) to match shader's ll coordinate order.
     double latFrac = gr.lat0 - std::floor(gr.lat0);
     double lonFrac = gr.lon0 - std::floor(gr.lon0);
     float  latFHi  = float(latFrac), lonFHi = float(lonFrac);
-    sGlobeShader.Set("uCamLLAInt",    glm::vec2(float(std::floor(gr.lat0)), float(std::floor(gr.lon0))));
-    sGlobeShader.Set("uCamLLAFracHi", glm::vec2(latFHi, lonFHi));
-    sGlobeShader.Set("uCamLLAFracLo", glm::vec2(float(latFrac - double(latFHi)),
-                                                  float(lonFrac - double(lonFHi))));
+    sGlobeShader.Set("uOriginLLInt",    glm::vec2(float(std::floor(gr.lon0)), float(std::floor(gr.lat0))));
+    sGlobeShader.Set("uOriginLLFracHi", glm::vec2(lonFHi, latFHi));
+    sGlobeShader.Set("uOriginLLFracLo", glm::vec2(float(lonFrac - double(lonFHi)),
+                                                    float(latFrac - double(latFHi))));
 
     sGlobeShader.Set("uGratColor",    cfg.gratColor);
     sGlobeShader.Set("uSurfaceColor", cfg.surfaceColor);
