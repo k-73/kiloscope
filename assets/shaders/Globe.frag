@@ -1,6 +1,5 @@
-// WGS84 ellipsoid — surface from ray-ellipsoid, metric grid from ray-plane (like Grid.frag).
-// The flat plane at Z=0 matches the ellipsoid surface near the reference point.
-// This ensures fwidth() works correctly for grid antialiasing.
+// WGS84 ellipsoid surface + metric grid from flat plane.
+// IMPORTANT: discard AFTER fwidth to avoid 2x2 quad derivative breakage.
 #version 450 core
 
 in vec3 vNear, vFar;
@@ -30,7 +29,7 @@ void main() {
     vec3 rd = normalize(rayVec);
     vec3 ro = vNear - uCamPos;
 
-    // ── Ray-ellipsoid intersection (for surface detection + depth) ──
+    // ── Ray-ellipsoid intersection (surface detection) ───────────
     mat3 toEcef = transpose(uEcefToLocal);
     vec3 oc_ecef = toEcef * (ro - uEllCenter);
     vec3 rd_ecef = toEcef * rd;
@@ -41,18 +40,13 @@ void main() {
     float B    = dot(oc_n, rd_n);
     float C    = dot(oc_n, oc_n) - 1.0;
     float disc = B * B - A * C;
-    if (disc < 0.0) discard;
 
-    float tEll = (-B - sqrt(disc)) / A;
-    if (tEll < 1.0) discard;
+    // Do NOT discard yet — compute grid first so fwidth works
+    bool hit = disc >= 0.0;
+    float tEll = hit ? (-B - sqrt(max(disc, 0.0))) / A : -1.0;
+    hit = hit && tEll >= 1.0;
 
-    // Ellipsoid hit point (for depth + lat/lon)
-    vec3 hitLocal = ro + rd * tEll;
-    float tNorm = tEll / length(rayVec);
-    vec3 hitWorld = vNear + tNorm * rayVec;
-
-    // ── Metric grid from flat plane Z=0 (same method as Grid.frag) ──
-    // This gives perfect fwidth() because it uses linear interpolation
+    // ── Metric grid from flat plane Z=0 (stable fwidth) ──────────
     float tFlat = -vNear.z / rayVec.z;
     vec3 fp = vNear + tFlat * rayVec;
     vec2 meters = fp.xy;
@@ -63,6 +57,7 @@ void main() {
     float g4 = GridLine(meters, 10000.0) * 0.9;
 
     // ── Lat/lon graticule ────────────────────────────────────────
+    vec3 hitLocal = ro + rd * tEll;
     vec3 ecef = toEcef * (hitLocal - uEllCenter);
     float lon = degrees(atan(ecef.y, ecef.x));
     float lat = degrees(atan(ecef.z, length(ecef.xy)));
@@ -70,11 +65,18 @@ void main() {
     float gl2 = GridLine(vec2(lon, lat), 10.0) * 0.7;
     float gl3 = GridLine(vec2(lon, lat), 90.0);
 
+    // ── NOW discard (after all fwidth calls) ─────────────────────
+    if (!hit) discard;
+
     // ── Compose ──────────────────────────────────────────────────
     float line = max(max(g1, g2), max(g3, g4));
     line = max(line, max(max(gl1, gl2), gl3));
 
     vec3 col = mix(uSurfaceColor.rgb, uGratColor.rgb, clamp(line, 0.0, 1.0));
+
+    // Depth from ellipsoid hit
+    float tNorm = tEll / length(rayVec);
+    vec3 hitWorld = vNear + tNorm * rayVec;
 
     FragColor    = vec4(col, uSurfaceColor.a);
     vec4 cp      = uViewProj * vec4(hitWorld, 1.0);
