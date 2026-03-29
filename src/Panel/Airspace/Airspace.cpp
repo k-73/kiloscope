@@ -242,11 +242,11 @@ void Airspace::DrawFlight(float dt) {
         auto gimbalNed = nedPos + BodyToNed() * gimbal_.bodyOffset;
         auto targetNed = glm::vec3(Render::GeoToLocal("flight", gimbal_.targetLat, gimbal_.targetLon, gimbal_.targetAlt));
         auto gimbalDir = glm::normalize(targetNed - gimbalNed);
-        Render::Line(nedPos, gimbalNed, Render::Color::Hex("#d0b09050"), 1.f);
+        Render::Line(nedPos, gimbalNed, Render::Color::Hex("#d4985b50"), 1.f);
         Render::Sensor(gimbalNed, gimbalDir, {0,0,-1}, gimbal_.fov, gimbal_.aspect, 0.1,
             Render::Color::Hex("#90B0D0"), 1.0f);
-        Render::Line(gimbalNed, targetNed, Render::Color::Hex("#90B0D050"), 1.f);
-        Render::Marker(targetNed, ICON_FA_CROSSHAIRS, "Target", Render::Color::Hex("#00ccff"),
+        Render::Line(gimbalNed, targetNed, Render::Color::Hex("#00c3ffAA"), 1.f);
+        Render::Marker(targetNed, ICON_FA_CROSSHAIRS, "Target", Render::Color::Hex("#00ccffff"),
             "Lat %.6f\nLon %.6f\nAlt %.0f m", gimbal_.targetLat, gimbal_.targetLon, gimbal_.targetAlt);
     Render::End();
     Render::HUD();
