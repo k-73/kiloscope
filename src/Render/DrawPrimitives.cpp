@@ -451,15 +451,24 @@ bool Marker(const glm::vec3& pos, const char* icon, const char* label,
     auto screen = WorldToScreen(p);
     if (screen.x < 0.f) return false;
 
-    // Icon + label via textBatch (rendered after Image in FlushText)
-    std::string header = std::string(icon) + " " + label;
-    ctx().textBatch.push_back({p, color, header, true});
+    // Icon centered on point (via worldPos projection)
+    auto iconSz = ImGui::CalcTextSize(icon);
+    ctx().textBatch.push_back({p, color, icon, true});
     ++ctx().stats.textLabels;
 
-    // Hover detection on projected text bounding box
-    auto sz = ImGui::CalcTextSize(header.c_str());
-    float hx = screen.x - sz.x * .5f, hy = screen.y - sz.y * .5f;
-    bool hovered = ImGui::IsMouseHoveringRect({hx, hy}, {hx + sz.x, hy + sz.y}, false);
+    // Label to the right, vertically centered on icon
+    auto lblSz = ImGui::CalcTextSize(label);
+    float lx = screen.x + iconSz.x * .5f + 3.f;
+    float ly = screen.y - lblSz.y * .5f - 2.f;
+    ctx().textBatch.push_back({{}, {color.r, color.g, color.b, color.a * .8f}, label, false, {lx, ly}});
+    ++ctx().stats.textLabels;
+
+    // Hover on icon+label area
+    float hx = screen.x - iconSz.x * .5f;
+    float hy = screen.y - std::max(iconSz.y, lblSz.y) * .5f;
+    float hw = iconSz.x + 3.f + lblSz.x;
+    float hh = std::max(iconSz.y, lblSz.y);
+    bool hovered = ImGui::IsMouseHoveringRect({hx, hy}, {hx + hw, hy + hh}, false);
 
     // Tooltip popup on hover
     if (hovered) {

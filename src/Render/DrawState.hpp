@@ -26,7 +26,11 @@ namespace Kilo::Render {
 struct MeshVert  { glm::vec3 pos, normal; glm::vec2 uv{0.f, 0.f}; };
 struct LineVert  { glm::vec3 pos, otherEnd; glm::vec2 expand; glm::vec4 color; uint32_t pickId; float width; };
 struct PointVert { glm::vec3 pos; glm::vec4 color; uint32_t pickId; };
-struct TextEntry { glm::vec3 worldPos; glm::vec4 color; std::string text; bool centered = false; };
+struct TextEntry {
+    glm::vec3 worldPos; glm::vec4 color; std::string text;
+    bool centered = false;
+    glm::vec2 screenPos{-1.f, -1.f};  // if >= 0: use directly instead of projecting worldPos
+};
 
 // GPU-resident mesh (uploaded once, drawn with per-instance model matrix)
 struct GpuMesh {

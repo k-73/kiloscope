@@ -495,12 +495,17 @@ static void FlushText() {
     auto* dl = ImGui::GetWindowDrawList();
     ImGui::PushClipRect({sFrame.cx, sFrame.cy}, {sFrame.cx + sFrame.w, sFrame.cy + sFrame.h}, true);
     for (auto& e : ctx().textBatch) {
-        auto screen = WorldToScreen(e.worldPos);
-        if (screen.x < 0.f) continue;
-        float tx = screen.x, ty = screen.y;
-        if (e.centered) {
-            auto sz = ImGui::CalcTextSize(e.text.c_str());
-            tx -= sz.x * 0.5f; ty -= sz.y * 0.5f;
+        float tx, ty;
+        if (e.screenPos.x >= 0.f) {
+            tx = e.screenPos.x; ty = e.screenPos.y;
+        } else {
+            auto screen = WorldToScreen(e.worldPos);
+            if (screen.x < 0.f) continue;
+            tx = screen.x; ty = screen.y;
+            if (e.centered) {
+                auto sz = ImGui::CalcTextSize(e.text.c_str());
+                tx -= sz.x * 0.5f; ty -= sz.y * 0.5f;
+            }
         }
         dl->AddText({tx, ty},
             ImGui::ColorConvertFloat4ToU32({e.color.r, e.color.g, e.color.b, e.color.a}),
