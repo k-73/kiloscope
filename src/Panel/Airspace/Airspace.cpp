@@ -22,30 +22,32 @@ static void DrawAircraft() {
     Render::Group group;
     using Render::Color::Hex;
 
-    constexpr auto Fuse = "#2d4155", Surf = "#3e5c78", Tip = "#6890ab";
+    constexpr auto Fuse = "#2d4155", Surf = "#3a5570", Tip = "#6890ab", Glass = "#7eaac8";
     constexpr float R = 0.12f, S = 2.0f;
 
-    // Fuselage
-    Render::Cylinder({-1.4f, 0, 0}, {0.9f, 0, 0}, R, Hex(Fuse), 12);
-    Render::Cone    ({0.9f, 0, 0},  {1.6f, 0, 0}, R, Hex(Fuse), 12);
-    Render::Sphere  ({-1.4f, 0, 0},                R, Hex(Fuse), 12);
+    // Fuselage — capsule body (smooth joints), nose cone, blunted tip, tail taper
+    Render::Capsule ({-0.2f, 0, 0}, {0.7f, 0, 0},  R, Hex(Fuse), 14);       // body
+    Render::Cone    ({0.7f, 0, 0},  {1.15f, 0, 0},  R, Hex(Fuse), 14);      // nose
+    Render::Sphere  ({1.1f, 0, 0},  R * .1f, Hex(Tip), 10);                  // tip
+    Render::Cone    ({-0.2f, 0, 0}, {-1.1f, 0, 0}, R, Hex(Fuse), 14);       // tail
+    Render::Sphere  ({0.55f, 0, -R * .5f}, R * .38f, Hex(Glass), 12);        // canopy
 
-    // Wings — swept trapezoid per side (two triangles = quad, two-sided)
+    // Wings — swept trapezoid, slight dihedral
     for (float s : {-1.f, 1.f}) {
-        glm::vec3 rl{.3f, 0, 0}, rt{-.4f, 0, 0}, tl{-.05f, s*S, 0}, tt{-.2f, s*S, 0};
+        glm::vec3 rl{.3f, 0, 0}, rt{-.3f, 0, 0}, tl{0.f, s*S, -.07f}, tt{-.15f, s*S, -.07f};
         Render::Triangle(rl, rt, tt, Hex(Surf), true);
         Render::Triangle(rl, tt, tl, Hex(Surf), true);
     }
 
-    // Horizontal stabilizer
+    // Horizontal stabilizer — slight anhedral
     for (float s : {-1.f, 1.f}) {
-        glm::vec3 rl{-1.05f, 0, 0}, rt{-1.35f, 0, 0}, tl{-1.1f, s*.6f, 0}, tt{-1.25f, s*.6f, 0};
+        glm::vec3 rl{-.85f, 0, 0}, rt{-1.08f, 0, 0}, tl{-.9f, s*.5f, .02f}, tt{-1.02f, s*.5f, .02f};
         Render::Triangle(rl, rt, tt, Hex(Surf), true);
         Render::Triangle(rl, tt, tl, Hex(Surf), true);
     }
 
-    // Vertical fin
-    Render::Triangle({-1.35f, 0, 0}, {-1.0f, 0, 0}, {-1.15f, 0, -.55f}, Hex(Tip), true);
+    // Vertical fin — swept
+    Render::Triangle({-1.1f, 0, 0}, {-.8f, 0, 0}, {-.95f, 0, -.45f}, Hex(Tip), true);
 }
 
 // ── controls ────────────────────────────────────────────────────
