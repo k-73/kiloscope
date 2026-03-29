@@ -14,6 +14,7 @@ struct AppConfig {
     bool        decorated       = true;
 
     bool        vsync           = true;
+    int         msaa            = 8;
     std::string logLevel        = "info";
 
     void LoadFromFile(const std::string& path);

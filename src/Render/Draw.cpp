@@ -520,7 +520,8 @@ static void FlushText() {
 
 // ── Init ─────────────────────────────────────────────────────────────
 
-void Init(const std::string& dir) {
+void Init(const std::string& dir, int msaaSamples) {
+    sMsaaSamples = msaaSamples;
     sMeshShader      = Shader(dir + "/Basic.vert",     dir + "/Basic.frag");
     sLineShader      = Shader(dir + "/Line.vert",      dir + "/Line.frag");
     sGridShader      = Shader(dir + "/Grid.vert",      dir + "/Grid.frag");
@@ -657,7 +658,7 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     auto avail = ImGui::GetContentRegionAvail();
     int w = std::max(1, static_cast<int>(cfg.width > 0 ? cfg.width : avail.x));
     int h = std::max(1, static_cast<int>(cfg.height > 0 ? cfg.height : avail.y));
-    scene->fbo.Resize(w, h, 8);
+    scene->fbo.Resize(w, h, sMsaaSamples);
     scene->pickFbo.Resize(w, h);
     ImVec2 size{static_cast<float>(w), static_cast<float>(h)};
     auto cursor = ImGui::GetCursorScreenPos();

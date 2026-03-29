@@ -91,7 +91,7 @@ struct Stats {
     int msaaSamples     = 0;
 };
 
-void Init(const std::string& shaderDir);
+void Init(const std::string& shaderDir, int msaaSamples = 8);
 void Shutdown();
 void Begin(const char* name, const ViewportConfig& cfg = {});
 void End();

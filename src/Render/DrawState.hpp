@@ -218,6 +218,7 @@ inline glm::dvec3 sCamPosD;          // double — for Globe/Geo precision
 inline glm::vec3 sCamPos, sLightDir;
 inline ViewFrustum sFrustum;
 inline float sFarPlane = 10000.f;
+inline int   sMsaaSamples = 8;
 inline int sVpW = 1, sVpH = 1;
 
 inline std::vector<MeshVert> sMeshScratch;

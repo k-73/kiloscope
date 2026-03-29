@@ -15,6 +15,7 @@ struct glz::meta<Kilo::AppConfig> {
         "maximized",       &T::maximized,
         "decorated",       &T::decorated,
         "vsync",           &T::vsync,
+        "msaa",            &T::msaa,
         "logLevel",        &T::logLevel
     );
 };

@@ -22,7 +22,7 @@ App::App() {
     Log::SetLevel(config_.logLevel);
 
     ui_ = std::make_unique<UI::UiContext>(config_);
-    Render::Init(std::string(ASSETS_DIR) + "/shaders");
+    Render::Init(std::string(ASSETS_DIR) + "/shaders", config_.msaa);
     panels_ = std::make_unique<PanelManager>();
 
     panels_->LoadFromFile(config_.panelConfigPath);
