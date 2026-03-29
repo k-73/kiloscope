@@ -22,21 +22,24 @@ Airspace::Airspace() : Panel("Airspace", "Airspace") {
 
 static Render::ModelId sJetModel = Render::kInvalidModel;
 
-// Engine nozzle position (body frame: X=fwd, Y=right, Z=down)
-constexpr float kEngX   = -2.2f;   // fore-aft (negative = behind)
+// Engine nozzle offsets in body frame (X=fwd, Y=right, Z=down)
+constexpr float kEngX   = -2.2f;   // fore-aft (negative = behind CG)
 constexpr float kEngY   =  0.21f;  // lateral (half-spacing between engines)
 constexpr float kEngZ   =  0.0f;   // vertical (positive = down)
-constexpr float kFlameR =  0.12f;
+constexpr float kFlameR =  0.12f;  // afterburner sphere radius
 constexpr glm::vec3 kEngineL{kEngX, -kEngY, kEngZ};
 constexpr glm::vec3 kEngineR{kEngX,  kEngY, kEngZ};
 
 static void DrawAircraft(float speed) {
+    // Load model on first use
     if (sJetModel == Render::kInvalidModel)
         sJetModel = Render::LoadModel(std::string(ASSETS_DIR) + "/models/Jet_Lowpoly.obj");
 
+    // OBJ → body frame: scale + coordinate transform
     Render::PushMatrix();
         Render::Scale(0.33f);
         Render::Translate(0, 0, -1.0f);
+        // OBJ (X=right, Y=up, +Z=forward) → Body (X=fwd, Y=right, Z=down)
         Render::Transform(glm::mat4(
             glm::vec4(0, -1, 0, 0),
             glm::vec4(0, 0, -1, 0),
@@ -45,10 +48,10 @@ static void DrawAircraft(float speed) {
         Render::Model(sJetModel, Render::Color::Hex("#3a5570"));
     Render::PopMatrix();
 
-    // Engine afterburner — Beam: white-hot core → red tip, scaled by speed
+    // Afterburner: gradient beam (white-hot core → red tip), intensity ∝ speed
     if (speed > 0.f) {
-        float t   = std::min(speed / 120.f, 1.f);
-        float len = 0.3f + t * 1.2f;
+        float t   = std::min(speed / 120.f, 1.f);   // normalized throttle 0→1
+        float len = 0.3f + t * 1.2f;                 // flame length grows with speed
         for (auto& eng : {kEngineL, kEngineR})
             Render::Beam(eng, eng + glm::vec3(-len, 0, 0),
                 {1.f, .9f, .7f, .8f * t}, {.9f, .2f, .05f, .1f * t}, kFlameR, 2.5f, 4);
@@ -60,20 +63,21 @@ static void DrawAircraft(float speed) {
 void Airspace::DrawControls() {
     ImGui::Begin("Airspace");
 
-    // Aircraft
+    // Aircraft state
     ImGui::Text("Lat %.6f  Lon %.6f  Alt %.0f m", aircraft_.lat, aircraft_.lon, aircraft_.alt);
     ImGui::DragFloat("Speed", &aircraft_.speed, 0.5f, 0.f, 200.f, "%.1f m/s");
     ImGui::SliderFloat("Yaw",   &aircraft_.yaw,  -180.f, 180.f, "%.1f\xc2\xb0");
     ImGui::SliderFloat("Pitch", &aircraft_.pitch, -45.f,  45.f, "%.1f\xc2\xb0");
     ImGui::Separator();
 
-    // Gimbal
+    // Gimbal target — heading-relative joystick + manual lat/lon/alt
     ImGui::SliderFloat("FOV", &gimbal_.fov, 5.f, 120.f, "%.1f\xc2\xb0");
     ImGui::SliderFloat("Aspect", &gimbal_.aspect, 0.5f, 3.f, "%.2f");
     ImGui::InputDouble("Target Lat", &gimbal_.targetLat, 0.01, 0.1, "%.6f");
     ImGui::InputDouble("Target Lon", &gimbal_.targetLon, 0.01, 0.1, "%.6f");
     ImGui::InputDouble("Target Alt", &gimbal_.targetAlt, 1.0, 10.0, "%.0f");
 
+    // Joystick: quadratic response, heading-relative, cos(lat)-corrected longitude
     glm::vec2 joy;
     if (Widget::Joystick("##gimbal", &joy)) {
         float dt   = ImGui::GetIO().DeltaTime;
@@ -87,16 +91,16 @@ void Airspace::DrawControls() {
     }
     ImGui::Separator();
 
-    // Camera
+    // Camera info
     auto& cam = Render::GetCamera("flight");
     ImGui::Text("Camera: %s  [C]", cameraFree_ ? "FreeCam" : "Chase");
     ImGui::Text("Eye: %.1f, %.1f, %.1f  Dist: %.1f",
         cam.Position().x, cam.Position().y, cam.Position().z, cam.Distance());
 
-    // Globe
+    // Globe appearance
     if (ImGui::CollapsingHeader("Globe")) {
         auto& g = Render::GetGlobe("flight");
-        
+
         ImGui::Checkbox("Lighting", &g.lighting);
         ImGui::SliderFloat("Ambient", &g.ambient, 0.f, 1.f);
         ImGui::ColorEdit3("Surface", &g.surfaceColor.x);
@@ -129,12 +133,14 @@ void Airspace::DrawControls() {
 // ── input ───────────────────────────────────────────────────────
 
 void Airspace::HandleInput(float dt, bool focused) {
+    // C toggles free camera / chase mode
     if (focused && ImGui::IsKeyPressed(ImGuiKey_C, false)) {
         cameraFree_ = !cameraFree_;
         if (!cameraFree_) Render::GetCamera("flight").ResetFollow();
     }
     if (!focused || cameraFree_) return;
 
+    // WASD: pitch/yaw rate control + bank autopilot input
     constexpr float kPitchRate = 40.f, kYawRate = 50.f;
     if (ImGui::IsKeyDown(ImGuiKey_W)) aircraft_.pitch -= kPitchRate * dt;
     if (ImGui::IsKeyDown(ImGuiKey_S)) aircraft_.pitch += kPitchRate * dt;
@@ -146,48 +152,45 @@ void Airspace::HandleInput(float dt, bool focused) {
 // ── physics ─────────────────────────────────────────────────────
 
 void Airspace::UpdatePhysics(float dt) {
-    using GR = Render::GeoRef;
     aircraft_.pitch = std::clamp(aircraft_.pitch, -80.f, 80.f);
 
-    // Velocity components in local NED
+    // Decompose velocity into NED components
     double yr = glm::radians(double(aircraft_.yaw));
     double pr = glm::radians(double(aircraft_.pitch));
-    double dN = aircraft_.speed * std::cos(yr) * std::cos(pr) * dt;  // North
-    double dE = aircraft_.speed * std::sin(yr) * std::cos(pr) * dt;  // East
-    double dU = aircraft_.speed * std::sin(pr) * dt;                  // Up
+    double dN = aircraft_.speed * std::cos(yr) * std::cos(pr) * dt;
+    double dE = aircraft_.speed * std::sin(yr) * std::cos(pr) * dt;
+    double dU = aircraft_.speed * std::sin(pr) * dt;
 
-    // ECEF integration (correct at all latitudes including poles)
-    auto ecef = GR::ToEcef(aircraft_.lat, aircraft_.lon, aircraft_.alt);
+    // Integrate in ECEF (correct at all latitudes including poles)
+    auto ecef = Render::GeoRef::ToEcef(aircraft_.lat, aircraft_.lon, aircraft_.alt);
     double phi = glm::radians(aircraft_.lat), lam = glm::radians(aircraft_.lon);
     double sp = std::sin(phi), cp = std::cos(phi);
     double sl = std::sin(lam), cl = std::cos(lam);
-
-    // NED basis vectors in ECEF
-    glm::dvec3 N{-sp * cl, -sp * sl,  cp};   // North
-    glm::dvec3 E{-sl,       cl,        0.0};  // East
-    glm::dvec3 U{ cp * cl,  cp * sl,   sp};   // Up
-
+    glm::dvec3 N{-sp * cl, -sp * sl,  cp};
+    glm::dvec3 E{-sl,       cl,        0.0};
+    glm::dvec3 U{ cp * cl,  cp * sl,   sp};
     ecef += N * dN + E * dE + U * dU;
 
-    // ECEF → geodetic via GeographicLib (7nm precision, correct at poles)
+    // ECEF → geodetic (GeographicLib, 7nm precision)
     static const auto& earth = GeographicLib::Geocentric::WGS84();
     earth.Reverse(ecef.x, ecef.y, ecef.z, aircraft_.lat, aircraft_.lon, aircraft_.alt);
     aircraft_.alt = std::max(aircraft_.alt, 1.0);
 
-    // Bank autopilot (bank_ set by HandleInput — focus-guarded)
+    // Smooth roll toward ±35° based on yaw input (bank_ set by HandleInput)
     aircraft_.roll += (bank_ * 35.f - aircraft_.roll) * std::min(1.f, 5.f * dt);
 }
 
 // ── scene ───────────────────────────────────────────────────────
 
 void Airspace::DrawWorld(const glm::vec3& pos) {
-    // Waypoint — fixed position, 1km north of start
+    // Waypoint marker (fixed geodetic position, 1km north of start)
     static const double wpLat = 52.2297 + 1.0 / 111.32, wpLon = 21.0122;
     auto wpNed = glm::vec3(Render::GeoToLocal("flight", wpLat, wpLon, 0.0));
     float wpDist = glm::length(wpNed - pos) * 0.001f;
     Render::Marker(wpNed, ICON_FA_LOCATION_DOT, "WP1", Render::Color::Orange,
         "%.2f km\n%.6f, %.6f", wpDist, wpLat, wpLon);
 
+    // Aircraft model (body frame: ZYX Euler rotation from NED)
     Render::PushMatrix();
         Render::Translate(pos);
         Render::RotateZ(aircraft_.yaw);
@@ -195,35 +198,38 @@ void Airspace::DrawWorld(const glm::vec3& pos) {
         Render::RotateX(aircraft_.roll);
         DrawAircraft(aircraft_.speed);
     Render::PopMatrix();
-
 }
 
 void Airspace::DrawFlight(float dt) {
     SetupEnv("flight");
     auto nedPos = glm::vec3(Render::GeoToLocal("flight", aircraft_.lat, aircraft_.lon, aircraft_.alt));
 
+    // Camera: chase (follows aircraft heading) or free orbit
     auto& cam = Render::GetCamera("flight");
     if (!cameraFree_)
         cam.Follow(nedPos, aircraft_.yaw);
     else
         cam.Unfollow();
 
-    // Input handled here — flight viewport is the correct focus target
+    // Input: checked here because flight viewport is the focus target
     HandleInput(dt, ImGui::IsWindowFocused());
 
     Render::Begin("flight");
         Render::SetFrame(Render::FrameId::NED);
         Render::Globe();
+
+        // World objects (aircraft, waypoints)
         DrawWorld(nedPos);
         auto aircraftEv = Render::Event();
-        if (aircraftEv.Hovered()) {
-            Render::Text(nedPos + glm::vec3(0, 0, -0.5f), {1,1,1,0.5f}, "Lat %.6f\nLon %.6f\nAlt %.0f m",
-                aircraft_.lat, aircraft_.lon, aircraft_.alt);
-        }
+        if (aircraftEv.Hovered())
+            Render::Text(nedPos + glm::vec3(0, 0, -0.5f), {1,1,1,.5f},
+                "Lat %.6f\nLon %.6f\nAlt %.0f m", aircraft_.lat, aircraft_.lon, aircraft_.alt);
 
+        // Ground projection (cross at surface, vertical line to aircraft)
         Render::Cross({nedPos.x, nedPos.y, 0.f}, 0.5f, {1,1,1,.5f}, 2.f);
         Render::Line(nedPos, {nedPos.x, nedPos.y, 0.f}, {1,1,1,.15f}, 1.0f);
 
+        // Flight trail (ECEF cache → cheap per-frame NED conversion)
         if (trailEcef_.size() > 1) {
             trailBuf_.resize(trailEcef_.size());
             for (size_t i = 0; i < trailEcef_.size(); ++i)
@@ -231,6 +237,7 @@ void Airspace::DrawFlight(float dt) {
             Render::Trail(trailBuf_.data(), int(trailBuf_.size()), {.5f, .5f, .55f, .4f}, 1.5f);
         }
 
+        // Gimbal: sensor frustum + line to target
         auto gimbalNed = nedPos + BodyToNed() * gimbal_.bodyOffset;
         auto targetNed = glm::vec3(Render::GeoToLocal("flight", gimbal_.targetLat, gimbal_.targetLon, gimbal_.targetAlt));
         auto gimbalDir = glm::normalize(targetNed - gimbalNed);
@@ -246,7 +253,7 @@ void Airspace::DrawFlight(float dt) {
     if (!cameraFree_)
         cam.CaptureFollow();
 
-    // Record trail: ECEF distance threshold (isotropic, meters)
+    // Record trail: one GeographicLib call per point, ECEF distance threshold (meters)
     auto ecef = Render::GeoRef::ToEcef(aircraft_.lat, aircraft_.lon, aircraft_.alt);
     if (trailEcef_.empty() || glm::length(ecef - trailEcef_.back()) > kTrailStep) {
         trailEcef_.push_back(ecef);
@@ -257,16 +264,18 @@ void Airspace::DrawFlight(float dt) {
 void Airspace::DrawGimbal() {
     ImGui::Begin("Gimbal");
         SetupEnv("gimbal");
+
+        // Gimbal position: aircraft NED + body-rotated offset
         auto aircraftNed = glm::vec3(Render::GeoToLocal("gimbal", aircraft_.lat, aircraft_.lon, aircraft_.alt));
         auto gimbalNed   = aircraftNed + BodyToNed() * gimbal_.bodyOffset;
         auto targetNed   = glm::vec3(Render::GeoToLocal("gimbal", gimbal_.targetLat, gimbal_.targetLon, gimbal_.targetAlt));
+        float dist = glm::length(targetNed - gimbalNed);
 
+        // Camera: look from gimbal toward target
         auto& cam = Render::GetCamera("gimbal");
         cam.LookAt(gimbalNed, targetNed);
         cam.Fov() = gimbal_.fov;
         cam.NearPlane() = 0.05f;
-
-        float dist = glm::length(targetNed - gimbalNed);
 
         Render::Begin("gimbal");
             Render::SetFrame(Render::FrameId::NED);
@@ -274,6 +283,8 @@ void Airspace::DrawGimbal() {
             DrawWorld(aircraftNed);
         Render::End();
         Render::Crosshair();
+
+        // HUD overlay: FOV, distance, target coords
         if (Render::HudBegin()) {
             ImGui::TextColored({1,1,1,.4f}, "FOV %.0f\xc2\xb0  D %.0fm", gimbal_.fov, dist);
             ImGui::TextColored({1,1,1,.3f}, "%.6f  %.6f  %.0fm",
@@ -284,7 +295,7 @@ void Airspace::DrawGimbal() {
 }
 
 void Airspace::SetupEnv(const char* scene) {
-    // Origin = aircraft → all local coords small → float32 precise
+    // Origin tracks aircraft — keeps NED coordinates small for float32 precision
     Render::SetOrigin(scene, aircraft_.lat, aircraft_.lon, 0.0);
     auto& env    = Render::GetEnvironment(scene);
     env.bgColor  = {0.015f, 0.02f, 0.04f};
@@ -296,7 +307,6 @@ void Airspace::SetupEnv(const char* scene) {
 
 void Airspace::OnDraw() {
     const float dt = ImGui::GetIO().DeltaTime;
-
     DrawControls();
     UpdatePhysics(dt);
     DrawFlight(dt);
