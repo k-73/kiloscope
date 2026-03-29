@@ -22,10 +22,13 @@ Airspace::Airspace() : Panel("Airspace", "Airspace") {
 
 static Render::ModelId sJetModel = Render::kInvalidModel;
 
-// Engine nozzle offsets in body frame (X=fwd, Y=right, Z=down)
-constexpr glm::vec3 kEngineL{-2.2f, -0.25f, 0.1f};
-constexpr glm::vec3 kEngineR{-2.2f,  0.25f, 0.1f};
-constexpr float     kFlameR = 0.08f;
+// Engine nozzle position (body frame: X=fwd, Y=right, Z=down)
+constexpr float kEngX   = -2.2f;   // fore-aft (negative = behind)
+constexpr float kEngY   =  0.21f;  // lateral (half-spacing between engines)
+constexpr float kEngZ   =  0.0f;   // vertical (positive = down)
+constexpr float kFlameR =  0.12f;
+constexpr glm::vec3 kEngineL{kEngX, -kEngY, kEngZ};
+constexpr glm::vec3 kEngineR{kEngX,  kEngY, kEngZ};
 
 static void DrawAircraft(float speed) {
     if (sJetModel == Render::kInvalidModel)
