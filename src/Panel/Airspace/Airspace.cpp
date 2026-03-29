@@ -31,7 +31,8 @@ constexpr glm::vec3 kEngineL{kEngX, -kEngY, kEngZ};
 constexpr glm::vec3 kEngineR{kEngX,  kEngY, kEngZ};
 
 static void DrawAircraft(float speed) {
-    // Load model on first use
+    Render::Group group;  // model + afterburner = one pickable object
+
     if (sJetModel == Render::kInvalidModel)
         sJetModel = Render::LoadModel(std::string(ASSETS_DIR) + "/models/Jet_Lowpoly.obj");
 

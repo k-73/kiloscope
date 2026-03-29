@@ -497,14 +497,16 @@ bool Marker(const glm::vec3& pos, const char* icon, const char* label,
         ImGui::BeginTooltip();
         ImGui::TextColored({color.r, color.g, color.b, 1.f}, "%s %s", icon, label);
         ImGui::Separator();
-        auto fp = glm::transpose(ctx().frameMat) * p;
+        // World position in active frame (not camera-relative)
+        auto world = glm::vec3(Mat() * glm::vec4(pos, 1.f));
+        auto fp = glm::transpose(ctx().frameMat) * world;
         const char* fn = "XYZ";
         if (ctx().frameMat == NED::M) fn = "NED";
         else if (ctx().frameMat == ENU::M) fn = "ENU";
         else if (ctx().frameMat == FLU::M) fn = "FLU";
         else if (ctx().frameMat == FRD::M) fn = "FRD";
         ImGui::Text("%s  %.1f  %.1f  %.1f", fn, fp.x, fp.y, fp.z);
-        ImGui::Text("Cam  %.0f m", glm::length(p - sCamPos));
+        ImGui::Text("Cam  %.0f m", glm::length(p));  // p is camera-relative, camera at origin
         if (detailFmt) {
             char buf[256];
             va_list args; va_start(args, detailFmt);
