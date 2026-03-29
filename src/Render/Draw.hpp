@@ -332,6 +332,9 @@ void BoxLight(const glm::vec3& center, const glm::vec3& size,
               const glm::vec4& color, float range);
 void Cross(const glm::vec3& pos, float size,
            const glm::vec4& color, float width = 2.5f);
+void Beam(const glm::vec3& from, const glm::vec3& to,
+          const glm::vec4& colorFrom, const glm::vec4& colorTo,
+          float radius = 0.05f, float glowScale = 3.f, int steps = 3);
 bool Marker(const glm::vec3& pos, const char* icon, const char* label,
             const glm::vec4& color, const char* detailFmt = nullptr, ...)
             __attribute__((format(printf, 5, 6)));

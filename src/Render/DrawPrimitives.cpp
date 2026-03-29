@@ -447,6 +447,21 @@ void Cross(const glm::vec3& pos, float size, const glm::vec4& color, float width
     Line(pos - glm::vec3(0, 0, hs), pos + glm::vec3(0, 0, hs), color, width);
 }
 
+void Beam(const glm::vec3& from, const glm::vec3& to,
+          const glm::vec4& colorFrom, const glm::vec4& colorTo,
+          float radius, float glowScale, int steps) {
+    PickGroup pg;
+    for (int i = 0; i < steps; ++i) {
+        float t = float(i) / float(steps - 1);
+        auto pos = glm::mix(from, to, t);
+        auto col = glm::mix(colorFrom, colorTo, t);
+        float r  = radius * (1.f + t * 1.5f);  // grows toward tip
+        if (i == 0) SetNextEmissive(radius * glowScale);
+        else        SetNextGlow();
+        Sphere(pos, r, col, 6);
+    }
+}
+
 bool Marker(const glm::vec3& pos, const char* icon, const char* label,
             const glm::vec4& color, const char* detailFmt, ...) {
     auto p = XformPoint(pos);

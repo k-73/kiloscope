@@ -45,23 +45,13 @@ static void DrawAircraft(float speed) {
         Render::Model(sJetModel, Render::Color::Hex("#3a5570"));
     Render::PopMatrix();
 
-    // Engine afterburner — gradient: white core → orange → red tip, scaled by speed
+    // Engine afterburner — Beam: white-hot core → red tip, scaled by speed
     if (speed > 0.f) {
-        float t = std::min(speed / 120.f, 1.f);         // 0→1 over 0–120 m/s
-        float len = 0.3f + t * 1.2f;                     // flame length 0.3–1.5m
-        for (auto& eng : {kEngineL, kEngineR}) {
-            // Core (white-hot)
-            Render::SetNextEmissive(kFlameR * 2.f);
-            Render::Sphere(eng, kFlameR, {1.f, .95f, .8f, .9f * t}, 6);
-            // Mid (orange)
-            glm::vec3 mid = eng + glm::vec3(-len * .4f, 0, 0);
-            Render::SetNextGlow();
-            Render::Sphere(mid, kFlameR * 1.5f, {1.f, .5f, .1f, .5f * t}, 6);
-            // Tip (red, fading)
-            glm::vec3 tip = eng + glm::vec3(-len, 0, 0);
-            Render::SetNextGlow();
-            Render::Sphere(tip, kFlameR * 2.f, {.8f, .15f, .05f, .25f * t}, 6);
-        }
+        float t   = std::min(speed / 120.f, 1.f);
+        float len = 0.3f + t * 1.2f;
+        for (auto& eng : {kEngineL, kEngineR})
+            Render::Beam(eng, eng + glm::vec3(-len, 0, 0),
+                {1.f, .95f, .8f, .9f * t}, {.8f, .15f, .05f, .15f * t}, kFlameR);
     }
 }
 
