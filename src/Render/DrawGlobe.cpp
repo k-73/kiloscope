@@ -39,6 +39,18 @@ glm::dvec3 GeoToLocal(const char* name, double lat, double lon, double alt) {
     return glm::dvec3(glm::transpose(glm::dmat3(sc.frameMat)) * sc.geoRef.ToInternal(lat, lon, alt));
 }
 
+glm::dvec3 EcefToLocal(const char* name, const glm::dvec3& ecef) {
+    auto& sc = GetScene(name);
+    if (!sc.geoRef.valid) return glm::dvec3(0.0);
+    return glm::dvec3(glm::transpose(glm::dmat3(sc.frameMat)) * sc.geoRef.EcefToInternal(ecef));
+}
+
+glm::dvec3 EcefToLocal(const glm::dvec3& ecef) {
+    auto& gr = ctx().geoRef;
+    if (!gr.valid) return glm::dvec3(0.0);
+    return glm::dvec3(glm::transpose(glm::dmat3(ctx().frameMat)) * gr.EcefToInternal(ecef));
+}
+
 // ── rendering ───────────────────────────────────────────────────────
 
 void DrawGlobe(const GlobeConfig& cfg) {

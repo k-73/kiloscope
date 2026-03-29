@@ -224,10 +224,10 @@ void Airspace::DrawFlight(float dt) {
         Render::Cross({nedPos.x, nedPos.y, 0.f}, 0.5f, {1,1,1,.5f}, 2.f);
         Render::Line(nedPos, {nedPos.x, nedPos.y, 0.f}, {1,1,1,.15f}, 1.0f);
 
-        if (trail_.size() > 1) {
-            trailBuf_.resize(trail_.size());
-            for (size_t i = 0; i < trail_.size(); ++i)
-                trailBuf_[i] = glm::vec3(Render::GeoToLocal("flight", trail_[i].lat, trail_[i].lon, trail_[i].alt));
+        if (trailEcef_.size() > 1) {
+            trailBuf_.resize(trailEcef_.size());
+            for (size_t i = 0; i < trailEcef_.size(); ++i)
+                trailBuf_[i] = glm::vec3(Render::EcefToLocal(trailEcef_[i]));
             Render::Trail(trailBuf_.data(), int(trailBuf_.size()), {.5f, .5f, .55f, .4f}, 1.5f);
         }
 
@@ -246,11 +246,11 @@ void Airspace::DrawFlight(float dt) {
     if (!cameraFree_)
         cam.CaptureFollow();
 
-    Render::GeoCoord gc{aircraft_.lat, aircraft_.lon, aircraft_.alt};
-    if (trail_.empty() || std::abs(gc.lat - trail_.back().lat) > 1e-6
-                       || std::abs(gc.lon - trail_.back().lon) > 1e-6) {
-        trail_.push_back(gc);
-        if (trail_.size() > kTrailMax) trail_.erase(trail_.begin());
+    // Record trail: ECEF distance threshold (isotropic, meters)
+    auto ecef = Render::GeoRef::ToEcef(aircraft_.lat, aircraft_.lon, aircraft_.alt);
+    if (trailEcef_.empty() || glm::length(ecef - trailEcef_.back()) > kTrailStep) {
+        trailEcef_.push_back(ecef);
+        if (trailEcef_.size() > kTrailMax) trailEcef_.erase(trailEcef_.begin());
     }
 }
 

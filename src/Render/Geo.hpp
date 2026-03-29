@@ -87,6 +87,11 @@ struct GeoRef {
         return ecefToEnu * (ToEcef(lat, lon, alt) - ecefRef);
     }
 
+    // ECEF → internal ENU (skip geodetic→ECEF, use cached ECEF directly)
+    glm::dvec3 EcefToInternal(const glm::dvec3& ecef) const {
+        return ecefToEnu * (ecef - ecefRef);
+    }
+
     // Internal ENU → geodetic  —  GeographicLib, 7nm precision, correct at poles
     GeoCoord FromInternal(const glm::dvec3& enu) const {
         glm::dvec3 ecef = glm::transpose(ecefToEnu) * enu + ecefRef;

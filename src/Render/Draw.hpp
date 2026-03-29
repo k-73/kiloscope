@@ -181,6 +181,8 @@ GlobeConfig& GetGlobe();
 GlobeConfig& GetGlobe(const char* name);
 glm::dvec3 GeoToLocal(double lat, double lon, double alt = 0.0);
 glm::dvec3 GeoToLocal(const char* scene, double lat, double lon, double alt = 0.0);
+glm::dvec3 EcefToLocal(const char* scene, const glm::dvec3& ecef);
+glm::dvec3 EcefToLocal(const glm::dvec3& ecef);  // uses current scene (inside Begin/End)
 
 // ── projection helpers ──────────────────────────────────────────
 glm::vec2 WorldToScreen(const glm::vec3& worldPos);
