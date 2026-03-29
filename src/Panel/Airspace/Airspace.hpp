@@ -40,8 +40,8 @@ private:
     float bank_      = 0.f;   // bank input from HandleInput (focus-guarded)
 
     // Trail (ECEF cache — GeographicLib once on record, cheap matrix per frame)
-    static constexpr size_t  kTrailMax  = 512;
-    static constexpr double  kTrailStep = 5.0;   // meters between trail points
+    static constexpr size_t  kTrailMax  = 128;
+    static constexpr double  kTrailStep = 1.0;   // meters between trail points
     std::vector<glm::dvec3>  trailEcef_;          // ECEF positions (computed once)
     std::vector<glm::vec3>   trailBuf_;           // NED positions (recomputed per frame)
 
