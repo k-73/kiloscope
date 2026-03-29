@@ -227,6 +227,7 @@ void Airspace::DrawFlight(float dt) {
                 "Lat %.6f\nLon %.6f\nAlt %.0f m", aircraft_.lat, aircraft_.lon, aircraft_.alt);
 
         // Ground projection (cross at surface, vertical line to aircraft)
+        // Ground projection
         Render::Cross({nedPos.x, nedPos.y, 0.f}, 0.5f, {1,1,1,.5f}, 2.f);
         Render::Line(nedPos, {nedPos.x, nedPos.y, 0.f}, {1,1,1,.15f}, 1.0f);
 
