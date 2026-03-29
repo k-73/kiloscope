@@ -1,5 +1,6 @@
 #include "Render/DrawState.hpp"
 #include "Render/DrawGlobe.hpp"
+#include "Core/Log.hpp"
 #include <GLFW/glfw3.h>
 #include <algorithm>
 #include <generator/SphereMesh.hpp>
@@ -32,6 +33,8 @@ void PickFbo::Resize(int nw, int nh) {
         glNamedBufferStorage(p, sizeof(uint32_t), &zero, GL_MAP_READ_BIT);
     pboIdx = 0;
     pboReady = false;
+    if (glCheckNamedFramebufferStatus(fbo, GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        Log::Render().error("PickFbo incomplete ({}x{})", w, h);
 }
 void PickFbo::Bind() {
     glBindFramebuffer(GL_FRAMEBUFFER, fbo);
@@ -57,8 +60,8 @@ uint32_t PickFbo::FinishAsyncRead() {
     if (!pboReady) return 0;
     int readIdx = 1 - pboIdx; // read from the OTHER PBO (previous frame)
     auto* ptr = static_cast<uint32_t*>(glMapNamedBufferRange(pbo[readIdx], 0, sizeof(uint32_t), GL_MAP_READ_BIT));
-    uint32_t id = ptr ? *ptr : 0;
-    glUnmapNamedBuffer(pbo[readIdx]);
+    uint32_t id = 0;
+    if (ptr) { id = *ptr; glUnmapNamedBuffer(pbo[readIdx]); }
     return id;
 }
 void PickFbo::Destroy() {

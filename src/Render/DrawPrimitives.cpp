@@ -153,7 +153,8 @@ void Triangle(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c,
               const glm::vec4& color, bool twoSided) {
     ctx().activePickId = AllocPickId();
     auto ta = XformPoint(a), tb = XformPoint(b), tc = XformPoint(c);
-    auto n = glm::normalize(glm::cross(tb - ta, tc - ta));
+    auto cr = glm::cross(tb - ta, tc - ta);
+    auto n = glm::dot(cr, cr) > 1e-12f ? glm::normalize(cr) : glm::vec3(0, 0, 1);
     SetMeshUniforms(color);
     if (twoSided)
         UploadMesh({{ta, n}, {tb, n}, {tc, n}, {ta, -n}, {tc, -n}, {tb, -n}});
@@ -165,7 +166,8 @@ void Quad(const glm::vec3& a, const glm::vec3& b,
           const glm::vec3& c, const glm::vec3& d, const glm::vec4& color) {
     ctx().activePickId = AllocPickId();
     auto ta = XformPoint(a), tb = XformPoint(b), tc = XformPoint(c), td = XformPoint(d);
-    auto normal = glm::normalize(glm::cross(tb - ta, td - ta));
+    auto cr = glm::cross(tb - ta, td - ta);
+    auto normal = glm::dot(cr, cr) > 1e-12f ? glm::normalize(cr) : glm::vec3(0, 0, 1);
     SetMeshUniforms(color);
     UploadMesh({{ta, normal}, {tb, normal}, {tc, normal},
                 {ta, normal}, {tc, normal}, {td, normal}});
@@ -641,6 +643,7 @@ void Covariance(const glm::vec3& pos, const glm::mat3& cov,
 
 void WireGrid(const glm::vec3& center, const glm::vec3& normal,
               float size, int divisions, const glm::vec4& color, float width) {
+    if (divisions < 1) return;
     PickGroup pg;
     auto n = glm::normalize(normal);
     auto u = Perpendicular(n);

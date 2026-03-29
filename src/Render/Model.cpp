@@ -136,9 +136,13 @@ void Model(ModelId id, const glm::vec4& color) {
     auto it = sModels.find(id);
     if (it == sModels.end()) return;
     ctx().activePickId = AllocPickId();
-    SetMeshUniforms(color);
+    // Cache one-shot flags — apply to all submeshes, not just the first
+    bool emissive = ctx().emissive;
+    float glowR   = ctx().glowRadius;
     for (auto& sub : it->second.submeshes) {
+        SetMeshUniforms(color);
         ctx().twoSided = true;
+        if (emissive) { ctx().emissive = true; ctx().glowRadius = glowR; }
         UploadGpuDraw(sub.mesh, Mat());
     }
 }
@@ -147,9 +151,12 @@ void Model(ModelId id) {
     auto it = sModels.find(id);
     if (it == sModels.end()) return;
     ctx().activePickId = AllocPickId();
+    bool emissive = ctx().emissive;
+    float glowR   = ctx().glowRadius;
     for (auto& sub : it->second.submeshes) {
         SetMeshUniforms(sub.color);
         ctx().twoSided = true;
+        if (emissive) { ctx().emissive = true; ctx().glowRadius = glowR; }
         UploadGpuDraw(sub.mesh, Mat());
     }
 }
