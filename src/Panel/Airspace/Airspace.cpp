@@ -199,7 +199,13 @@ void Airspace::DrawFlight() {
         Render::Globe();
         DrawWorld(nedPos);
 
-        Render::Pose(nedPos, 0.5f);
+        Render::PushMatrix();
+            Render::Translate(nedPos);
+            Render::RotateZ(aircraft_.yaw);
+            Render::RotateY(aircraft_.pitch);
+            Render::RotateX(aircraft_.roll);
+            Render::Pose({0, 0, 0}, 0.5f);
+        Render::PopMatrix();
 
         Render::Text(nedPos + glm::vec3(0.0f, 0.0f, -0.2f), Render::Color::Hex("#FFFFFF50"), "Lat %.6f\nLon %.6f\nAlt %.0f m",
             aircraft_.lat, aircraft_.lon, aircraft_.alt);
