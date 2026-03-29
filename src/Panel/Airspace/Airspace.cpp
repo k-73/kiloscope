@@ -189,8 +189,10 @@ void Airspace::DrawFlight() {
         Render::Globe();
         DrawWorld(nedPos);
         auto aircraftEv = Render::Event();
-        if (aircraftEv.Hovered())
-            Render::Text(nedPos + glm::vec3(0, 0, -0.5f), {1,1,1,.6f}, "Aircraft");
+        if (aircraftEv.Hovered()) {
+            Render::Text(nedPos + glm::vec3(0, 0, -0.5f), {1,1,1,0.5f}, "Lat %.6f\nLon %.6f\nAlt %.0f m",
+                aircraft_.lat, aircraft_.lon, aircraft_.alt);
+        }
 
         Render::PushMatrix();
             Render::Translate(nedPos);
