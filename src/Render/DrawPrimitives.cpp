@@ -662,7 +662,7 @@ void Sensor(const glm::vec3& pos, const glm::vec3& dir, const glm::vec3& up,
     PickGroup pg;
     glm::vec3 fwd   = glm::normalize(dir);
     glm::vec3 c     = glm::cross(fwd, up);
-    if (glm::dot(c, c) < 1e-8f) return;  // degenerate: dir parallel to up
+    if (glm::dot(c, c) < 1e-8f) c = glm::cross(fwd, Perpendicular(fwd));  // fallback when dir ∥ up
     glm::vec3 right = glm::normalize(c);
     glm::vec3 camUp = glm::cross(right, fwd);
 
