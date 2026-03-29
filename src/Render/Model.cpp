@@ -8,8 +8,6 @@
 
 namespace Kilo::Render {
 
-// ── internal types ──────────────────────────────────────────────────
-
 struct Submesh {
     IndexedMesh mesh;
     glm::vec4   color{.5f, .55f, .6f, 1.f};
@@ -43,96 +41,65 @@ static bool LoadOBJ(const std::string& path, ModelEntry& out) {
     auto dir = std::filesystem::path(path).parent_path().string();
     if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
                           path.c_str(), dir.empty() ? nullptr : dir.c_str(), true)) {
-        Log::Render().error("Model: failed to load '{}': {}", path, err);
+        Log::Render().error("Model: failed to load '{}'", path);
         return false;
     }
-    if (!warn.empty()) Log::Render().warn("Model: {}", warn);
 
-    // Group faces by material → submeshes
-    // First pass: find unique material IDs across all shapes
-    std::unordered_map<int, int> matToSubmesh;
-
-    for (auto& shape : shapes) {
-        for (int matId : shape.mesh.material_ids) {
-            if (matToSubmesh.find(matId) == matToSubmesh.end()) {
-                int idx = static_cast<int>(matToSubmesh.size());
-                matToSubmesh[matId] = idx;
-            }
+    // Submesh per material (created on demand)
+    std::unordered_map<int, int> matMap;
+    auto submeshFor = [&](int matId) -> int {
+        auto [it, ins] = matMap.try_emplace(matId, int(matMap.size()));
+        if (ins) {
+            auto& s = out.submeshes.emplace_back();
+            if (matId >= 0 && matId < int(materials.size()))
+                s.color = {materials[matId].diffuse[0], materials[matId].diffuse[1], materials[matId].diffuse[2], 1.f};
         }
-    }
-    if (matToSubmesh.empty()) matToSubmesh[-1] = 0;
+        return it->second;
+    };
 
-    out.submeshes.resize(matToSubmesh.size());
-
-    // Assign default colors from materials
-    for (auto& [matId, subIdx] : matToSubmesh) {
-        if (matId >= 0 && matId < static_cast<int>(materials.size())) {
-            auto& m = materials[matId];
-            out.submeshes[subIdx].color = {m.diffuse[0], m.diffuse[1], m.diffuse[2], 1.f};
-        }
-    }
-
-    // Per-submesh vertex welding maps
-    std::vector<std::unordered_map<VKey, int, VKeyHash>> vertMaps(out.submeshes.size());
-
+    std::vector<std::unordered_map<VKey, int, VKeyHash>> vmaps;
     float maxR2 = 0.f;
 
     for (auto& shape : shapes) {
-        size_t indexOff = 0;
+        size_t off = 0;
         for (size_t f = 0; f < shape.mesh.num_face_vertices.size(); ++f) {
             int fv = shape.mesh.num_face_vertices[f];
-            int matId = f < shape.mesh.material_ids.size() ? shape.mesh.material_ids[f] : -1;
-            int subIdx = matToSubmesh.count(matId) ? matToSubmesh[matId] : matToSubmesh[-1];
-            auto& sub = out.submeshes[subIdx];
-            auto& vmap = vertMaps[subIdx];
+            int si = submeshFor(f < shape.mesh.material_ids.size() ? shape.mesh.material_ids[f] : -1);
+            if (si >= int(vmaps.size())) vmaps.resize(si + 1);
+            auto& sub = out.submeshes[si];
+            auto& vm  = vmaps[si];
 
-            // Collect face vertex indices
-            std::vector<int> faceIdx(fv);
+            int first = -1, prev = -1;
             for (int v = 0; v < fv; ++v) {
-                auto& idx = shape.mesh.indices[indexOff + v];
+                auto& idx = shape.mesh.indices[off + v];
                 VKey key{idx.vertex_index, idx.normal_index, idx.texcoord_index};
+                auto [it, ins] = vm.try_emplace(key, int(sub.mesh.pos.size()));
 
-                auto it = vmap.find(key);
-                if (it != vmap.end()) {
-                    faceIdx[v] = it->second;
-                } else {
-                    int vi = static_cast<int>(sub.mesh.pos.size());
-                    vmap[key] = vi;
-                    faceIdx[v] = vi;
-
-                    glm::vec3 p{0};
-                    if (key.p >= 0 && key.p * 3 + 2 < static_cast<int>(attrib.vertices.size()))
-                        p = {attrib.vertices[key.p*3], attrib.vertices[key.p*3+1], attrib.vertices[key.p*3+2]};
+                if (ins) {
+                    auto* vp = &attrib.vertices[key.p * 3];
+                    glm::vec3 p{vp[0], vp[1], vp[2]};
                     sub.mesh.pos.push_back(p);
                     maxR2 = std::max(maxR2, glm::dot(p, p));
 
-                    glm::vec3 n{0, 0, 1};
-                    if (key.n >= 0 && key.n * 3 + 2 < static_cast<int>(attrib.normals.size()))
-                        n = glm::normalize(glm::vec3{attrib.normals[key.n*3], attrib.normals[key.n*3+1], attrib.normals[key.n*3+2]});
-                    sub.mesh.nrm.push_back(n);
+                    if (key.n >= 0) { auto* np = &attrib.normals[key.n * 3]; sub.mesh.nrm.push_back(glm::normalize(glm::vec3{np[0], np[1], np[2]})); }
+                    else sub.mesh.nrm.push_back({0, 0, 1});
 
-                    glm::vec2 uv{0};
-                    if (key.t >= 0 && key.t * 2 + 1 < static_cast<int>(attrib.texcoords.size()))
-                        uv = {attrib.texcoords[key.t*2], attrib.texcoords[key.t*2+1]};
-                    sub.mesh.uv.push_back(uv);
+                    if (key.t >= 0) { auto* tp = &attrib.texcoords[key.t * 2]; sub.mesh.uv.push_back({tp[0], tp[1]}); }
+                    else sub.mesh.uv.push_back({0, 0});
                 }
+
+                int vi = it->second;
+                if (v == 0) first = vi;
+                else if (v >= 2) sub.mesh.tri.push_back({first, prev, vi});
+                prev = vi;
             }
-
-            // Triangulate (fan from first vertex)
-            for (int v = 1; v + 1 < fv; ++v)
-                sub.mesh.tri.push_back({faceIdx[0], faceIdx[v], faceIdx[v+1]});
-
-            indexOff += fv;
+            off += fv;
         }
     }
 
-    // Compute bounding radius per submesh and overall
     out.boundingRadius = std::sqrt(maxR2);
-    for (auto& sub : out.submeshes)
-        sub.mesh.boundingRadius = out.boundingRadius;
-
-    Log::Render().info("Model: loaded '{}' — {} submeshes, {:.1f}m radius",
-        path, out.submeshes.size(), out.boundingRadius);
+    for (auto& sub : out.submeshes) sub.mesh.boundingRadius = out.boundingRadius;
+    Log::Render().info("Model: '{}' — {} submeshes, {:.1f}m radius", path, out.submeshes.size(), out.boundingRadius);
     return true;
 }
 
@@ -140,26 +107,18 @@ static bool LoadOBJ(const std::string& path, ModelEntry& out) {
 
 ModelId LoadModel(const std::string& path) {
     uint32_t id = HashName(path.c_str());
-    if (id == 0) id = 1;  // avoid kInvalidModel
-    if (sModels.count(id)) return id;
+    if (id == 0) id = 1;
+    if (sModels.contains(id)) return id;
 
-    auto ext = std::filesystem::path(path).extension().string();
     ModelEntry entry;
-    bool ok = false;
+    bool ok = (std::filesystem::path(path).extension() == ".obj") && LoadOBJ(path, entry);
+    if (!ok) { Log::Render().error("Model: failed '{}'", path); return kInvalidModel; }
 
-    if (ext == ".obj")
-        ok = LoadOBJ(path, entry);
-    else
-        Log::Render().error("Model: unsupported format '{}'", ext);
-
-    if (!ok) return kInvalidModel;
     sModels[id] = std::move(entry);
     return id;
 }
 
-bool IsModelLoaded(ModelId id) {
-    return sModels.count(id) > 0;
-}
+bool IsModelLoaded(ModelId id) { return sModels.contains(id); }
 
 void Model(ModelId id, const glm::vec4& color) {
     auto it = sModels.find(id);
@@ -182,15 +141,12 @@ void Model(ModelId id) {
 
 void ShutdownModels() {
     for (auto& [_, entry] : sModels)
-        for (auto& sub : entry.submeshes) {
-            auto& g = sub.mesh.gpu;
-            if (g.vao) {
+        for (auto& sub : entry.submeshes)
+            if (auto& g = sub.mesh.gpu; g.vao) {
                 glDeleteVertexArrays(1, &g.vao);
                 glDeleteBuffers(1, &g.vbo);
                 glDeleteBuffers(1, &g.ebo);
-                g.vao = g.vbo = g.ebo = 0;
             }
-        }
     sModels.clear();
 }
 
