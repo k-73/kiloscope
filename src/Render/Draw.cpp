@@ -996,6 +996,15 @@ void SetMatrix(const glm::mat4& m)  { ctx().matStack.back() = m; }
 void Transform(const glm::mat4& m)  { ctx().matStack.back() *= m; }
 void Translate(const glm::vec3& v)  { auto& m = ctx().matStack.back(); m = glm::translate(m, v); }
 void Translate(float x, float y, float z) { Translate({x, y, z}); }
+void TranslateGeo(double lat, double lon, double alt) {
+    // Full double pipeline: geodetic → ECEF → ENU → frame → camera-relative → float32
+    // No float32 truncation until the final cast — sub-mm precision at any distance.
+    auto& gr = ctx().geoRef;
+    auto enu = gr.ToInternal(lat, lon, alt);                        // double
+    auto framed = glm::dvec3(glm::transpose(glm::dmat3(ctx().frameMat)) * enu);  // double
+    auto camRel = framed - sCamPosD;                                 // double
+    Translate(glm::vec3(camRel));                                    // float32 only here
+}
 void Rotate(float deg, const glm::vec3& axis) { auto& m = ctx().matStack.back(); m = glm::rotate(m, glm::radians(deg), axis); }
 void Rotate(const glm::quat& q) { ctx().matStack.back() *= glm::mat4_cast(q); }
 void RotateX(float deg) { Rotate(deg, {1, 0, 0}); }

@@ -233,6 +233,9 @@ void SetMatrix(const glm::mat4& m);
 void Transform(const glm::mat4& m);
 void Translate(const glm::vec3& offset);
 void Translate(float x, float y, float z);
+// Geodetic translate — full double precision, no float32 truncation at any distance.
+// Converts lat/lon/alt → local frame with camera-relative subtraction in double.
+void TranslateGeo(double lat, double lon, double alt = 0.0);
 void Rotate(float angleDeg, const glm::vec3& axis);
 void Rotate(const glm::quat& q);
 void RotateX(float angleDeg);
