@@ -168,7 +168,7 @@ void main() {
     float edgeFade = smoothstep(0.0, max(0.002, fwidth(NdotV) * 2.0), NdotV);
     FragColor = vec4(lit, uSurfaceColor.a * edgeFade);
 
-    vec4 cp = uViewProj * vec4(hitWorld, 1.0);
+    vec4 cp = uViewProj * vec4(hitWorld - uCamPos, 1.0);  // camera-relative for depth
     // Depth bias: globe always loses to lines/meshes at similar depth.
     // 1e-4 ≈ 0.2m at 1km distance — objects on/near the surface always win.
     gl_FragDepth = clamp(log2(max(1e-6, cp.w + 1.0)) / log2(uFarPlane + 1.0) + 1e-4, 0.0, 1.0);

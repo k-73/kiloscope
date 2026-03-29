@@ -108,12 +108,14 @@ public:
         return {-cp * cy, -cp * sy, -sp};
     }
 
+    // Right/Up derived directly from yaw/pitch — no singularity at vertical pitch
     glm::vec3 Right() const {
-        return glm::normalize(glm::cross(ViewDir(), glm::vec3(0, 0, 1)));
+        float cy = std::cos(glm::radians(yaw_)), sy = std::sin(glm::radians(yaw_));
+        return {-sy, cy, 0.f};  // unit vector (sin²+cos²=1), no normalize needed
     }
 
     glm::vec3 Up() const {
-        return glm::normalize(glm::cross(Right(), ViewDir()));
+        return glm::cross(Right(), ViewDir());  // already unit (Right ⊥ ViewDir)
     }
 
     // ── transforms ───────────────────────────────────────────────
@@ -121,11 +123,25 @@ public:
     glm::dvec3 Eye() const { return pivot_ - glm::dvec3(ViewDir()) * dist_; }
 
     glm::mat4 View() const {
-        return glm::mat4(glm::lookAt(Eye(), pivot_, glm::dvec3(0, 0, 1)));
+        auto e = Eye();
+        auto r = Right(); auto u = Up(); auto f = ViewDir();
+        return glm::mat4(
+            glm::vec4(r.x, u.x, -f.x, 0),
+            glm::vec4(r.y, u.y, -f.y, 0),
+            glm::vec4(r.z, u.z, -f.z, 0),
+            glm::vec4(-glm::dot(glm::vec3(e), r), -glm::dot(glm::vec3(e), u), glm::dot(glm::vec3(e), f), 1));
     }
 
+    // Camera-relative view matrix (camera at origin, no singularity at vertical pitch)
     glm::mat4 ViewCamRelative() const {
-        return glm::mat4(glm::lookAt(glm::dvec3(0.0), glm::dvec3(ViewDir()) * dist_, glm::dvec3(0, 0, 1)));
+        auto r = Right();
+        auto u = Up();
+        auto f = ViewDir();
+        return glm::mat4(
+            glm::vec4(r.x, u.x, -f.x, 0),
+            glm::vec4(r.y, u.y, -f.y, 0),
+            glm::vec4(r.z, u.z, -f.z, 0),
+            glm::vec4(0, 0, 0, 1));
     }
 
     glm::mat4 Projection(float aspect, float autoFar = 10000.f) const {

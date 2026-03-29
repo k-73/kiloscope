@@ -98,7 +98,7 @@ void main() {
     if (alpha < 0.003) discard;
 
     FragColor    = vec4(col, alpha);
-    vec4 cp      = uViewProj * vec4(fp, 1);
+    vec4 cp      = uViewProj * vec4(fp - uCamPos, 1);  // camera-relative for depth
     float Fcoef_half = 1.0 / log2(uFarPlane + 1.0);
     gl_FragDepth = log2(max(1e-6, cp.w + 1.0)) * Fcoef_half + 1e-4;
 }

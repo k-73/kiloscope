@@ -159,7 +159,7 @@ void SetMeshFrameUniforms() {
     sMeshShader.Use();
     sMeshShader.Set("uViewProj", sViewProj);
     sMeshShader.Set("uLightDir", sLightDir);
-    sMeshShader.Set("uCamPos", sCamPos);
+    sMeshShader.Set("uCamPos", glm::vec3(0.f));  // camera-relative: camera at origin
     sMeshShader.Set("uBgColor", env.bgColor);
     sMeshShader.Set("uAmbient", env.ambient);
     sMeshShader.Set("uDiffuse", env.diffuse);
@@ -173,7 +173,8 @@ void SetMeshFrameUniforms() {
     glUniform1i(sNumLightsLoc, ctx().numPointLights);
     for (int i = 0; i < ctx().numPointLights; ++i) {
         auto& light = ctx().pointLights[i];
-        glUniform3fv(sLightLocs[i].pos,   1, &light.pos.x);
+        auto camRelPos = glm::vec3(glm::dvec3(light.pos) - sCamPosD);  // camera-relative
+        glUniform3fv(sLightLocs[i].pos,   1, &camRelPos.x);
         glUniform3fv(sLightLocs[i].color, 1, &light.color.x);
         glUniform1f (sLightLocs[i].range, light.range);
     }
@@ -308,19 +309,23 @@ static void UploadGpuMesh(IndexedMesh& mesh) {
 void UploadGpuDraw(IndexedMesh& mesh, const glm::mat4& model) {
     UploadGpuMesh(mesh);
     auto& s = ctx();
-    auto nmat = NormalMatrix(model);
-    float maxScale = std::max({glm::length(glm::vec3(model[0])),
-                               glm::length(glm::vec3(model[1])),
-                               glm::length(glm::vec3(model[2]))});
+    // Camera-relative model: subtract camera position in double, cast result to float32.
+    // Preserves sub-mm precision even at 200km+ altitude.
+    glm::mat4 camRelModel = model;
+    camRelModel[3] = glm::vec4(glm::vec3(glm::dvec3(model[3]) - sCamPosD), model[3].w);
+    auto nmat = NormalMatrix(camRelModel);
+    float maxScale = std::max({glm::length(glm::vec3(camRelModel[0])),
+                               glm::length(glm::vec3(camRelModel[1])),
+                               glm::length(glm::vec3(camRelModel[2]))});
     s.drawList.push_back({0, 0, s.currentColor, s.currentShadingMode,
-                          s.activePickId, &mesh.gpu, model, nmat,
+                          s.activePickId, &mesh.gpu, camRelModel, nmat,
                           mesh.boundingRadius * maxScale, s.twoSided});
     s.stats.vertices += mesh.gpu.indexCount;
 
     // Emissive glow: centroid from model translation, radius from bounding sphere × scale
     float autoR = mesh.boundingRadius * maxScale;
     s.twoSided = false;
-    ConsumeEmissive(glm::vec3(model[3]), autoR);
+    ConsumeEmissive(glm::vec3(camRelModel[3]), autoR);
 }
 
 // ── line batching ────────────────────────────────────────────────────
@@ -720,11 +725,14 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     }
     sFarPlane = cam.FarPlane() > 0.f ? cam.FarPlane() : autoFar;
     sProj = cam.Projection(aspect, autoFar);
-    sViewProj    = sProj * sView;
-    // Camera-relative InvViewProj for grid/globe unprojection (stable at large distances)
-    sInvViewProj = glm::inverse(sProj * cam.ViewCamRelative());
     sCamPosD     = cam.Eye();
     sCamPos      = glm::vec3(sCamPosD);
+    // Camera-relative rendering: view matrix with camera at origin.
+    // Model translations are shifted by -camPos (in double) before upload.
+    // This eliminates float32 jitter at large world coordinates (e.g. 200km altitude).
+    sView        = cam.ViewCamRelative();
+    sViewProj    = sProj * sView;
+    sInvViewProj = glm::inverse(sViewProj);
     sFrustum     = ExtractFrustum(sViewProj);
     sLightDir = glm::normalize(scene->env.lightDir);
     sVpW = w; sVpH = h;
@@ -796,7 +804,7 @@ static void DrawGrid(const GridConfig& cfg, float camDist) {
     sGridShader.Use();
     sGridShader.Set("uInvViewProj", sInvViewProj);
     sGridShader.Set("uViewProj", sViewProj);
-    sGridShader.Set("uCamPos", sCamPos);
+    sGridShader.Set("uCamPos", sCamPos);  // world position for grid pattern (not camera-relative)
     sGridShader.Set("uCamDist", camDist);
     sGridShader.Set("uScaleFine",   cfg.scaleFine);
     sGridShader.Set("uScaleMedium", cfg.scaleMedium);

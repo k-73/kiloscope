@@ -258,8 +258,10 @@ inline uint32_t AllocPickId() {
 
 inline const glm::mat4& Mat() { return ctx().matStack.back(); }
 
+// Transform to camera-relative world space (double subtraction for precision at altitude)
 inline glm::vec3 XformPoint(const glm::vec3& p) {
-    return glm::vec3(Mat() * glm::vec4(p, 1.f));
+    auto world = Mat() * glm::vec4(p, 1.f);
+    return glm::vec3(glm::dvec3(world) - sCamPosD);
 }
 
 inline glm::vec3 XformDir(const glm::vec3& d) {
