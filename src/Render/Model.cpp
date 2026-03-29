@@ -130,17 +130,15 @@ ModelId LoadModel(const std::string& path) {
 
 bool IsModelLoaded(ModelId id) { return sModels.contains(id); }
 
-void Model(ModelId id, const glm::vec4& color) {
-    auto it = sModels.find(id);
-    if (it == sModels.end()) return;
+// Core: draw model submeshes. color=nullptr → per-submesh default colors.
+static void DrawModel(ModelEntry& entry, const glm::vec4* color) {
     ctx().activePickId = AllocPickId();
-    // Cache and clear one-shot flags — restore on last submesh only
     bool  emissive = std::exchange(ctx().emissive, false);
     bool  glow     = std::exchange(ctx().glow, false);
     float glowR    = std::exchange(ctx().glowRadius, 0.f);
-    auto& subs = it->second.submeshes;
+    auto& subs = entry.submeshes;
     for (size_t i = 0; i < subs.size(); ++i) {
-        SetMeshUniforms(color);
+        SetMeshUniforms(color ? *color : subs[i].color);
         ctx().twoSided = true;
         if (emissive && i + 1 == subs.size()) {
             ctx().emissive = true; ctx().glow = glow; ctx().glowRadius = glowR;
@@ -149,22 +147,14 @@ void Model(ModelId id, const glm::vec4& color) {
     }
 }
 
+void Model(ModelId id, const glm::vec4& color) {
+    auto it = sModels.find(id);
+    if (it != sModels.end()) DrawModel(it->second, &color);
+}
+
 void Model(ModelId id) {
     auto it = sModels.find(id);
-    if (it == sModels.end()) return;
-    ctx().activePickId = AllocPickId();
-    bool  emissive = std::exchange(ctx().emissive, false);
-    bool  glow     = std::exchange(ctx().glow, false);
-    float glowR    = std::exchange(ctx().glowRadius, 0.f);
-    auto& subs = it->second.submeshes;
-    for (size_t i = 0; i < subs.size(); ++i) {
-        SetMeshUniforms(subs[i].color);
-        ctx().twoSided = true;
-        if (emissive && i + 1 == subs.size()) {
-            ctx().emissive = true; ctx().glow = glow; ctx().glowRadius = glowR;
-        }
-        UploadGpuDraw(subs[i].mesh, Mat());
-    }
+    if (it != sModels.end()) DrawModel(it->second, nullptr);
 }
 
 void ShutdownModels() {

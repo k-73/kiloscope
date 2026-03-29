@@ -3,6 +3,7 @@
 #include "Render/Frame.hpp"
 #include "Render/Geo.hpp"
 #include <glm/glm.hpp>
+#include <deque>
 #include <vector>
 
 namespace Kilo {
@@ -42,7 +43,7 @@ private:
     // Trail (ECEF cache — GeographicLib once on record, cheap matrix per frame)
     static constexpr size_t  kTrailMax  = 128;
     static constexpr double  kTrailStep = 1.0;   // meters between trail points
-    std::vector<glm::dvec3>  trailEcef_;          // ECEF positions (computed once)
+    std::deque<glm::dvec3>   trailEcef_;           // ECEF positions (O(1) pop_front)
     std::vector<glm::vec3>   trailBuf_;           // NED positions (recomputed per frame)
 
 };

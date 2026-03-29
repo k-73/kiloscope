@@ -22,21 +22,14 @@ Airspace::Airspace() : Panel("Airspace", "Airspace") {
 
 static Render::ModelId sJetModel = Render::kInvalidModel;
 
-// Engine nozzle offsets in body frame (X=fwd, Y=right, Z=down)
-constexpr float kEngX   = -2.2f;   // fore-aft (negative = behind CG)
-constexpr float kEngY   =  0.21f;  // lateral (half-spacing between engines)
-constexpr float kEngZ   =  0.0f;   // vertical (positive = down)
-constexpr float kFlameR =  0.12f;  // afterburner sphere radius
-constexpr glm::vec3 kEngineL{kEngX, -kEngY, kEngZ};
-constexpr glm::vec3 kEngineR{kEngX,  kEngY, kEngZ};
-
 static void DrawAircraft(float speed) {
     Render::Group group;  // model + afterburner = one pickable object
 
+    // Load model on first use
     if (sJetModel == Render::kInvalidModel)
         sJetModel = Render::LoadModel(std::string(ASSETS_DIR) + "/models/Jet_Lowpoly.obj");
 
-    // OBJ → body frame: scale + coordinate transform
+    // OBJ → body frame: scale, offset, coordinate transform
     Render::PushMatrix();
         Render::Scale(0.33f);
         Render::Translate(0, 0, -1.0f);
@@ -49,8 +42,12 @@ static void DrawAircraft(float speed) {
         Render::Model(sJetModel, Render::Color::Hex("#3a5570"));
     Render::PopMatrix();
 
-    // Afterburner: gradient beam (white-hot core → red tip), intensity ∝ speed
+    // Engine afterburner — gradient beam, intensity ∝ speed
     if (speed > 0.f) {
+        constexpr glm::vec3 kEngineL{-2.2f, -0.21f, 0.f};  // body frame (X=fwd, Y=right, Z=down)
+        constexpr glm::vec3 kEngineR{-2.2f,  0.21f, 0.f};
+        constexpr float kFlameR = 0.12f;
+
         float t   = std::min(speed / 120.f, 1.f);   // normalized throttle 0→1
         float len = 0.3f + t * 1.2f;                 // flame length grows with speed
         for (auto& eng : {kEngineL, kEngineR})
@@ -259,7 +256,7 @@ void Airspace::DrawFlight(float dt) {
     auto ecef = Render::GeoRef::ToEcef(aircraft_.lat, aircraft_.lon, aircraft_.alt);
     if (trailEcef_.empty() || glm::length(ecef - trailEcef_.back()) > kTrailStep) {
         trailEcef_.push_back(ecef);
-        if (trailEcef_.size() > kTrailMax) trailEcef_.erase(trailEcef_.begin());
+        if (trailEcef_.size() > kTrailMax) trailEcef_.pop_front();
     }
 }
 
