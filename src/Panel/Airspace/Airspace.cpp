@@ -1,6 +1,7 @@
 #include "Airspace.hpp"
 #include "Core/Panel/PanelRegistry.hpp"
 #include "Render/Draw.hpp"
+#include "Render/Model.hpp"
 #include "Render/Camera.hpp"
 #include "Render/Frame.hpp"
 #include "Render/Geo.hpp"
@@ -16,38 +17,25 @@ Airspace::Airspace() : Panel("Airspace", "Airspace") {
     Render::GetCamera("flight").ResetFollow(12.f);
 }
 
-// ── aircraft model (body: X=forward, Y=right, Z=down) ──────────
+// ── aircraft model ──────────────────────────────────────────────
+
+static Render::ModelId sJetModel = Render::kInvalidModel;
 
 static void DrawAircraft() {
+    if (sJetModel == Render::kInvalidModel)
+        sJetModel = Render::LoadModel(std::string(ASSETS_DIR) + "/models/jet-low-poly.obj");
+
     Render::Group group;
-    using Render::Color::Hex;
-
-    constexpr auto Fuse = "#2d4155", Surf = "#3a5570", Tip = "#6890ab", Glass = "#7eaac8";
-    constexpr float R = 0.12f, S = 2.0f;
-
-    // Fuselage — capsule body (smooth joints), nose cone, blunted tip, tail taper
-    Render::Capsule ({-0.2f, 0, 0}, {0.7f, 0, 0},  R, Hex(Fuse), 14);       // body
-    Render::Cone    ({0.7f, 0, 0},  {1.15f, 0, 0},  R, Hex(Fuse), 14);      // nose
-    Render::Sphere  ({1.1f, 0, 0},  R * .1f, Hex(Tip), 10);                  // tip
-    Render::Cone    ({-0.2f, 0, 0}, {-1.1f, 0, 0}, R, Hex(Fuse), 14);       // tail
-    Render::Sphere  ({0.55f, 0, -R * .5f}, R * .38f, Hex(Glass), 12);        // canopy
-
-    // Wings — swept trapezoid, slight dihedral
-    for (float s : {-1.f, 1.f}) {
-        glm::vec3 rl{.3f, 0, 0}, rt{-.3f, 0, 0}, tl{0.f, s*S, -.07f}, tt{-.15f, s*S, -.07f};
-        Render::Triangle(rl, rt, tt, Hex(Surf), true);
-        Render::Triangle(rl, tt, tl, Hex(Surf), true);
-    }
-
-    // Horizontal stabilizer — slight anhedral
-    for (float s : {-1.f, 1.f}) {
-        glm::vec3 rl{-.85f, 0, 0}, rt{-1.08f, 0, 0}, tl{-.9f, s*.5f, .02f}, tt{-1.02f, s*.5f, .02f};
-        Render::Triangle(rl, rt, tt, Hex(Surf), true);
-        Render::Triangle(rl, tt, tl, Hex(Surf), true);
-    }
-
-    // Vertical fin — swept
-    Render::Triangle({-1.1f, 0, 0}, {-.8f, 0, 0}, {-.95f, 0, -.45f}, Hex(Tip), true);
+    Render::PushMatrix();
+        Render::Scale(0.33f);
+        // Blender (X=right, Y=up, -Z=forward) → Body (X=forward, Y=right, Z=down)
+        Render::Transform(glm::mat4(
+            glm::vec4(0, 1, 0, 0),   // OBJ X → Body Y
+            glm::vec4(0, 0, -1, 0),  // OBJ Y → Body -Z
+            glm::vec4(-1, 0, 0, 0),  // OBJ Z → Body -X
+            glm::vec4(0, 0, 0, 1)));
+        Render::Model(sJetModel, Render::Color::Hex("#3a5570"));
+    Render::PopMatrix();
 }
 
 // ── controls ────────────────────────────────────────────────────

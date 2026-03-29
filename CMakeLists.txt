@@ -44,5 +44,6 @@ target_compile_options(kiloscope PRIVATE
 target_link_libraries(kiloscope PRIVATE
     imgui implot glm::glm spdlog::spdlog nlohmann_json::nlohmann_json
     generator glaze::glaze GeographicLib::GeographicLib
+    tinyobjloader
     OpenGL::GL glfw GLEW::GLEW Freetype::Freetype
 )

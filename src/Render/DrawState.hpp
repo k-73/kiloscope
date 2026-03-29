@@ -298,6 +298,7 @@ struct PickGroup {
 void SetMeshUniforms(const glm::vec4& color, bool unlit = false);
 void UploadMesh(const std::vector<MeshVert>& v);
 void UploadGpuDraw(IndexedMesh& mesh, const glm::mat4& model);
+void ShutdownModels();  // defined in Model.cpp
 void BatchLine(const glm::vec3& a, const glm::vec3& b,
                const glm::vec4& color, float width);
 void BatchLineGradient(const glm::vec3& a, const glm::vec3& b,

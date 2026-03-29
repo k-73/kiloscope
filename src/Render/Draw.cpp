@@ -569,6 +569,7 @@ void Init(const std::string& dir) {
 // ── Shutdown ─────────────────────────────────────────────────────────
 
 void Shutdown() {
+    ShutdownModels();
     sScenes.clear();
     ShutdownGlobe();
     sMeshShader = {}; sLineShader = {}; sGridShader = {}; sPointShader = {};

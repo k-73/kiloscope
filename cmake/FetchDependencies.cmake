@@ -118,3 +118,16 @@ target_include_directories(generator SYSTEM PUBLIC ${generator_SOURCE_DIR}/inclu
 target_compile_definitions(generator PUBLIC GENERATOR_USE_GLM GLM_ENABLE_EXPERIMENTAL)
 target_compile_options(generator PRIVATE -w)
 target_link_libraries(generator PUBLIC glm::glm)
+
+# ── tinyobjloader (header-only OBJ parser) ─────────────────────────
+FetchContent_Declare(tinyobjloader
+    GIT_REPOSITORY https://github.com/tinyobjloader/tinyobjloader.git
+    GIT_TAG        v2.0.0rc13
+    GIT_SHALLOW    ON
+)
+FetchContent_GetProperties(tinyobjloader)
+if(NOT tinyobjloader_POPULATED)
+    FetchContent_Populate(tinyobjloader)
+endif()
+add_library(tinyobjloader INTERFACE)
+target_include_directories(tinyobjloader SYSTEM INTERFACE ${tinyobjloader_SOURCE_DIR})
