@@ -81,22 +81,26 @@ void Airspace::DrawControls() {
     // Globe
     if (ImGui::CollapsingHeader("Globe")) {
         auto& g = Render::GetGlobe("flight");
+        
         ImGui::Checkbox("Lighting", &g.lighting);
-        if (g.lighting) ImGui::SliderFloat("Ambient", &g.ambient, 0.f, 1.f);
+        ImGui::SliderFloat("Ambient", &g.ambient, 0.f, 1.f);
         ImGui::ColorEdit3("Surface", &g.surfaceColor.x);
         ImGui::ColorEdit3("Grid",    &g.gratColor.x);
         ImGui::Separator();
+
         ImGui::Text("Atmosphere");
         ImGui::ColorEdit3("Atmo Color", &g.atmosphereColor.x);
         ImGui::SliderFloat("Atmo Power", &g.atmospherePow, 1.f, 10.f);
         ImGui::SliderFloat("Atmo Str",   &g.atmosphereStr, 0.f, 2.f);
         ImGui::Separator();
+
         ImGui::Text("Fog");
         ImGui::Checkbox("Fog", &g.fog);
         ImGui::ColorEdit3("Fog Color", &g.fogColor.x);
         ImGui::DragFloat("Fog Start", &g.fogStart, 100.f, 0.f, 100000.f, "%.0f m");
         ImGui::DragFloat("Fog End",   &g.fogEnd, 1000.f, 1000.f, 500000.f, "%.0f m");
         ImGui::Separator();
+
         ImGui::Text("Grid Fades (m)");
         ImGui::DragFloat("0.0001\xc2\xb0", &g.gridFades.x, 10.f, 50.f, 5000.f, "%.0f");
         ImGui::DragFloat("0.001\xc2\xb0",  &g.gridFades.y, 100.f, 100.f, 50000.f, "%.0f");
