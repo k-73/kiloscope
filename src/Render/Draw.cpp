@@ -340,12 +340,13 @@ void FlushLines() {
     sLineShader.Set("uViewportSize", glm::vec2(sVpW, sVpH));
     sLineShader.Set("uFarPlane", sFarPlane);
 
-    glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glDepthMask(GL_FALSE);
     glDisable(GL_CULL_FACE);
     glBindVertexArray(sLineVao);
     glDrawArrays(GL_TRIANGLES, 0, count);
-    glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
+    glDisable(GL_BLEND);
     glDepthMask(GL_TRUE);
     glEnable(GL_CULL_FACE);
 

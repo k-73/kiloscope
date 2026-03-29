@@ -230,8 +230,8 @@ void Airspace::DrawFlight(float dt) {
         cam.CaptureFollow();
 
     Render::GeoCoord gc{aircraft_.lat, aircraft_.lon, aircraft_.alt};
-    if (trail_.empty() || std::abs(gc.lat - trail_.back().lat) > 1e-7
-                       || std::abs(gc.lon - trail_.back().lon) > 1e-7) {
+    if (trail_.empty() || std::abs(gc.lat - trail_.back().lat) > 1e-6
+                       || std::abs(gc.lon - trail_.back().lon) > 1e-6) {
         trail_.push_back(gc);
         if (trail_.size() > kTrailMax) trail_.erase(trail_.begin());
     }
