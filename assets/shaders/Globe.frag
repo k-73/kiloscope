@@ -106,13 +106,13 @@ void main() {
     // Fine grids — use llFrac (float32 precise) for sub-degree spacings
     float fine = 0.0;
     if (dist < uGridFades.w)
-        fine = gridLine(ll, 0.1) * 0.35 * smoothstep(uGridFades.w, uGridFades.w * 0.1, dist);
+        fine = gridLine(ll, 0.1) * 0.45 * smoothstep(uGridFades.w, uGridFades.w * 0.1, dist);
     if (dist < uGridFades.z)
-        fine = max(fine, gridLine(llFrac, 0.01) * 0.25 * smoothstep(uGridFades.z, uGridFades.z * 0.1, dist));
+        fine = max(fine, gridLine(llFrac, 0.01) * 0.35 * smoothstep(uGridFades.z, uGridFades.z * 0.1, dist));
     if (dist < uGridFades.y)
-        fine = max(fine, gridLine(llFrac, 0.001) * 0.15 * smoothstep(uGridFades.y, uGridFades.y * 0.1, dist));
+        fine = max(fine, gridLine(llFrac, 0.001) * 0.25 * smoothstep(uGridFades.y, uGridFades.y * 0.1, dist));
     if (dist < uGridFades.x)
-        fine = max(fine, gridLine(llFrac, 0.0001) * 0.12 * smoothstep(uGridFades.x, uGridFades.x * 0.1, dist));
+        fine = max(fine, gridLine(llFrac, 0.0001) * 0.18 * smoothstep(uGridFades.x, uGridFades.x * 0.1, dist));
 
     // Coarse grids — ECEF Bowring fallback beyond 120°
     float angDist = max(abs(dLon), abs(dLat));

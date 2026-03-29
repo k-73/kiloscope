@@ -276,9 +276,9 @@ void Airspace::SetupEnv(const char* scene) {
     // Origin = aircraft → all local coords small → float32 precise
     Render::SetOrigin(scene, aircraft_.lat, aircraft_.lon, 0.0);
     auto& env    = Render::GetEnvironment(scene);
-    env.bgColor  = {0.04f, 0.05f, 0.09f};
+    env.bgColor  = {0.015f, 0.02f, 0.04f};
     env.showSun  = true;
-    env.lightDir = Render::ToInternal<Render::NED>({0.35f, 0.25f, -0.85f});
+    env.lightDir = Render::ToInternal<Render::NED>({0.3f, 0.2f, -0.9f});
 }
 
 // ── orchestrator ────────────────────────────────────────────────
