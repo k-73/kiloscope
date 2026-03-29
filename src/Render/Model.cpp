@@ -41,9 +41,10 @@ static bool LoadOBJ(const std::string& path, ModelEntry& out) {
     auto dir = std::filesystem::path(path).parent_path().string();
     if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
                           path.c_str(), dir.empty() ? nullptr : dir.c_str(), true)) {
-        Log::Render().error("Model: failed to load '{}'", path);
+        Log::Render().error("Model: failed '{}': {}", path, err);
         return false;
     }
+    if (!warn.empty()) Log::Render().warn("Model: {}", warn);
 
     // Submesh per material (created on demand)
     std::unordered_map<int, int> matMap;

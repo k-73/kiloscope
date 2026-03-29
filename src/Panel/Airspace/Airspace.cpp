@@ -23,7 +23,7 @@ static Render::ModelId sJetModel = Render::kInvalidModel;
 
 static void DrawAircraft() {
     if (sJetModel == Render::kInvalidModel)
-        sJetModel = Render::LoadModel(std::string(ASSETS_DIR) + "/models/jet-low-poly.obj");
+        sJetModel = Render::LoadModel(std::string(ASSETS_DIR) + "/models/SR71.obj");
 
     Render::Group group;
     Render::PushMatrix();
