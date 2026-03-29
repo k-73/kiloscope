@@ -22,7 +22,12 @@ Airspace::Airspace() : Panel("Airspace", "Airspace") {
 
 static Render::ModelId sJetModel = Render::kInvalidModel;
 
-static void DrawAircraft() {
+// Engine nozzle offsets in body frame (X=fwd, Y=right, Z=down)
+constexpr glm::vec3 kEngineL{-2.2f, -0.25f, 0.1f};
+constexpr glm::vec3 kEngineR{-2.2f,  0.25f, 0.1f};
+constexpr float     kFlameR = 0.08f;
+
+static void DrawAircraft(float speed) {
     if (sJetModel == Render::kInvalidModel)
         sJetModel = Render::LoadModel(std::string(ASSETS_DIR) + "/models/Jet_Lowpoly.obj");
 
@@ -30,12 +35,22 @@ static void DrawAircraft() {
         Render::Scale(0.33f);
         Render::Translate(0, 0, -1.0f);
         Render::Transform(glm::mat4(
-            glm::vec4(0, -1, 0, 0),  // OBJ X → Body -Y
-            glm::vec4(0, 0, -1, 0),  // OBJ Y → Body -Z
-            glm::vec4(1, 0, 0, 0),   // OBJ Z → Body +X
+            glm::vec4(0, -1, 0, 0),
+            glm::vec4(0, 0, -1, 0),
+            glm::vec4(1, 0, 0, 0),
             glm::vec4(0, 0, 0, 1)));
         Render::Model(sJetModel, Render::Color::Hex("#3a5570"));
     Render::PopMatrix();
+
+    // Engine flames (body frame, outside model scale)
+    if (speed > 1.f) {
+        float glow = std::min(speed / 100.f, 1.f);
+        glm::vec4 flame = {1.f, .6f, .15f, glow};
+        for (auto& eng : {kEngineL, kEngineR}) {
+            Render::SetNextEmissive(kFlameR * 3.f);
+            Render::Sphere(eng, kFlameR, flame, 8);
+        }
+    }
 }
 
 // ── controls ────────────────────────────────────────────────────
@@ -176,7 +191,7 @@ void Airspace::DrawWorld(const glm::vec3& pos) {
         Render::RotateZ(aircraft_.yaw);
         Render::RotateY(aircraft_.pitch);
         Render::RotateX(aircraft_.roll);
-        DrawAircraft();
+        DrawAircraft(aircraft_.speed);
     Render::PopMatrix();
 }
 
