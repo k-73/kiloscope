@@ -94,10 +94,10 @@ void main() {
 
     float dLat = degrees(atan(enu.y - dx * sinL, M + enu.z + dx * cosL));
 
-    // llFrac = sub-degree part (high precision for fine grids)
+    // llFrac = sub-degree part (Kahan order: small + small first for precision)
     vec2 llFrac = vec2(
-        (uOriginLLFracHi.x + dLon) + uOriginLLFracLo.x,
-        (uOriginLLFracHi.y + dLat) + uOriginLLFracLo.y);
+        uOriginLLFracHi.x + (uOriginLLFracLo.x + dLon),
+        uOriginLLFracHi.y + (uOriginLLFracLo.y + dLat));
     vec2 ll = uOriginLLInt + llFrac;
 
     // ── graticule ────────────────────────────────────────────────

@@ -55,6 +55,7 @@ void CompOver(inout vec3 bgCol, inout float bgA, vec3 fgCol, float fgA) {
 void main() {
     // Ray-plane intersection (world Z=0, camera-relative coords)
     vec3  rd = normalize(vDir);
+    if (abs(rd.z) < 1e-6) discard;
     float t  = -(vNear.z + uCamPos.z) / rd.z;
     if (t < 0.0) discard;
     vec3 fp = vNear + t * rd + uCamPos;  // convert to world coords for grid

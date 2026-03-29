@@ -108,7 +108,7 @@ void main() {
     vec3  H   = normalize(L + V);
     float NdL = dot(N, L);
     float NdV = dot(N, V);
-    float r2  = uRoughness * uRoughness;
+    float r2  = max(uRoughness * uRoughness, 0.04);
 
     float diff    = WrapDiffuse(NdL);
     float hemi    = N.z * 0.08 + uAmbient;

@@ -16,7 +16,8 @@ void main() {
     float d = dot(c, c);
     if (d > 1.0) discard;
 
-    float coverage = (1.0 - smoothstep(0.8, 1.0, d)) * vColor.a;
+    float edge = max(fwidth(d) * 2.0, 0.15);
+    float coverage = (1.0 - smoothstep(1.0 - edge, 1.0, d)) * vColor.a;
     if (coverage < 0.02) discard;
     FragColor = vec4(vColor.rgb, coverage);
 }
