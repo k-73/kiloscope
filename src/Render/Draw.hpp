@@ -155,15 +155,15 @@ GridConfig& GetGrid(const char* name);
 // ── globe (WGS84 ellipsoid) ─────────────────────────────────────
 struct GlobeConfig {
     bool      enabled      = false;
-    glm::vec4 surfaceColor = {.04f, .06f, .10f, 1.f};
-    glm::vec4 gratColor    = {.20f, .35f, .40f, 1.f};
+    glm::vec4 surfaceColor = {.05f, .07f, .11f, 1.f};
+    glm::vec4 gratColor    = {.15f, .25f, .30f, 1.f};
     // Lighting
     bool      lighting     = true;
-    float     ambient      = 0.15f;
+    float     ambient      = 0.20f;
     // Atmosphere rim
-    glm::vec3 atmosphereColor = {.4f, .65f, 1.f};
-    float     atmospherePow   = 3.f;        // Fresnel exponent (higher = thinner rim)
-    float     atmosphereStr   = 0.6f;       // intensity multiplier
+    glm::vec3 atmosphereColor = {.25f, .35f, .65f};
+    float     atmospherePow   = 3.5f;       // Fresnel exponent (higher = thinner rim)
+    float     atmosphereStr   = 0.45f;       // intensity multiplier
     // Grid fade distances (meters) — fine grids invisible beyond these
     glm::vec4 gridFades    = {500.f, 5000.f, 50000.f, 200000.f};  // 0.0001°, 0.001°, 0.01°, 0.1°
 };
