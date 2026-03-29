@@ -2,6 +2,7 @@
 #include <GL/glew.h>
 #include <glm/glm.hpp>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <utility>
 
@@ -34,7 +35,16 @@ public:
 
 private:
     GLuint prog_ = 0;
-    mutable std::unordered_map<std::string, GLint> uniformCache_;
+    // Transparent hash: allows find(const char*) without constructing std::string
+    struct StrHash {
+        using is_transparent = void;
+        size_t operator()(std::string_view s) const { return std::hash<std::string_view>{}(s); }
+    };
+    struct StrEq {
+        using is_transparent = void;
+        bool operator()(std::string_view a, std::string_view b) const { return a == b; }
+    };
+    mutable std::unordered_map<std::string, GLint, StrHash, StrEq> uniformCache_;
 
     GLint Loc(const char* name) const;
     static GLuint Compile(GLenum type, const std::string& src);

@@ -191,9 +191,17 @@ void SetMeshUniforms(const glm::vec4& color, bool unlit) {
 static void BeginPickPass() {
     ctx().pickFbo.Bind();
     glDepthMask(GL_TRUE);
+    // Scissor: only rasterize near cursor (GPU rejects all other fragments)
+    auto& io = ImGui::GetIO();
+    int mx = static_cast<int>(io.MousePos.x - sFrame.cx);
+    int my = sVpH - static_cast<int>(io.MousePos.y - sFrame.cy); // flip Y for GL
+    constexpr int kPickRadius = 4;
+    glEnable(GL_SCISSOR_TEST);
+    glScissor(mx - kPickRadius, my - kPickRadius, kPickRadius * 2, kPickRadius * 2);
 }
 
 static void EndPickPass() {
+    glDisable(GL_SCISSOR_TEST);
     glBindFramebuffer(GL_FRAMEBUFFER, ctx().fbo.Handle());
     glViewport(0, 0, sVpW, sVpH);
 }
@@ -867,13 +875,14 @@ void End() {
             UploadVbo(sMeshVbo, sMeshVboCap, ctx().vboAccum.data(),
                       GLsizeiptr(ctx().vboAccum.size() * sizeof(MeshVert)));
 
-        // Helper lambdas for dual-path draw
+        // Helper: bind VAO only if changed, then draw
+        GLuint boundVao = 0;
         auto bindAndDraw = [&](const MeshDraw& d) {
             if (d.gpuMesh) {
-                glBindVertexArray(d.gpuMesh->vao);
+                if (d.gpuMesh->vao != boundVao) { glBindVertexArray(d.gpuMesh->vao); boundVao = d.gpuMesh->vao; }
                 glDrawElements(GL_TRIANGLES, d.gpuMesh->indexCount, GL_UNSIGNED_INT, nullptr);
             } else {
-                glBindVertexArray(sMeshVao);
+                if (sMeshVao != boundVao) { glBindVertexArray(sMeshVao); boundVao = sMeshVao; }
                 glDrawArrays(GL_TRIANGLES, d.offset, d.count);
             }
         };
@@ -882,8 +891,10 @@ void End() {
             sh.Set("uModel", d.model);
         };
 
-        // Pick pass
-        if (ctx().pickEnabled) {
+        // Pick pass — scissored to cursor area, skip if no pickable draws
+        bool anyPickable = ctx().pickEnabled && std::any_of(dl.begin(), dl.end(),
+            [](const MeshDraw& d) { return d.pickId != 0 && d.shadingMode != 3; });
+        if (anyPickable) {
             BeginPickPass();
             sPickMeshShader.Use();
             sPickMeshShader.Set("uViewProj", sViewProj);
@@ -898,9 +909,11 @@ void End() {
             EndPickPass();
         }
 
-        // Sort: solid (0,1,2) first, glow (3) last
+        // Sort: solid before glow, then group by mesh (reduces VAO switches)
         std::stable_sort(dl.begin(), dl.end(), [](const MeshDraw& a, const MeshDraw& b) {
-            return (a.shadingMode < 3) > (b.shadingMode < 3);
+            bool aGlow = a.shadingMode == 3, bGlow = b.shadingMode == 3;
+            if (aGlow != bGlow) return bGlow;              // solid first
+            return a.gpuMesh < b.gpuMesh;                  // group by mesh pointer
         });
 
         SetMeshFrameUniforms();

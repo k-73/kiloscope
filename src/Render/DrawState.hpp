@@ -202,15 +202,13 @@ inline GLuint sGridVao = 0;
 inline GLuint sPointVao = 0, sPointVbo = 0;
 inline GLsizeiptr sMeshVboCap = 0, sLineVboCap = 0, sPointVboCap = 0;
 
-// Upload to VBO: reuse if fits, orphan only when growing
+// Upload to VBO: always orphan to avoid GPU pipeline stalls.
+// glNamedBufferData with nullptr discards old contents — driver can return a new
+// allocation instead of waiting for the GPU to finish reading the previous frame's data.
 inline void UploadVbo(GLuint vbo, GLsizeiptr& cap, const void* data, GLsizeiptr size) {
-    if (size <= cap) {
-        glNamedBufferSubData(vbo, 0, size, data);
-    } else {
-        cap = size + size / 4; // grow 25% extra
-        glNamedBufferData(vbo, cap, nullptr, GL_DYNAMIC_DRAW);
-        glNamedBufferSubData(vbo, 0, size, data);
-    }
+    if (size > cap) cap = size + size / 4;
+    glNamedBufferData(vbo, cap, nullptr, GL_DYNAMIC_DRAW);
+    glNamedBufferSubData(vbo, 0, size, data);
 }
 
 inline glm::mat4 sView, sProj, sViewProj, sInvViewProj;

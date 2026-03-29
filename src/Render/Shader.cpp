@@ -88,10 +88,10 @@ Shader& Shader::operator=(Shader&& o) noexcept {
 }
 
 GLint Shader::Loc(const char* name) const {
-    auto it = uniformCache_.find(name);
+    auto it = uniformCache_.find(std::string_view(name));  // transparent: no std::string alloc
     if (it != uniformCache_.end()) return it->second;
     GLint loc = glGetUniformLocation(prog_, name);
-    uniformCache_[name] = loc;
+    uniformCache_.emplace(name, loc);  // string constructed only on first miss
     return loc;
 }
 
