@@ -43,6 +43,7 @@ private:
     static constexpr size_t kTrailMax = 128;
     std::vector<Render::GeoCoord> trail_;
     std::vector<glm::vec3> trailBuf_;
+
 };
 
 } // namespace Kilo

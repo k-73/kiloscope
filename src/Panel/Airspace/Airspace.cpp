@@ -45,13 +45,22 @@ static void DrawAircraft(float speed) {
         Render::Model(sJetModel, Render::Color::Hex("#3a5570"));
     Render::PopMatrix();
 
-    // Engine flames (body frame, outside model scale)
-    if (speed > 1.f) {
-        float glow = std::min(speed / 100.f, 1.f);
-        glm::vec4 flame = {1.f, .6f, .15f, glow};
+    // Engine afterburner — gradient: white core → orange → red tip, scaled by speed
+    if (speed > 0.f) {
+        float t = std::min(speed / 120.f, 1.f);         // 0→1 over 0–120 m/s
+        float len = 0.3f + t * 1.2f;                     // flame length 0.3–1.5m
         for (auto& eng : {kEngineL, kEngineR}) {
-            Render::SetNextEmissive(kFlameR * 3.f);
-            Render::Sphere(eng, kFlameR, flame, 8);
+            // Core (white-hot)
+            Render::SetNextEmissive(kFlameR * 2.f);
+            Render::Sphere(eng, kFlameR, {1.f, .95f, .8f, .9f * t}, 6);
+            // Mid (orange)
+            glm::vec3 mid = eng + glm::vec3(-len * .4f, 0, 0);
+            Render::SetNextGlow();
+            Render::Sphere(mid, kFlameR * 1.5f, {1.f, .5f, .1f, .5f * t}, 6);
+            // Tip (red, fading)
+            glm::vec3 tip = eng + glm::vec3(-len, 0, 0);
+            Render::SetNextGlow();
+            Render::Sphere(tip, kFlameR * 2.f, {.8f, .15f, .05f, .25f * t}, 6);
         }
     }
 }
@@ -196,6 +205,7 @@ void Airspace::DrawWorld(const glm::vec3& pos) {
         Render::RotateX(aircraft_.roll);
         DrawAircraft(aircraft_.speed);
     Render::PopMatrix();
+
 }
 
 void Airspace::DrawFlight(float dt) {
@@ -228,7 +238,7 @@ void Airspace::DrawFlight(float dt) {
             trailBuf_.resize(trail_.size());
             for (size_t i = 0; i < trail_.size(); ++i)
                 trailBuf_[i] = glm::vec3(Render::GeoToLocal("flight", trail_[i].lat, trail_[i].lon, trail_[i].alt));
-            Render::Trail(trailBuf_.data(), int(trailBuf_.size()), Render::Color::Hex("#FFD700"), 2.f);
+            Render::Trail(trailBuf_.data(), int(trailBuf_.size()), {.5f, .5f, .55f, .4f}, 1.5f);
         }
 
         auto gimbalNed = nedPos + BodyToNed() * gimbal_.bodyOffset;
