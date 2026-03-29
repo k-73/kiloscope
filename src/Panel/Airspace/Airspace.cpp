@@ -167,15 +167,6 @@ void Airspace::UpdatePhysics(float dt) {
 
 // ── scene ───────────────────────────────────────────────────────
 
-// Aircraft body → NED rotation (ZYX Euler)
-glm::mat3 Airspace::BodyToNed() const {
-    return glm::mat3(glm::rotate(glm::rotate(glm::rotate(
-        glm::mat4(1.f),
-        glm::radians(aircraft_.yaw),   glm::vec3(0,0,1)),
-        glm::radians(aircraft_.pitch), glm::vec3(0,1,0)),
-        glm::radians(aircraft_.roll),  glm::vec3(1,0,0)));
-}
-
 void Airspace::DrawWorld(const glm::vec3& pos) {
     // Waypoint — fixed position, 1km north of start
     static const double wpLat = 52.2297 + 1.0 / 111.32, wpLon = 21.0122;

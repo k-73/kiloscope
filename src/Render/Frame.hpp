@@ -3,6 +3,7 @@
 // Internal frame: X-right, Y-forward, Z-up (right-handed).
 
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 namespace Kilo::Render {
 
@@ -40,5 +41,15 @@ inline constexpr glm::vec3 FromInternal(FrameId id, const glm::vec3& v) { return
 template<typename F> constexpr glm::vec3 AxisX() { return F::M[0]; }
 template<typename F> constexpr glm::vec3 AxisY() { return F::M[1]; }
 template<typename F> constexpr glm::vec3 AxisZ() { return F::M[2]; }
+
+// ── Euler rotations ───────────────────────────────────────────────
+// ZYX intrinsic: yaw(Z) → pitch(Y) → roll(X). Standard aerospace body→NED.
+inline glm::mat3 EulerZYX(float yawDeg, float pitchDeg, float rollDeg) {
+    return glm::mat3(glm::rotate(glm::rotate(glm::rotate(
+        glm::mat4(1.f),
+        glm::radians(yawDeg),   glm::vec3(0, 0, 1)),
+        glm::radians(pitchDeg), glm::vec3(0, 1, 0)),
+        glm::radians(rollDeg),  glm::vec3(1, 0, 0)));
+}
 
 } // namespace Kilo::Render

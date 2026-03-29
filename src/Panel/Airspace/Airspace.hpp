@@ -1,5 +1,6 @@
 #pragma once
 #include "Core/Panel/Panel.hpp"
+#include "Render/Frame.hpp"
 #include "Render/Geo.hpp"
 #include <glm/glm.hpp>
 #include <vector>
@@ -15,7 +16,7 @@ private:
     void DrawControls();
     void HandleInput(float dt, bool focused);
     void UpdatePhysics(float dt);
-    glm::mat3 BodyToNed() const;
+    glm::mat3 BodyToNed() const { return Render::EulerZYX(aircraft_.yaw, aircraft_.pitch, aircraft_.roll); }
     void DrawWorld(const glm::vec3& pos);
     void DrawFlight();
     void DrawGimbal();
