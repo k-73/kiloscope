@@ -482,6 +482,11 @@ EventState Event() {
     return state;
 }
 
+Group::Group() : owned_(ctx().pickIdOverride == 0) {
+    if (owned_) { ctx().pickIdOverride = ++ctx().nextPickId; ctx().activePickId = ctx().pickIdOverride; }
+}
+Group::~Group() { if (owned_) ctx().pickIdOverride = 0; }
+
 // ── text overlay ─────────────────────────────────────────────────────
 
 static void FlushText() {

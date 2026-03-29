@@ -198,6 +198,16 @@ struct EventState {
 
 EventState Event();
 
+// RAII pick group — all draws within scope share one pickId.
+struct Group {
+    Group();
+    ~Group();
+    Group(const Group&) = delete;
+    Group& operator=(const Group&) = delete;
+private:
+    bool owned_;
+};
+
 // ── coordinate frame ─────────────────────────────────────────────
 // Frame is baked into the base matrix and synced to the scene camera.
 // All operations (transforms, draw positions, camera Follow/LookAt)

@@ -19,6 +19,8 @@ Airspace::Airspace() : Panel("Airspace", "Airspace") {
 // ── aircraft model (body: X=forward, Y=right, Z=down) ──────────
 
 static void DrawAircraft() {
+    Render::Group group;
+
     constexpr auto Body = "#344b61", Wing = "#4D6E8C", Fin = "#7A9CB8";
     constexpr float kLen     = 3.1f;    // total length
     constexpr float kRadius  = 0.15f;   // fuselage radius
@@ -200,6 +202,9 @@ void Airspace::DrawFlight() {
         Render::SetFrame(Render::FrameId::NED);
         Render::Globe();
         DrawWorld(nedPos);
+        auto aircraftEv = Render::Event();
+        if (aircraftEv.Hovered())
+            Render::Text(nedPos + glm::vec3(0, 0, -0.5f), {1,1,1,.6f}, "Aircraft");
 
         Render::PushMatrix();
             Render::Translate(nedPos);
@@ -208,9 +213,6 @@ void Airspace::DrawFlight() {
             Render::RotateX(aircraft_.roll);
             Render::Pose({0, 0, 0}, 0.5f);
         Render::PopMatrix();
-
-        Render::Text(nedPos + glm::vec3(0.0f, 0.0f, -0.2f), Render::Color::Hex("#FFFFFF50"), "Lat %.6f\nLon %.6f\nAlt %.0f m",
-            aircraft_.lat, aircraft_.lon, aircraft_.alt);
 
         Render::Cross({nedPos.x, nedPos.y, 0.f}, 0.5f, {1,1,1,.5f}, 2.f);
         Render::Line(nedPos, {nedPos.x, nedPos.y, 0.f}, {1,1,1,.15f}, 1.0f);
