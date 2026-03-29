@@ -59,6 +59,7 @@ struct MeshDraw {
     glm::mat4 model{1.f};
     glm::mat3 normalMat{1.f};
     float worldRadius = 1.f;  // bounding sphere radius in world space (for frustum culling)
+    bool twoSided = false;
 };
 
 // ── Frustum culling ─────────────────────────────────────────────────
@@ -173,6 +174,7 @@ struct SceneData {
     // Per-draw transient
     glm::vec4 currentColor{};
     int       currentShadingMode = 0;
+    bool      twoSided           = false;
 
     // Frame stats & guard
     Stats stats{};

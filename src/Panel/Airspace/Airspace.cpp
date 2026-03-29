@@ -23,16 +23,17 @@ static Render::ModelId sJetModel = Render::kInvalidModel;
 
 static void DrawAircraft() {
     if (sJetModel == Render::kInvalidModel)
-        sJetModel = Render::LoadModel(std::string(ASSETS_DIR) + "/models/SR71.obj");
+        sJetModel = Render::LoadModel(std::string(ASSETS_DIR) + "/models/Jet_Lowpoly.obj");
 
     Render::Group group;
     Render::PushMatrix();
         Render::Scale(0.33f);
-        // Blender (X=right, Y=up, -Z=forward) → Body (X=forward, Y=right, Z=down)
+        Render::Translate(0, 0, -1.0f); // model is centered on canopy, move origin to landing gear
+        // OBJ (X=right, Y=up, +Z=forward) → Body (X=forward, Y=right, Z=down)
         Render::Transform(glm::mat4(
-            glm::vec4(0, 1, 0, 0),   // OBJ X → Body Y
+            glm::vec4(0, -1, 0, 0),  // OBJ X → Body -Y
             glm::vec4(0, 0, -1, 0),  // OBJ Y → Body -Z
-            glm::vec4(-1, 0, 0, 0),  // OBJ Z → Body -X
+            glm::vec4(1, 0, 0, 0),   // OBJ Z → Body +X
             glm::vec4(0, 0, 0, 1)));
         Render::Model(sJetModel, Render::Color::Hex("#3a5570"));
     Render::PopMatrix();

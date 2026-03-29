@@ -98,9 +98,20 @@ static bool LoadOBJ(const std::string& path, ModelEntry& out) {
         }
     }
 
-    out.boundingRadius = std::sqrt(maxR2);
+    // Auto-center: compute AABB center, shift all vertices to origin
+    glm::vec3 bmin(FLT_MAX), bmax(-FLT_MAX);
+    for (auto& sub : out.submeshes)
+        for (auto& p : sub.mesh.pos) { bmin = glm::min(bmin, p); bmax = glm::max(bmax, p); }
+    glm::vec3 center = (bmin + bmax) * 0.5f;
+
+    float maxR2c = 0.f;
+    for (auto& sub : out.submeshes)
+        for (auto& p : sub.mesh.pos) { p -= center; maxR2c = std::max(maxR2c, glm::dot(p, p)); }
+
+    out.boundingRadius = std::sqrt(maxR2c);
     for (auto& sub : out.submeshes) sub.mesh.boundingRadius = out.boundingRadius;
-    Log::Render().info("Model: '{}' — {} submeshes, {:.1f}m radius", path, out.submeshes.size(), out.boundingRadius);
+    Log::Render().info("Model: '{}' — {} submeshes, {:.1f}m radius, centered from ({:.1f},{:.1f},{:.1f})",
+        path, out.submeshes.size(), out.boundingRadius, center.x, center.y, center.z);
     return true;
 }
 
@@ -126,8 +137,10 @@ void Model(ModelId id, const glm::vec4& color) {
     if (it == sModels.end()) return;
     ctx().activePickId = AllocPickId();
     SetMeshUniforms(color);
-    for (auto& sub : it->second.submeshes)
+    for (auto& sub : it->second.submeshes) {
+        ctx().twoSided = true;
         UploadGpuDraw(sub.mesh, Mat());
+    }
 }
 
 void Model(ModelId id) {
@@ -136,6 +149,7 @@ void Model(ModelId id) {
     ctx().activePickId = AllocPickId();
     for (auto& sub : it->second.submeshes) {
         SetMeshUniforms(sub.color);
+        ctx().twoSided = true;
         UploadGpuDraw(sub.mesh, Mat());
     }
 }

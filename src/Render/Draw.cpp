@@ -292,7 +292,7 @@ void UploadGpuDraw(IndexedMesh& mesh, const glm::mat4& model) {
                                glm::length(glm::vec3(model[2]))});
     s.drawList.push_back({0, 0, s.currentColor, s.currentShadingMode,
                           s.activePickId, &mesh.gpu, model, nmat,
-                          mesh.boundingRadius * maxScale});
+                          mesh.boundingRadius * maxScale, s.twoSided});
     s.stats.vertices += mesh.gpu.indexCount;
 
     // Emissive glow sphere (centroid from model translation, radius from bounding sphere)
@@ -301,6 +301,7 @@ void UploadGpuDraw(IndexedMesh& mesh, const glm::mat4& model) {
     s.emissive = false;
     s.glow     = false;
     s.glowRadius = 0.f;
+    s.twoSided = false;
 
     if (emissive) {
         glm::vec3 centroid = glm::vec3(model[3]);
@@ -904,11 +905,13 @@ void End() {
                 glDisable(GL_CULL_FACE);
                 inGlow = true;
             }
+            if (d.twoSided) glDisable(GL_CULL_FACE);
             sMeshShader.Set("uColor", d.color);
             sMeshShader.Set("uUnlit", d.shadingMode);
             sMeshShader.Set("uModel", d.model);
             sMeshShader.Set("uNormalMat", d.normalMat);
             bindAndDraw(d);
+            if (d.twoSided) glEnable(GL_CULL_FACE);
             ++ctx().stats.drawCalls;
         }
         if (inGlow) {
