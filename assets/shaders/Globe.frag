@@ -158,7 +158,7 @@ void main() {
 
     // Ground fog — smoothstep blend to fog color at distance
     float fog = smoothstep(uFogParams.x, uFogParams.y, dist);
-    fog *= fog;  // quadratic for natural density rolloff
+    fog *= fog;  // squared smoothstep — slow buildup, sharp at horizon
     lit = mix(lit, uFogColor, fog);
 
     // ── output ───────────────────────────────────────────────────

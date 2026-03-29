@@ -73,7 +73,7 @@ void Airspace::DrawControls() {
 
     // Camera
     auto& cam = Render::GetCamera("flight");
-    ImGui::Text("Camera: %s  [C]", cameraMode_.free ? "FreeCam" : "Chase");
+    ImGui::Text("Camera: %s  [C]", cameraFree_ ? "FreeCam" : "Chase");
     ImGui::Text("Eye: %.1f, %.1f, %.1f  Dist: %.1f",
         cam.Position().x, cam.Position().y, cam.Position().z, cam.Distance());
 
@@ -114,16 +114,17 @@ void Airspace::DrawControls() {
 
 void Airspace::HandleInput(float dt, bool focused) {
     if (focused && ImGui::IsKeyPressed(ImGuiKey_C, false)) {
-        cameraMode_.free = !cameraMode_.free;
-        if (!cameraMode_.free) Render::GetCamera("flight").ResetFollow();
+        cameraFree_ = !cameraFree_;
+        if (!cameraFree_) Render::GetCamera("flight").ResetFollow();
     }
-    if (!focused || cameraMode_.free) return;
+    if (!focused || cameraFree_) return;
 
     constexpr float kPitchRate = 40.f, kYawRate = 50.f;
     if (ImGui::IsKeyDown(ImGuiKey_W)) aircraft_.pitch -= kPitchRate * dt;
     if (ImGui::IsKeyDown(ImGuiKey_S)) aircraft_.pitch += kPitchRate * dt;
-    if (ImGui::IsKeyDown(ImGuiKey_A)) aircraft_.yaw   -= kYawRate   * dt;
-    if (ImGui::IsKeyDown(ImGuiKey_D)) aircraft_.yaw   += kYawRate   * dt;
+    if (ImGui::IsKeyDown(ImGuiKey_A)) { aircraft_.yaw -= kYawRate * dt; bank_ = -1.f; }
+    if (ImGui::IsKeyDown(ImGuiKey_D)) { aircraft_.yaw += kYawRate * dt; bank_ =  1.f; }
+    if (!ImGui::IsKeyDown(ImGuiKey_A) && !ImGui::IsKeyDown(ImGuiKey_D)) bank_ = 0.f;
 }
 
 // ── physics ─────────────────────────────────────────────────────
@@ -157,11 +158,8 @@ void Airspace::UpdatePhysics(float dt) {
     earth.Reverse(ecef.x, ecef.y, ecef.z, aircraft_.lat, aircraft_.lon, aircraft_.alt);
     aircraft_.alt = std::max(aircraft_.alt, 1.0);
 
-    // Bank autopilot
-    float bank = 0.f;
-    if (ImGui::IsKeyDown(ImGuiKey_D)) bank += 1.f;
-    if (ImGui::IsKeyDown(ImGuiKey_A)) bank -= 1.f;
-    aircraft_.roll += (bank * 35.f - aircraft_.roll) * std::min(1.f, 5.f * dt);
+    // Bank autopilot (bank_ set by HandleInput — focus-guarded)
+    aircraft_.roll += (bank_ * 35.f - aircraft_.roll) * std::min(1.f, 5.f * dt);
 }
 
 // ── scene ───────────────────────────────────────────────────────
@@ -183,15 +181,18 @@ void Airspace::DrawWorld(const glm::vec3& pos) {
     Render::PopMatrix();
 }
 
-void Airspace::DrawFlight() {
+void Airspace::DrawFlight(float dt) {
     SetupEnv("flight");
     auto nedPos = glm::vec3(Render::GeoToLocal("flight", aircraft_.lat, aircraft_.lon, aircraft_.alt));
 
     auto& cam = Render::GetCamera("flight");
-    if (!cameraMode_.free && cameraMode_.chase)
+    if (!cameraFree_)
         cam.Follow(nedPos, aircraft_.yaw);
     else
         cam.Unfollow();
+
+    // Input handled here — flight viewport is the correct focus target
+    HandleInput(dt, ImGui::IsWindowFocused());
 
     Render::Begin("flight");
         Render::SetFrame(Render::FrameId::NED);
@@ -209,7 +210,7 @@ void Airspace::DrawFlight() {
         if (trail_.size() > 1) {
             trailBuf_.resize(trail_.size());
             for (size_t i = 0; i < trail_.size(); ++i)
-                trailBuf_[i] = glm::vec3(Render::GeoToLocal(trail_[i].lat, trail_[i].lon, trail_[i].alt));
+                trailBuf_[i] = glm::vec3(Render::GeoToLocal("flight", trail_[i].lat, trail_[i].lon, trail_[i].alt));
             Render::Trail(trailBuf_.data(), int(trailBuf_.size()), Render::Color::Hex("#FFD700"), 2.f);
         }
 
@@ -225,7 +226,7 @@ void Airspace::DrawFlight() {
     Render::End();
     Render::HUD();
 
-    if (!cameraMode_.free && cameraMode_.chase)
+    if (!cameraFree_)
         cam.CaptureFollow();
 
     Render::GeoCoord gc{aircraft_.lat, aircraft_.lon, aircraft_.alt};
@@ -280,11 +281,8 @@ void Airspace::OnDraw() {
     const float dt = ImGui::GetIO().DeltaTime;
 
     DrawControls();
-    bool focused = ImGui::IsWindowFocused();
-    HandleInput(dt, focused);
     UpdatePhysics(dt);
-
-    DrawFlight();
+    DrawFlight(dt);
     DrawGimbal();
 }
 

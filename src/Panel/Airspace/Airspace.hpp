@@ -18,7 +18,7 @@ private:
     void UpdatePhysics(float dt);
     glm::mat3 BodyToNed() const { return Render::EulerZYX(aircraft_.yaw, aircraft_.pitch, aircraft_.roll); }
     void DrawWorld(const glm::vec3& pos);
-    void DrawFlight();
+    void DrawFlight(float dt);
     void DrawGimbal();
     void SetupEnv(const char* scene);
 
@@ -36,10 +36,8 @@ private:
         double    targetLat  = 52.2297, targetLon = 21.0122, targetAlt = 0.0;
     } gimbal_;
 
-    struct CameraMode {
-        bool chase = true;
-        bool free  = false;
-    } cameraMode_;
+    bool cameraFree_ = false;
+    float bank_      = 0.f;   // bank input from HandleInput (focus-guarded)
 
     // Trail (geodetic — survives origin shifts)
     static constexpr size_t kTrailMax = 128;

@@ -56,7 +56,8 @@ void UiContext::InitImGui() {
     iconCfg.GlyphMinAdvanceX = 13.f;
     static const ImWchar faRange[] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
     auto faPath = std::string(ASSETS_DIR) + "/fonts/fa-solid-900.otf";
-    io.Fonts->AddFontFromFileTTF(faPath.c_str(), 13.f, &iconCfg, faRange);
+    if (!io.Fonts->AddFontFromFileTTF(faPath.c_str(), 13.f, &iconCfg, faRange))
+        Log::UI().warn("Failed to load icon font: {}", faPath);
 
     ImGui_ImplGlfw_InitForOpenGL(win_, true);
     ImGui_ImplOpenGL3_Init("#version 450");
