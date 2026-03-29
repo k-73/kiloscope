@@ -172,7 +172,8 @@ void Airspace::DrawWorld(const glm::vec3& pos) {
     static const double wpLat = 52.2297 + 1.0 / 111.32, wpLon = 21.0122;
     auto wpNed = glm::vec3(Render::GeoToLocal("flight", wpLat, wpLon, 0.0));
     float wpDist = glm::length(wpNed - pos) * 0.001f;
-    Render::Text(wpNed, Render::Color::Orange, ICON_FA_LOCATION_DOT " %.2f km", wpDist);
+    Render::Marker(wpNed, ICON_FA_LOCATION_DOT, "WP1", Render::Color::Orange,
+        "%.2f km\n%.6f, %.6f", wpDist, wpLat, wpLon);
 
     Render::PushMatrix();
         Render::Translate(pos);
@@ -220,8 +221,8 @@ void Airspace::DrawFlight() {
         Render::Sensor(gimbalNed, gimbalDir, {0,0,-1}, gimbal_.fov, gimbal_.aspect, 0.1,
             Render::Color::Hex("#90B0D0"), 1.0f);
         Render::Line(gimbalNed, targetNed, Render::Color::Hex("#90B0D050"), 1.f);
-        Render::Text(targetNed, Render::Color::Hex("#00ccffaa"), ICON_FA_CROSSHAIRS " Target\nLat %.6f\nLon %.6f\nAlt %.0f m",
-            gimbal_.targetLat, gimbal_.targetLon, gimbal_.targetAlt);
+        Render::Marker(targetNed, ICON_FA_CROSSHAIRS, "Target", Render::Color::Hex("#00ccff"),
+            "Lat %.6f\nLon %.6f\nAlt %.0f m", gimbal_.targetLat, gimbal_.targetLon, gimbal_.targetAlt);
     Render::End();
     Render::HUD();
 

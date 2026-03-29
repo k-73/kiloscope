@@ -445,27 +445,43 @@ void Cross(const glm::vec3& pos, float size, const glm::vec4& color, float width
     Line(pos - glm::vec3(0, 0, hs), pos + glm::vec3(0, 0, hs), color, width);
 }
 
-void Marker(const glm::vec3& pos, float height, const glm::vec4& color, float width) {
-    PickGroup pg;
-    glm::vec3 top = pos + glm::vec3(0, 0, -height);  // up in NED = -Z
-    float d = height * 0.12f;  // diamond size
+bool Marker(const glm::vec3& pos, const char* icon, const char* label,
+            const glm::vec4& color, const char* detailFmt, ...) {
+    auto p = XformPoint(pos);
+    auto screen = WorldToScreen(p);
+    if (screen.x < 0.f) return false;
 
-    // Vertical stalk
-    Line(pos, top, {color.r, color.g, color.b, color.a * .4f}, width);
+    // Icon + label via textBatch (rendered after Image in FlushText)
+    std::string header = std::string(icon) + " " + label;
+    ctx().textBatch.push_back({p, color, header, true});
+    ++ctx().stats.textLabels;
 
-    // Diamond at top
-    glm::vec3 dx{d, 0, 0}, dy{0, d, 0}, dz{0, 0, -d * 1.4f};
-    Line(top - dz, top + dx, color, width);
-    Line(top + dx, top + dz, color, width);
-    Line(top + dz, top - dx, color, width);
-    Line(top - dx, top - dz, color, width);
-    Line(top - dz, top + dy, color, width);
-    Line(top + dy, top + dz, color, width);
-    Line(top + dz, top - dy, color, width);
-    Line(top - dy, top - dz, color, width);
+    // Hover detection on projected text bounding box
+    auto sz = ImGui::CalcTextSize(header.c_str());
+    float hx = screen.x - sz.x * .5f, hy = screen.y - sz.y * .5f;
+    bool hovered = ImGui::IsMouseHoveringRect({hx, hy}, {hx + sz.x, hy + sz.y}, false);
 
-    // Ground ring
-    Circle(pos, {0, 0, 1}, d, {color.r, color.g, color.b, color.a * .3f}, 16, width);
+    // Tooltip popup on hover
+    if (hovered) {
+        float dist = glm::length(p - sCamPos);
+        ImGui::BeginTooltip();
+        ImGui::TextColored({color.r, color.g, color.b, 1.f}, "%s %s", icon, label);
+        ImGui::Separator();
+        ImGui::Text("NED  %.1f  %.1f  %.1f", p.x, p.y, p.z);
+        ImGui::Text("Dist %.0f m", dist);
+        if (detailFmt) {
+            char buf[256];
+            va_list args;
+            va_start(args, detailFmt);
+            vsnprintf(buf, sizeof buf, detailFmt, args);
+            va_end(args);
+            ImGui::Separator();
+            ImGui::TextUnformatted(buf);
+        }
+        ImGui::EndTooltip();
+    }
+
+    return hovered && ImGui::IsMouseClicked(0);
 }
 
 bool HudBegin() {
