@@ -164,6 +164,11 @@ struct GlobeConfig {
     glm::vec3 atmosphereColor = {.18f, .38f, .78f};
     float     atmospherePow   = 4.f;        // Fresnel exponent (higher = thinner rim)
     float     atmosphereStr   = 0.5f;        // intensity multiplier
+    // Ground fog
+    bool      fog          = true;
+    glm::vec3 fogColor     = {.02f, .04f, .08f};
+    float     fogStart     = 5000.f;     // meters — fog begins
+    float     fogEnd       = 150000.f;   // meters — fully opaque
     // Grid fade distances (meters) — fine grids invisible beyond these
     glm::vec4 gridFades    = {500.f, 5000.f, 50000.f, 200000.f};  // 0.0001°, 0.001°, 0.01°, 0.1°
 };

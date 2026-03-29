@@ -91,6 +91,12 @@ void Airspace::DrawControls() {
         ImGui::SliderFloat("Atmo Power", &g.atmospherePow, 1.f, 10.f);
         ImGui::SliderFloat("Atmo Str",   &g.atmosphereStr, 0.f, 2.f);
         ImGui::Separator();
+        ImGui::Text("Fog");
+        ImGui::Checkbox("Fog", &g.fog);
+        ImGui::ColorEdit3("Fog Color", &g.fogColor.x);
+        ImGui::DragFloat("Fog Start", &g.fogStart, 100.f, 0.f, 100000.f, "%.0f m");
+        ImGui::DragFloat("Fog End",   &g.fogEnd, 1000.f, 1000.f, 500000.f, "%.0f m");
+        ImGui::Separator();
         ImGui::Text("Grid Fades (m)");
         ImGui::DragFloat("0.0001\xc2\xb0", &g.gridFades.x, 10.f, 50.f, 5000.f, "%.0f");
         ImGui::DragFloat("0.001\xc2\xb0",  &g.gridFades.y, 100.f, 100.f, 50000.f, "%.0f");
@@ -202,14 +208,6 @@ void Airspace::DrawFlight() {
                 aircraft_.lat, aircraft_.lon, aircraft_.alt);
         }
 
-        Render::PushMatrix();
-            Render::Translate(nedPos);
-            Render::RotateZ(aircraft_.yaw);
-            Render::RotateY(aircraft_.pitch);
-            Render::RotateX(aircraft_.roll);
-            Render::Pose({0, 0, 0}, 0.5f);
-        Render::PopMatrix();
-
         Render::Cross({nedPos.x, nedPos.y, 0.f}, 0.5f, {1,1,1,.5f}, 2.f);
         Render::Line(nedPos, {nedPos.x, nedPos.y, 0.f}, {1,1,1,.15f}, 1.0f);
 
@@ -223,11 +221,11 @@ void Airspace::DrawFlight() {
         auto gimbalNed = nedPos + BodyToNed() * gimbal_.bodyOffset;
         auto targetNed = glm::vec3(Render::GeoToLocal("flight", gimbal_.targetLat, gimbal_.targetLon, gimbal_.targetAlt));
         auto gimbalDir = glm::normalize(targetNed - gimbalNed);
-        Render::Line(nedPos, gimbalNed, Render::Color::Hex("#90B0D050"), 1.f);
+        Render::Line(nedPos, gimbalNed, Render::Color::Hex("#d0b09050"), 1.f);
         Render::Sensor(gimbalNed, gimbalDir, {0,0,-1}, gimbal_.fov, gimbal_.aspect, 0.1,
             Render::Color::Hex("#90B0D0"), 1.0f);
         Render::Line(gimbalNed, targetNed, Render::Color::Hex("#90B0D050"), 1.f);
-        Render::Text(targetNed, Render::Color::Hex("#00ccffaa"), ICON_FA_SKULL " Target\nLat %.6f\nLon %.6f\nAlt %.0f m",
+        Render::Text(targetNed, Render::Color::Hex("#00ccffaa"), ICON_FA_CROSSHAIRS " Target\nLat %.6f\nLon %.6f\nAlt %.0f m",
             gimbal_.targetLat, gimbal_.targetLon, gimbal_.targetAlt);
     Render::End();
     Render::HUD();

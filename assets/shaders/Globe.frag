@@ -36,6 +36,8 @@ uniform vec3  uLightDir;        // world-ENU light direction (normalized)
 uniform float uAmbient;
 uniform vec3  uAtmoColor;
 uniform vec2  uAtmoParams;      // x = power, y = intensity
+uniform vec3  uFogColor;
+uniform vec2  uFogParams;       // x = start (meters), y = end (meters)
 uniform vec4  uGridFades;       // max visible distance for 0.0001°, 0.001°, 0.01°, 0.1° grids
 
 out vec4 FragColor;
@@ -153,6 +155,11 @@ void main() {
     // Atmosphere rim (Fresnel-like: bright at limb where view ⊥ normal)
     float rim = pow(1.0 - max(dot(normal, -ray), 0.0), uAtmoParams.x);
     lit += uAtmoColor * rim * uAtmoParams.y;
+
+    // Ground fog — smoothstep blend to fog color at distance
+    float fog = smoothstep(uFogParams.x, uFogParams.y, dist);
+    fog *= fog;  // quadratic for natural density rolloff
+    lit = mix(lit, uFogColor, fog);
 
     // ── output ───────────────────────────────────────────────────
     // Smooth limb edge: NdotV → 0 at the horizon → alpha fades → MSAA coverage ramps down.
