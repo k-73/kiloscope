@@ -476,70 +476,70 @@ void HUD() {
     auto& cam = sc.cam;
     auto  pos = cam.Position();
 
-    // Frame identification
     struct FI { glm::mat3 m; const char* name; bool geo; };
-    static const FI kFrames[] = {
+    static const FI kF[] = {
         {NED::M,"NED",true}, {ENU::M,"ENU",true},
         {XYZ::M,"XYZ",false}, {FLU::M,"FLU",false}, {FRD::M,"FRD",false},
     };
-    const char* fname = "?"; bool geo = false;
-    for (auto& f : kFrames) if (sc.frameMat == f.m) { fname = f.name; geo = f.geo; break; }
+    const char* fn = "?"; bool geo = false;
+    for (auto& f : kF) if (sc.frameMat == f.m) { fn = f.name; geo = f.geo; break; }
 
-    // Bar
     auto wp = ImGui::GetWindowPos();
     auto lo = ImGui::GetWindowContentRegionMin(), hi = ImGui::GetWindowContentRegionMax();
-    float h = ImGui::GetTextLineHeightWithSpacing() + 4.f;
+    float h = ImGui::GetTextLineHeight() + 6.f;
     float x0 = wp.x + lo.x, x1 = wp.x + hi.x, y = wp.y + hi.y - h;
     auto* dl = ImGui::GetWindowDrawList();
-    dl->AddRectFilled({x0, y}, {x1, y + h}, IM_COL32(15, 18, 25, 200));
-    dl->AddLine({x0, y}, {x1, y}, IM_COL32(60, 70, 90, 180));
+    dl->AddRectFilled({x0, y}, {x1, y + h}, IM_COL32(10, 12, 18, 210));
 
-    ImU32 dim = IM_COL32(100, 110, 130, 255), val = IM_COL32(190, 200, 215, 255);
-    float x = x0 + 6.f, ty = y + 2.f;
+    ImU32 lbl = IM_COL32(65, 70, 85, 255);
+    ImU32 val = IM_COL32(160, 170, 185, 255);
+    ImU32 sep = IM_COL32(40, 45, 60, 255);
+    float x = x0 + 6.f, ty = y + 3.f;
     char buf[96];
 
-    // text at x, advance by template width (stable layout)
     auto put = [&](const char* s, ImU32 c, const char* w = nullptr) {
-        dl->AddText({x, ty}, c, s);
-        x += ImGui::CalcTextSize(w ? w : s).x;
+        dl->AddText({x, ty}, c, s); x += ImGui::CalcTextSize(w ? w : s).x;
     };
-    auto gap = [&] { x += 12.f; };
+    auto div = [&] { x += 5; dl->AddLine({x, y + 3}, {x, y + h - 3}, sep); x += 5; };
 
-    // Eye
-    snprintf(buf, sizeof buf, "Eye %7.1f %7.1f %7.1f", pos.x, pos.y, pos.z);
-    put(buf, val, "Eye -0000.0 -0000.0 -0000.0"); gap();
+    // Position
+    snprintf(buf, sizeof buf, "%6.1f %6.1f %6.1f", pos.x, pos.y, pos.z);
+    put(buf, val, "-000.0 -000.0 -000.0"); div();
 
-    // Heading from view direction (internal X=East, Y=North → atan2 gives NED heading)
+    // Heading
     auto vd = cam.ViewDir();
-    float heading = glm::degrees(std::atan2(vd.x, vd.y));
-    snprintf(buf, sizeof buf, "%s %4.0f\xc2\xb0", geo ? "H" : "Yaw", heading);
-    put(buf, val, "Yaw -000\xc2\xb0");
+    float hdg = glm::degrees(std::atan2(vd.x, vd.y));
+    snprintf(buf, sizeof buf, "%4.0f\xc2\xb0", hdg);
+    put(geo ? "H" : "Y", lbl); put(buf, val, "-000\xc2\xb0");
 
-    // Compass (geo frames only)
+    // Compass (geo only) — ticks, no text
     if (geo) {
-        static const char* kN[] = {"N", "E", "S", "W"};
-        float r = h * .3f, cx = x + r + 4, cy = y + h * .5f;
-        float hr = glm::radians(-heading + 90.f);
-        dl->AddCircle({cx, cy}, r, IM_COL32(60, 70, 90, 200), 20);
-        for (int i = 0; i < 4; ++i) {
-            float a = hr - glm::half_pi<float>() * float(i);
-            dl->AddText({cx + std::cos(a) * r - 3, cy - std::sin(a) * r - 5},
-                        i ? IM_COL32(140, 140, 140, 140) : IM_COL32(220, 80, 80, 255), kN[i]);
-        }
-        dl->AddLine({cx, cy}, {cx + std::cos(hr) * r * .7f, cy - std::sin(hr) * r * .7f}, val, 1.5f);
-        x = cx + r;
+        float r = h * .22f, cx = x + r + 3, cy = y + h * .5f;
+        float na = glm::radians(-hdg + 90.f);
+        dl->AddCircle({cx, cy}, r, IM_COL32(45, 50, 65, 180), 16);
+        dl->AddLine({cx + std::cos(na) * r * .45f, cy - std::sin(na) * r * .45f},
+                    {cx + std::cos(na) * r,         cy - std::sin(na) * r},
+                    IM_COL32(200, 65, 65, 255), 2.f);
+        float sa = na + glm::pi<float>();
+        dl->AddLine({cx + std::cos(sa) * r * .55f, cy - std::sin(sa) * r * .55f},
+                    {cx + std::cos(sa) * r,         cy - std::sin(sa) * r},
+                    IM_COL32(70, 70, 80, 150), 1.f);
+        x = cx + r + 1;
     }
-    gap();
+    div();
 
-    // Pitch, FOV, Dist
-    snprintf(buf, sizeof buf, "P %3.0f\xc2\xb0  FOV %3.0f\xc2\xb0  D %5.1f",
-             cam.Pitch(), cam.Fov(), cam.Distance());
-    put(buf, val, "P -00\xc2\xb0  FOV 000\xc2\xb0  D 000.0"); gap();
+    // Pitch, FOV, Distance
+    snprintf(buf, sizeof buf, "%3.0f\xc2\xb0", cam.Pitch());
+    put("P", lbl); put(buf, val, "-00\xc2\xb0"); x += 4;
+    snprintf(buf, sizeof buf, "%3.0f\xc2\xb0", cam.Fov());
+    put("F", lbl); put(buf, val, "000\xc2\xb0"); x += 4;
+    snprintf(buf, sizeof buf, "%5.1f", cam.Distance());
+    put("D", lbl); put(buf, val, "000.0"); div();
 
     // Frame + Stats
-    put(fname, IM_COL32(100, 180, 220, 255)); gap();
-    snprintf(buf, sizeof buf, "%d dc  %d v", sc.stats.drawCalls, sc.stats.vertices);
-    put(buf, dim);
+    put(fn, IM_COL32(75, 140, 190, 255)); div();
+    snprintf(buf, sizeof buf, "%ddc %dv", sc.stats.drawCalls, sc.stats.vertices);
+    put(buf, lbl);
 }
 
 void AABB(const glm::vec3& mn, const glm::vec3& mx,
