@@ -12,7 +12,9 @@
 
 namespace Kilo {
 
-Airspace::Airspace() : Panel("Airspace", "Airspace") {}
+Airspace::Airspace() : Panel("Airspace", "Airspace") {
+    Render::GetCamera("flight").ResetFollow(12.f);
+}
 
 // ── aircraft model (body: X=forward, Y=right, Z=down) ──────────
 
