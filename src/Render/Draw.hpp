@@ -248,6 +248,8 @@ template<typename F> void RotateZ(float deg) { Rotate(deg, glm::transpose(GetFra
 
 // ── lines ────────────────────────────────────────────────────────
 void Line(const glm::vec3& a, const glm::vec3& b,
+          const glm::vec4& colorA, const glm::vec4& colorB, float width = 2.5f);
+void Line(const glm::vec3& a, const glm::vec3& b,
           const glm::vec4& color, float width = 2.5f);
 void Polyline(const glm::vec3* points, int count,
               const glm::vec4& color, float width = 2.5f, bool closed = false);

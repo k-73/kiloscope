@@ -12,6 +12,12 @@ namespace Kilo::Render {
 // ── lines ────────────────────────────────────────────────────────────
 
 void Line(const glm::vec3& a, const glm::vec3& b,
+          const glm::vec4& colorA, const glm::vec4& colorB, float width) {
+    ctx().activePickId = AllocPickId();
+    BatchLineGradient(XformPoint(a), XformPoint(b), colorA, colorB, width);
+}
+
+void Line(const glm::vec3& a, const glm::vec3& b,
           const glm::vec4& color, float width) {
     ctx().activePickId = AllocPickId();
     BatchLine(XformPoint(a), XformPoint(b), color, width);
@@ -455,11 +461,13 @@ void Beam(const glm::vec3& from, const glm::vec3& to,
         float t = float(i) / float(steps - 1);
         auto pos = glm::mix(from, to, t);
         auto col = glm::mix(colorFrom, colorTo, t);
-        float r  = radius * (1.f + t * 1.5f);  // grows toward tip
+        float r  = radius * (1.f + t * 1.5f);
         if (i == 0) SetNextEmissive(radius * glowScale);
         else        SetNextGlow();
         Sphere(pos, r, col, 6);
     }
+    // Gradient line through the beam for continuity
+    Line(from, to, colorFrom, colorTo, radius * 80.f);
 }
 
 bool Marker(const glm::vec3& pos, const char* icon, const char* label,
