@@ -165,7 +165,7 @@ struct GlobeConfig {
     float     atmospherePow   = 3.f;        // Fresnel exponent (higher = thinner rim)
     float     atmosphereStr   = 0.6f;       // intensity multiplier
     // Grid fade distances (meters) — fine grids invisible beyond these
-    glm::vec3 gridFades    = {5000.f, 50000.f, 200000.f};  // 0.001°, 0.01°, 0.1°
+    glm::vec4 gridFades    = {500.f, 5000.f, 50000.f, 200000.f};  // 0.0001°, 0.001°, 0.01°, 0.1°
 };
 
 void SetOrigin(double lat, double lon, double alt = 0.0);

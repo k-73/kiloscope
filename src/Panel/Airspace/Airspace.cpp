@@ -91,9 +91,10 @@ void Airspace::DrawControls() {
         ImGui::SliderFloat("Atmo Str",   &g.atmosphereStr, 0.f, 2.f);
         ImGui::Separator();
         ImGui::Text("Grid Fades (m)");
-        ImGui::DragFloat("0.001\xc2\xb0", &g.gridFades.x, 100.f, 100.f, 50000.f, "%.0f");
-        ImGui::DragFloat("0.01\xc2\xb0",  &g.gridFades.y, 1000.f, 1000.f, 500000.f, "%.0f");
-        ImGui::DragFloat("0.1\xc2\xb0",   &g.gridFades.z, 5000.f, 5000.f, 2000000.f, "%.0f");
+        ImGui::DragFloat("0.0001\xc2\xb0", &g.gridFades.x, 10.f, 50.f, 5000.f, "%.0f");
+        ImGui::DragFloat("0.001\xc2\xb0",  &g.gridFades.y, 100.f, 100.f, 50000.f, "%.0f");
+        ImGui::DragFloat("0.01\xc2\xb0",   &g.gridFades.z, 1000.f, 1000.f, 500000.f, "%.0f");
+        ImGui::DragFloat("0.1\xc2\xb0",    &g.gridFades.w, 5000.f, 5000.f, 2000000.f, "%.0f");
     }
 
     ImGui::End();
@@ -221,6 +222,13 @@ void Airspace::DrawFlight() {
         Render::Line(gimbalNed, targetNed, Render::Color::Hex("#90B0D050"), 1.f);
         Render::Text(targetNed, Render::Color::Hex("#90B0D050"), "Lat %.6f\nLon %.6f\nAlt %.0f m",
             gimbal_.targetLat, gimbal_.targetLon, gimbal_.targetAlt);
+
+        // Waypoint — fixed position, 1km north of start
+        static const double wpLat = 52.2297 + 1.0 / 111.32, wpLon = 21.0122;
+        auto wpNed = glm::vec3(Render::GeoToLocal("flight", wpLat, wpLon, 0.0));
+        Render::Point(wpNed, Render::Color::Hex("#E05050"), 0.08f);
+        float wpDist = glm::length(wpNed - nedPos) * 0.001f;
+        Render::Text(wpNed + glm::vec3(0, 0, -0.3f), {1,1,1,.5f}, "%.6f, %.6f\n%.2f km", wpLat, wpLon, wpDist);
     Render::End();
     Render::HUD();
 

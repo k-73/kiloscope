@@ -36,7 +36,7 @@ uniform vec3  uLightDir;        // world-ENU light direction (normalized)
 uniform float uAmbient;
 uniform vec3  uAtmoColor;
 uniform vec2  uAtmoParams;      // x = power, y = intensity
-uniform vec3  uGridFades;       // max visible distance for 0.001°, 0.01°, 0.1° grids
+uniform vec4  uGridFades;       // max visible distance for 0.0001°, 0.001°, 0.01°, 0.1° grids
 
 out vec4 FragColor;
 
@@ -103,12 +103,14 @@ void main() {
 
     // Fine grids — skip scales that are fully faded (avoids dead gridLine calls)
     float fine = 0.0;
+    if (dist < uGridFades.w)
+        fine = gridLine(ll, 0.1) * 0.35 * smoothstep(uGridFades.w, uGridFades.w * 0.1, dist);
     if (dist < uGridFades.z)
-        fine = gridLine(ll, 0.1) * 0.35 * smoothstep(uGridFades.z, uGridFades.z * 0.1, dist);
+        fine = max(fine, gridLine(ll, 0.01) * 0.25 * smoothstep(uGridFades.z, uGridFades.z * 0.1, dist));
     if (dist < uGridFades.y)
-        fine = max(fine, gridLine(ll, 0.01) * 0.25 * smoothstep(uGridFades.y, uGridFades.y * 0.1, dist));
+        fine = max(fine, gridLine(ll, 0.001) * 0.15 * smoothstep(uGridFades.y, uGridFades.y * 0.1, dist));
     if (dist < uGridFades.x)
-        fine = max(fine, gridLine(ll, 0.001) * 0.15 * smoothstep(uGridFades.x, uGridFades.x * 0.1, dist));
+        fine = max(fine, gridLine(ll, 0.0001) * 0.12 * smoothstep(uGridFades.x, uGridFades.x * 0.1, dist));
 
     // Coarse grids — ECEF Bowring fallback beyond 120°
     float angDist = max(abs(dLon), abs(dLat));
