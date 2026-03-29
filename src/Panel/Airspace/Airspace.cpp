@@ -51,7 +51,7 @@ static void DrawAircraft(float speed) {
         float len = 0.3f + t * 1.2f;
         for (auto& eng : {kEngineL, kEngineR})
             Render::Beam(eng, eng + glm::vec3(-len, 0, 0),
-                {1.f, .95f, .8f, .9f * t}, {.8f, .15f, .05f, .15f * t}, kFlameR);
+                {1.f, .9f, .7f, .8f * t}, {.9f, .2f, .05f, .1f * t}, kFlameR, 2.5f, 4);
     }
 }
 
