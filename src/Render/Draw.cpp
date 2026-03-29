@@ -242,7 +242,7 @@ static void EmitGlow(const glm::vec3& centroid, float glowR) {
     UploadGpuMesh(glowMesh);
     s.drawList.push_back({0, 0,
         {s.currentColor.r, s.currentColor.g, s.currentColor.b, kGlowAlpha},
-        3, 0, &glowMesh.gpu, glowModel, glm::mat3(1.f)});
+        3, 0, &glowMesh.gpu, glowModel, glm::mat3(1.f), glowR});
     s.stats.vertices += glowMesh.gpu.indexCount;
 }
 

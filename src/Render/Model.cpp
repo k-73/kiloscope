@@ -134,14 +134,17 @@ void Model(ModelId id, const glm::vec4& color) {
     auto it = sModels.find(id);
     if (it == sModels.end()) return;
     ctx().activePickId = AllocPickId();
-    // Emissive: cache and clear — apply only on last submesh (one glow sphere per model)
-    bool emissive = std::exchange(ctx().emissive, false);
-    float glowR   = std::exchange(ctx().glowRadius, 0.f);
+    // Cache and clear one-shot flags — restore on last submesh only
+    bool  emissive = std::exchange(ctx().emissive, false);
+    bool  glow     = std::exchange(ctx().glow, false);
+    float glowR    = std::exchange(ctx().glowRadius, 0.f);
     auto& subs = it->second.submeshes;
     for (size_t i = 0; i < subs.size(); ++i) {
         SetMeshUniforms(color);
         ctx().twoSided = true;
-        if (emissive && i + 1 == subs.size()) { ctx().emissive = true; ctx().glowRadius = glowR; }
+        if (emissive && i + 1 == subs.size()) {
+            ctx().emissive = true; ctx().glow = glow; ctx().glowRadius = glowR;
+        }
         UploadGpuDraw(subs[i].mesh, Mat());
     }
 }
@@ -150,13 +153,16 @@ void Model(ModelId id) {
     auto it = sModels.find(id);
     if (it == sModels.end()) return;
     ctx().activePickId = AllocPickId();
-    bool emissive = std::exchange(ctx().emissive, false);
-    float glowR   = std::exchange(ctx().glowRadius, 0.f);
+    bool  emissive = std::exchange(ctx().emissive, false);
+    bool  glow     = std::exchange(ctx().glow, false);
+    float glowR    = std::exchange(ctx().glowRadius, 0.f);
     auto& subs = it->second.submeshes;
     for (size_t i = 0; i < subs.size(); ++i) {
         SetMeshUniforms(subs[i].color);
         ctx().twoSided = true;
-        if (emissive && i + 1 == subs.size()) { ctx().emissive = true; ctx().glowRadius = glowR; }
+        if (emissive && i + 1 == subs.size()) {
+            ctx().emissive = true; ctx().glow = glow; ctx().glowRadius = glowR;
+        }
         UploadGpuDraw(subs[i].mesh, Mat());
     }
 }
