@@ -472,8 +472,14 @@ bool Marker(const glm::vec3& pos, const char* icon, const char* label,
         ImGui::BeginTooltip();
         ImGui::TextColored({color.r, color.g, color.b, 1.f}, "%s %s", icon, label);
         ImGui::Separator();
-        ImGui::Text("NED  %.1f  %.1f  %.1f", p.x, p.y, p.z);
-        ImGui::Text("Dist %.0f m", glm::length(p - sCamPos));
+        auto fp = glm::transpose(ctx().frameMat) * p;
+        const char* fn = "XYZ";
+        if (ctx().frameMat == NED::M) fn = "NED";
+        else if (ctx().frameMat == ENU::M) fn = "ENU";
+        else if (ctx().frameMat == FLU::M) fn = "FLU";
+        else if (ctx().frameMat == FRD::M) fn = "FRD";
+        ImGui::Text("%s  %.1f  %.1f  %.1f", fn, fp.x, fp.y, fp.z);
+        ImGui::Text("Cam  %.0f m", glm::length(p - sCamPos));
         if (detailFmt) {
             char buf[256];
             va_list args; va_start(args, detailFmt);

@@ -29,8 +29,7 @@ static void DrawAircraft() {
     Render::Group group;
     Render::PushMatrix();
         Render::Scale(0.33f);
-        Render::Translate(0, 0, -1.0f); // model is centered on canopy, move origin to landing gear
-        // OBJ (X=right, Y=up, +Z=forward) → Body (X=forward, Y=right, Z=down)
+        Render::Translate(0, 0, -1.0f);
         Render::Transform(glm::mat4(
             glm::vec4(0, -1, 0, 0),  // OBJ X → Body -Y
             glm::vec4(0, 0, -1, 0),  // OBJ Y → Body -Z
