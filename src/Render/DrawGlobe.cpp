@@ -79,7 +79,7 @@ void DrawGlobe(const GlobeConfig& cfg) {
     sGlobeShader.Set("uRadiiD",       glm::dvec3(GeoRef::a, GeoRef::a, GeoRef::b));
     sGlobeShader.Set("uRadii",        glm::vec3(GeoRef::a, GeoRef::a, GeoRef::b));
 
-    // Geodetic params at origin — stable (only update at kUpdateThresholdDeg interval)
+    // Geodetic params at origin — updated every frame
     sGlobeShader.Set("uOriginLat",    glm::vec2(float(gr.cosLat), float(gr.sinLat)));
     sGlobeShader.Set("uOriginNM",     glm::vec2(float(gr.Nrad), float(gr.Mrad)));
 
