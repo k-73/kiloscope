@@ -206,7 +206,8 @@ static void EndPickPass() {
     glViewport(0, 0, sVpW, sVpH);
 }
 
-static void UploadGpuMesh(IndexedMesh& mesh);  // forward decl
+static void UploadGpuMesh(IndexedMesh& mesh);
+static void ConsumeEmissive(const glm::vec3& centroid, float autoRadius);
 
 void UploadMesh(const std::vector<MeshVert>& v) {
     auto& s = ctx();
@@ -216,37 +217,47 @@ void UploadMesh(const std::vector<MeshVert>& v) {
     s.drawList.push_back({offset, count, s.currentColor, s.currentShadingMode, s.activePickId});
     s.stats.vertices += count;
 
-    // Auto-generate glow sphere for emissive meshes
+    // Emissive glow: compute centroid + radius from flat vertices
+    if (s.emissive && count > 0) {
+        glm::vec3 centroid(0.f);
+        for (GLsizei i = offset; i < offset + count; ++i)
+            centroid += s.vboAccum[i].pos;
+        centroid /= static_cast<float>(count);
+        float maxR2 = 0.f;
+        for (GLsizei i = offset; i < offset + count; ++i) {
+            auto d = s.vboAccum[i].pos - centroid;
+            maxR2 = std::max(maxR2, glm::dot(d, d));
+        }
+        ConsumeEmissive(centroid, std::sqrt(maxR2));
+    } else {
+        s.emissive = false; s.glow = false; s.glowRadius = 0.f;
+    }
+}
+
+// Emit a glow sphere centered at `centroid` with given radius, using the current color.
+static void EmitGlow(const glm::vec3& centroid, float glowR) {
+    auto& s = ctx();
+    auto glowModel = glm::scale(glm::translate(glm::mat4(1.f), centroid), glm::vec3(glowR));
+    auto& glowMesh = GetUnitSphere(16);
+    UploadGpuMesh(glowMesh);
+    s.drawList.push_back({0, 0,
+        {s.currentColor.r, s.currentColor.g, s.currentColor.b, kGlowAlpha},
+        3, 0, &glowMesh.gpu, glowModel, glm::mat3(1.f)});
+    s.stats.vertices += glowMesh.gpu.indexCount;
+}
+
+// Consume one-shot emissive/glow flags. If emissive, emit a glow sphere.
+// `centroid` and `autoRadius` are used when glowRadius was not explicitly set.
+static void ConsumeEmissive(const glm::vec3& centroid, float autoRadius) {
+    auto& s = ctx();
     bool emissive = s.emissive;
     float glowR   = s.glowRadius;
     s.emissive = false;
     s.glow     = false;
     s.glowRadius = 0.f;
-
-    if (emissive && count > 0) {
-        // Centroid from already-world-space flat vertices
-        glm::vec3 centroid(0.f);
-        for (GLsizei i = offset; i < offset + count; ++i)
-            centroid += s.vboAccum[i].pos;
-        centroid /= static_cast<float>(count);
-
-        if (glowR <= 0.f) {
-            float maxR2 = 0.f;
-            for (GLsizei i = offset; i < offset + count; ++i) {
-                auto d = s.vboAccum[i].pos - centroid;
-                maxR2 = glm::max(maxR2, glm::dot(d, d));
-            }
-            glowR = glm::max(std::sqrt(maxR2) * kGlowRadiusScale, kGlowRadiusMin);
-        }
-
-        // Glow sphere via GPU path (no CPU vertex transform)
-        auto glowModel = glm::scale(glm::translate(glm::mat4(1.f), centroid), glm::vec3(glowR));
-        auto& glowMesh = GetUnitSphere(16);
-        UploadGpuMesh(glowMesh);
-        s.drawList.push_back({0, 0,
-            {s.currentColor.r, s.currentColor.g, s.currentColor.b, kGlowAlpha},
-            3, 0, &glowMesh.gpu, glowModel, glm::mat3(1.f)});
-        s.stats.vertices += glowMesh.gpu.indexCount;
+    if (emissive) {
+        if (glowR <= 0.f) glowR = std::max(autoRadius * kGlowRadiusScale, kGlowRadiusMin);
+        EmitGlow(centroid, glowR);
     }
 }
 
@@ -306,31 +317,10 @@ void UploadGpuDraw(IndexedMesh& mesh, const glm::mat4& model) {
                           mesh.boundingRadius * maxScale, s.twoSided});
     s.stats.vertices += mesh.gpu.indexCount;
 
-    // Emissive glow sphere (centroid from model translation, radius from bounding sphere)
-    bool emissive = s.emissive;
-    float glowR   = s.glowRadius;
-    s.emissive = false;
-    s.glow     = false;
-    s.glowRadius = 0.f;
+    // Emissive glow: centroid from model translation, radius from bounding sphere × scale
+    float autoR = mesh.boundingRadius * maxScale;
     s.twoSided = false;
-
-    if (emissive) {
-        glm::vec3 centroid = glm::vec3(model[3]);
-        if (glowR <= 0.f) {
-            float sx = glm::length(glm::vec3(model[0]));
-            float sy = glm::length(glm::vec3(model[1]));
-            float sz = glm::length(glm::vec3(model[2]));
-            glowR = glm::max(mesh.boundingRadius * glm::max(sx, glm::max(sy, sz))
-                             * kGlowRadiusScale, kGlowRadiusMin);
-        }
-        auto glowModel = glm::scale(glm::translate(glm::mat4(1.f), centroid), glm::vec3(glowR));
-        auto& glowMesh = GetUnitSphere(16);
-        UploadGpuMesh(glowMesh);
-        s.drawList.push_back({0, 0,
-            {s.currentColor.r, s.currentColor.g, s.currentColor.b, kGlowAlpha},
-            3, 0, &glowMesh.gpu, glowModel, glm::mat3(1.f)});
-        s.stats.vertices += glowMesh.gpu.indexCount;
-    }
+    ConsumeEmissive(glm::vec3(model[3]), autoR);
 }
 
 // ── line batching ────────────────────────────────────────────────────
@@ -832,10 +822,116 @@ static void DrawGrid(const GridConfig& cfg, float camDist) {
     ++ctx().stats.drawCalls;
 }
 
+// ── End (sub-steps) ─────────────────────────────────────────────────
+
+static void SubmitMeshes() {
+    auto& dl = ctx().drawList;
+    if (dl.empty()) return;
+
+    // Upload flat (CPU-transformed) vertices
+    if (!ctx().vboAccum.empty())
+        UploadVbo(sMeshVbo, sMeshVboCap, ctx().vboAccum.data(),
+                  GLsizeiptr(ctx().vboAccum.size() * sizeof(MeshVert)));
+
+    // VAO tracking: skip redundant binds
+    GLuint boundVao = 0;
+    auto bindAndDraw = [&](const MeshDraw& d) {
+        if (d.gpuMesh) {
+            if (d.gpuMesh->vao != boundVao) { glBindVertexArray(d.gpuMesh->vao); boundVao = d.gpuMesh->vao; }
+            glDrawElements(GL_TRIANGLES, d.gpuMesh->indexCount, GL_UNSIGNED_INT, nullptr);
+        } else {
+            if (sMeshVao != boundVao) { glBindVertexArray(sMeshVao); boundVao = sMeshVao; }
+            glDrawArrays(GL_TRIANGLES, d.offset, d.count);
+        }
+    };
+
+    // Pick pass — scissored to cursor, skipped if no pickable objects
+    bool anyPickable = ctx().pickEnabled && std::any_of(dl.begin(), dl.end(),
+        [](const MeshDraw& d) { return d.pickId != 0 && d.shadingMode != 3; });
+    if (anyPickable) {
+        BeginPickPass();
+        sPickMeshShader.Use();
+        sPickMeshShader.Set("uViewProj", sViewProj);
+        sPickMeshShader.Set("uFarPlane", sFarPlane);
+        for (auto& d : dl) {
+            if (!d.pickId || d.shadingMode == 3) continue;
+            sPickMeshShader.Set("uPickId", d.pickId);
+            sPickMeshShader.Set("uModel", d.model);
+            bindAndDraw(d);
+            ++ctx().stats.pickDrawCalls;
+        }
+        EndPickPass();
+    }
+
+    // Sort: solid before glow, group by mesh pointer (reduces VAO switches)
+    std::stable_sort(dl.begin(), dl.end(), [](const MeshDraw& a, const MeshDraw& b) {
+        bool aGlow = a.shadingMode == 3, bGlow = b.shadingMode == 3;
+        if (aGlow != bGlow) return bGlow;
+        return a.gpuMesh < b.gpuMesh;
+    });
+
+    // Main color pass
+    SetMeshFrameUniforms();
+    sMeshShader.Use();
+    boundVao = 0;
+    bool inGlow = false;
+    for (auto& d : dl) {
+        if (d.gpuMesh && !InsideFrustum(sFrustum, glm::vec3(d.model[3]), d.worldRadius))
+            continue;
+        if (!inGlow && d.shadingMode == 3) {
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_ONE, GL_ONE);
+            glDepthMask(GL_FALSE);
+            glDisable(GL_CULL_FACE);
+            inGlow = true;
+        }
+        if (d.twoSided) glDisable(GL_CULL_FACE);
+        sMeshShader.Set("uColor", d.color);
+        sMeshShader.Set("uUnlit", d.shadingMode);
+        sMeshShader.Set("uModel", d.model);
+        sMeshShader.Set("uNormalMat", d.normalMat);
+        bindAndDraw(d);
+        if (d.twoSided) glEnable(GL_CULL_FACE);
+        ++ctx().stats.drawCalls;
+    }
+    if (inGlow) {
+        glDisable(GL_BLEND);
+        glDepthMask(GL_TRUE);
+        glEnable(GL_CULL_FACE);
+    }
+
+    dl.clear();
+    ctx().vboAccum.clear();
+}
+
+static void ProcessPicking() {
+    if (!sFrame.hovered || ctx().pickConsumed) return;
+    ctx().hoveredPickId = ctx().pickFbo.FinishAsyncRead();
+    auto& io = ImGui::GetIO();
+    int mx = static_cast<int>(io.MousePos.x - sFrame.cx);
+    int my = static_cast<int>(io.MousePos.y - sFrame.cy);
+    ctx().pickFbo.BeginAsyncRead(mx, my);
+    ctx().pickFbo.pboIdx = 1 - ctx().pickFbo.pboIdx;
+    ctx().pickFbo.pboReady = true;
+}
+
+static void ResolveAndPresent() {
+    // Clear drag for released buttons
+    for (int b = 0; b < kButtonCount; ++b)
+        if (ctx().dragPickId[b] && !ImGui::IsMouseDown(b))
+            ctx().dragPickId[b] = 0;
+
+    ctx().fbo.Resolve();
+    ImGui::SetCursorScreenPos({sFrame.cx, sFrame.cy});
+    ImGui::Image(static_cast<ImTextureID>(static_cast<uintptr_t>(ctx().fbo.Texture())),
+                 {sFrame.w, sFrame.h}, {0, 1}, {1, 0});
+    FlushText();
+}
+
 // ── End ──────────────────────────────────────────────────────────────
 
 void End() {
-    // Internal draws (sun, crosshair) must not inherit pick IDs from user code
+    // Internal draws must not inherit pick IDs from user code
     ctx().activePickId = 0;
 
     // Crosshair and sun operate in internal coords — bypass frame
@@ -862,120 +958,15 @@ void End() {
 
     ctx().stats.pointLights = ctx().numPointLights;
 
-    // ── surface extensions (render FIRST — globe/grid are the farthest geometry) ──
+    // Surface extensions (render first — globe/grid are the farthest geometry)
     if (ctx().globeCfg.enabled) DrawGlobe(ctx().globeCfg);
     if (ctx().gridCfg.enabled)  DrawGrid(ctx().gridCfg, float(ctx().cam.Distance()));
 
-    auto& dl = ctx().drawList;
-
-    if (!dl.empty()) {
-        // Upload flat (CPU-transformed) vertices if any
-        bool hasFlat = !ctx().vboAccum.empty();
-        if (hasFlat)
-            UploadVbo(sMeshVbo, sMeshVboCap, ctx().vboAccum.data(),
-                      GLsizeiptr(ctx().vboAccum.size() * sizeof(MeshVert)));
-
-        // Helper: bind VAO only if changed, then draw
-        GLuint boundVao = 0;
-        auto bindAndDraw = [&](const MeshDraw& d) {
-            if (d.gpuMesh) {
-                if (d.gpuMesh->vao != boundVao) { glBindVertexArray(d.gpuMesh->vao); boundVao = d.gpuMesh->vao; }
-                glDrawElements(GL_TRIANGLES, d.gpuMesh->indexCount, GL_UNSIGNED_INT, nullptr);
-            } else {
-                if (sMeshVao != boundVao) { glBindVertexArray(sMeshVao); boundVao = sMeshVao; }
-                glDrawArrays(GL_TRIANGLES, d.offset, d.count);
-            }
-        };
-
-        auto setModel = [](const Shader& sh, const MeshDraw& d) {
-            sh.Set("uModel", d.model);
-        };
-
-        // Pick pass — scissored to cursor area, skip if no pickable draws
-        bool anyPickable = ctx().pickEnabled && std::any_of(dl.begin(), dl.end(),
-            [](const MeshDraw& d) { return d.pickId != 0 && d.shadingMode != 3; });
-        if (anyPickable) {
-            BeginPickPass();
-            sPickMeshShader.Use();
-            sPickMeshShader.Set("uViewProj", sViewProj);
-            sPickMeshShader.Set("uFarPlane", sFarPlane);
-            for (auto& d : dl) {
-                if (!d.pickId || d.shadingMode == 3) continue;
-                sPickMeshShader.Set("uPickId", d.pickId);
-                setModel(sPickMeshShader, d);
-                bindAndDraw(d);
-                ++ctx().stats.pickDrawCalls;
-            }
-            EndPickPass();
-        }
-
-        // Sort: solid before glow, then group by mesh (reduces VAO switches)
-        std::stable_sort(dl.begin(), dl.end(), [](const MeshDraw& a, const MeshDraw& b) {
-            bool aGlow = a.shadingMode == 3, bGlow = b.shadingMode == 3;
-            if (aGlow != bGlow) return bGlow;              // solid first
-            return a.gpuMesh < b.gpuMesh;                  // group by mesh pointer
-        });
-
-        SetMeshFrameUniforms();
-        sMeshShader.Use();
-
-        bool inGlow = false;
-        for (auto& d : dl) {
-            // Frustum culling — only for GPU-indexed draws with a proper bounding sphere.
-            // Flat draws (gpuMesh == null) have pre-transformed vertices with model = identity,
-            // so model[3] doesn't represent their actual world position.
-            if (d.gpuMesh && !InsideFrustum(sFrustum, glm::vec3(d.model[3]), d.worldRadius))
-                continue;
-            if (!inGlow && d.shadingMode == 3) {
-                glEnable(GL_BLEND);
-                glBlendFunc(GL_ONE, GL_ONE);
-                glDepthMask(GL_FALSE);
-                glDisable(GL_CULL_FACE);
-                inGlow = true;
-            }
-            if (d.twoSided) glDisable(GL_CULL_FACE);
-            sMeshShader.Set("uColor", d.color);
-            sMeshShader.Set("uUnlit", d.shadingMode);
-            sMeshShader.Set("uModel", d.model);
-            sMeshShader.Set("uNormalMat", d.normalMat);
-            bindAndDraw(d);
-            if (d.twoSided) glEnable(GL_CULL_FACE);
-            ++ctx().stats.drawCalls;
-        }
-        if (inGlow) {
-            glDisable(GL_BLEND);
-            glDepthMask(GL_TRUE);
-            glEnable(GL_CULL_FACE);
-        }
-
-        dl.clear();
-        ctx().vboAccum.clear();
-    }
+    SubmitMeshes();
     FlushPoints();
     FlushLines();
-
-    // Async pick readback: read PREVIOUS frame's result (non-blocking),
-    // then start THIS frame's read (GPU processes while CPU continues).
-    if (sFrame.hovered && !ctx().pickConsumed) {
-        ctx().hoveredPickId = ctx().pickFbo.FinishAsyncRead();
-        auto& io = ImGui::GetIO();
-        int mx = static_cast<int>(io.MousePos.x - sFrame.cx);
-        int my = static_cast<int>(io.MousePos.y - sFrame.cy);
-        ctx().pickFbo.BeginAsyncRead(mx, my);
-        ctx().pickFbo.pboIdx = 1 - ctx().pickFbo.pboIdx;
-        ctx().pickFbo.pboReady = true;
-    }
-
-    // Clear drag for released buttons (after user code already checked Released())
-    for (int b = 0; b < kButtonCount; ++b)
-        if (ctx().dragPickId[b] && !ImGui::IsMouseDown(b))
-            ctx().dragPickId[b] = 0;
-
-    ctx().fbo.Resolve();
-    ImGui::SetCursorScreenPos({sFrame.cx, sFrame.cy});
-    ImGui::Image(static_cast<ImTextureID>(static_cast<uintptr_t>(ctx().fbo.Texture())),
-                 {sFrame.w, sFrame.h}, {0, 1}, {1, 0});
-    FlushText();
+    ProcessPicking();
+    ResolveAndPresent();
 }
 
 // ── coordinate frame ────────────────────────────────────────────────

@@ -291,13 +291,8 @@ inline glm::mat4 AxisTransform(const glm::vec3& center, const glm::vec3& axis) {
 
 // ── RAII pick group ──────────────────────────────────────────────────
 
-struct PickGroup {
-    bool owned;
-    PickGroup() : owned(ctx().pickIdOverride == 0) {
-        if (owned) { ctx().pickIdOverride = ++ctx().nextPickId; ctx().activePickId = ctx().pickIdOverride; }
-    }
-    ~PickGroup() { if (owned) ctx().pickIdOverride = 0; }
-};
+// PickGroup is an alias for the public Group (same RAII pick-ID grouping)
+using PickGroup = Group;
 
 // ── function declarations (defined in Draw.cpp, called by DrawPrimitives.cpp)
 void SetMeshUniforms(const glm::vec4& color, bool unlit = false);
