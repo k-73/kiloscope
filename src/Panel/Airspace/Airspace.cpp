@@ -20,37 +20,32 @@ Airspace::Airspace() : Panel("Airspace", "Airspace") {
 
 static void DrawAircraft() {
     Render::Group group;
+    using Render::Color::Hex;
 
-    constexpr auto Body = "#344b61", Wing = "#4D6E8C", Fin = "#7A9CB8";
-    constexpr float kLen     = 3.1f;    // total length
-    constexpr float kRadius  = 0.15f;   // fuselage radius
-    constexpr float kSpan    = 2.2f;    // half wingspan
-    constexpr float kStab    = 0.6f;    // half stabilizer span
-    constexpr float kFinH    = 0.5f;    // vertical fin height
-    constexpr int   kSeg     = 12;
-
-    // Derived positions along X (body axis, center ~ 0)
-    constexpr float rear = -kLen * 0.48f;           // -1.49
-    constexpr float front = kLen * 0.32f;            //  0.99
-    constexpr float nose  = kLen * 0.52f;            //  1.61
-    constexpr float wingLe = kLen * 0.16f;           //  0.50  leading edge
-    constexpr float wingTe = -kLen * 0.03f;          // -0.09  trailing edge
-    constexpr float sweep  = -kLen * 0.16f;          // -0.50  rear sweep
-    constexpr float stabTe = rear + kLen * 0.06f;    // -1.30  stab trailing
-    constexpr float stabLe = rear + kLen * 0.19f;    // -0.90  stab leading
+    constexpr auto Fuse = "#2d4155", Surf = "#3e5c78", Tip = "#6890ab";
+    constexpr float R = 0.12f, S = 2.0f;
 
     // Fuselage
-    Render::Cylinder({rear, 0, 0}, {front, 0, 0}, kRadius, Render::Color::Hex(Body), kSeg);
-    Render::Cone    ({front, 0, 0}, {nose, 0, 0},  kRadius, Render::Color::Hex(Body), kSeg);
-    Render::Sphere  ({rear, 0, 0},                  kRadius, Render::Color::Hex(Body), kSeg);
+    Render::Cylinder({-1.4f, 0, 0}, {0.9f, 0, 0}, R, Hex(Fuse), 12);
+    Render::Cone    ({0.9f, 0, 0},  {1.6f, 0, 0}, R, Hex(Fuse), 12);
+    Render::Sphere  ({-1.4f, 0, 0},                R, Hex(Fuse), 12);
 
-    // Wings
-    Render::Triangle({wingTe, -kSpan, 0}, {wingTe, kSpan, 0}, {wingLe, 0, 0}, Render::Color::Hex(Wing), true);
-    Render::Triangle({wingTe, -kSpan, 0}, {sweep, 0, 0}, {wingTe, kSpan, 0},  Render::Color::Hex(Wing), true);
+    // Wings — swept trapezoid per side (two triangles = quad, two-sided)
+    for (float s : {-1.f, 1.f}) {
+        glm::vec3 rl{.3f, 0, 0}, rt{-.4f, 0, 0}, tl{-.05f, s*S, 0}, tt{-.2f, s*S, 0};
+        Render::Triangle(rl, rt, tt, Hex(Surf), true);
+        Render::Triangle(rl, tt, tl, Hex(Surf), true);
+    }
 
-    // Stabilizers + fin
-    Render::Triangle({stabTe, -kStab, 0}, {stabTe, kStab, 0}, {stabLe, 0, 0}, Render::Color::Hex(Wing), true);
-    Render::Triangle({stabTe - 0.1f, 0, 0}, {stabLe - 0.1f, 0, 0}, {(stabTe + stabLe) * 0.5f, 0, -kFinH}, Render::Color::Hex(Fin), true);
+    // Horizontal stabilizer
+    for (float s : {-1.f, 1.f}) {
+        glm::vec3 rl{-1.05f, 0, 0}, rt{-1.35f, 0, 0}, tl{-1.1f, s*.6f, 0}, tt{-1.25f, s*.6f, 0};
+        Render::Triangle(rl, rt, tt, Hex(Surf), true);
+        Render::Triangle(rl, tt, tl, Hex(Surf), true);
+    }
+
+    // Vertical fin
+    Render::Triangle({-1.35f, 0, 0}, {-1.0f, 0, 0}, {-1.15f, 0, -.55f}, Hex(Tip), true);
 }
 
 // ── controls ────────────────────────────────────────────────────
