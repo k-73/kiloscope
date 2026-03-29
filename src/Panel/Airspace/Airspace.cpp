@@ -7,6 +7,7 @@
 #include "Render/Geo.hpp"
 #include <GeographicLib/Geocentric.hpp>
 #include "Ui/Widget.hpp"
+#include "Ui/IconsFontAwesome7.h"
 #include <imgui.h>
 #include <algorithm>
 #include <cmath>
@@ -226,9 +227,9 @@ void Airspace::DrawFlight() {
         // Waypoint — fixed position, 1km north of start
         static const double wpLat = 52.2297 + 1.0 / 111.32, wpLon = 21.0122;
         auto wpNed = glm::vec3(Render::GeoToLocal("flight", wpLat, wpLon, 0.0));
-        Render::Point(wpNed, Render::Color::Hex("#E05050"), 0.08f);
         float wpDist = glm::length(wpNed - nedPos) * 0.001f;
-        Render::Text(wpNed + glm::vec3(0, 0, -0.3f), {1,1,1,.5f}, "%.6f, %.6f\n%.2f km", wpLat, wpLon, wpDist);
+        Render::Text(wpNed, {1.f, .3f, .3f, .9f}, ICON_FA_LOCATION_DOT);
+        Render::Text(wpNed + glm::vec3(0, 0, -0.3f), {1,1,1,.6f}, "%.2f km", wpDist);
     Render::End();
     Render::HUD();
 

@@ -445,6 +445,29 @@ void Cross(const glm::vec3& pos, float size, const glm::vec4& color, float width
     Line(pos - glm::vec3(0, 0, hs), pos + glm::vec3(0, 0, hs), color, width);
 }
 
+void Marker(const glm::vec3& pos, float height, const glm::vec4& color, float width) {
+    PickGroup pg;
+    glm::vec3 top = pos + glm::vec3(0, 0, -height);  // up in NED = -Z
+    float d = height * 0.12f;  // diamond size
+
+    // Vertical stalk
+    Line(pos, top, {color.r, color.g, color.b, color.a * .4f}, width);
+
+    // Diamond at top
+    glm::vec3 dx{d, 0, 0}, dy{0, d, 0}, dz{0, 0, -d * 1.4f};
+    Line(top - dz, top + dx, color, width);
+    Line(top + dx, top + dz, color, width);
+    Line(top + dz, top - dx, color, width);
+    Line(top - dx, top - dz, color, width);
+    Line(top - dz, top + dy, color, width);
+    Line(top + dy, top + dz, color, width);
+    Line(top + dz, top - dy, color, width);
+    Line(top - dy, top - dz, color, width);
+
+    // Ground ring
+    Circle(pos, {0, 0, 1}, d, {color.r, color.g, color.b, color.a * .3f}, 16, width);
+}
+
 bool HudBegin() {
     ImGui::SetCursorScreenPos({sFrame.cx, sFrame.cy});
     ImGui::PushStyleColor(ImGuiCol_ChildBg, {0, 0, 0, 0});

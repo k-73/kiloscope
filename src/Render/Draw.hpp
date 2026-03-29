@@ -327,6 +327,8 @@ void BoxLight(const glm::vec3& center, const glm::vec3& size,
               const glm::vec4& color, float range);
 void Cross(const glm::vec3& pos, float size,
            const glm::vec4& color, float width = 2.5f);
+void Marker(const glm::vec3& pos, float height,
+            const glm::vec4& color, float width = 2.f);
 void AABB(const glm::vec3& min, const glm::vec3& max,
           const glm::vec4& color, float width = 2.5f);
 void OBB(const glm::vec3& center, const glm::quat& orient,

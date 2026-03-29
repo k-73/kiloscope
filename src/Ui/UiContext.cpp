@@ -7,6 +7,7 @@
 #include <imgui_impl_opengl3.h>
 #include <implot.h>
 #include <imgui_freetype.h>
+#include "Ui/IconsFontAwesome7.h"
 #include <stdexcept>
 
 namespace Kilo::UI {
@@ -47,6 +48,16 @@ void UiContext::InitImGui() {
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_NavEnableKeyboard;
     io.Fonts->SetFontLoader(ImGuiFreeType::GetFontLoader());
     io.Fonts->AddFontDefault();
+
+    // Merge icon fonts (Font Awesome 7 + any additional icon fonts from assets/fonts/)
+    ImFontConfig iconCfg;
+    iconCfg.MergeMode = true;
+    iconCfg.PixelSnapH = true;
+    iconCfg.GlyphMinAdvanceX = 13.f;
+    static const ImWchar faRange[] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
+    auto faPath = std::string(ASSETS_DIR) + "/fonts/fa-solid-900.otf";
+    io.Fonts->AddFontFromFileTTF(faPath.c_str(), 13.f, &iconCfg, faRange);
+
     ImGui_ImplGlfw_InitForOpenGL(win_, true);
     ImGui_ImplOpenGL3_Init("#version 450");
 }
