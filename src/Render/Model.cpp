@@ -59,7 +59,6 @@ static bool LoadOBJ(const std::string& path, ModelEntry& out) {
     };
 
     std::vector<std::unordered_map<VKey, int, VKeyHash>> vmaps;
-    float maxR2 = 0.f;
 
     for (auto& shape : shapes) {
         size_t off = 0;
@@ -80,7 +79,6 @@ static bool LoadOBJ(const std::string& path, ModelEntry& out) {
                     auto* vp = &attrib.vertices[key.p * 3];
                     glm::vec3 p{vp[0], vp[1], vp[2]};
                     sub.mesh.pos.push_back(p);
-                    maxR2 = std::max(maxR2, glm::dot(p, p));
 
                     if (key.n >= 0) { auto* np = &attrib.normals[key.n * 3]; sub.mesh.nrm.push_back(glm::normalize(glm::vec3{np[0], np[1], np[2]})); }
                     else sub.mesh.nrm.push_back({0, 0, 1});
@@ -136,14 +134,15 @@ void Model(ModelId id, const glm::vec4& color) {
     auto it = sModels.find(id);
     if (it == sModels.end()) return;
     ctx().activePickId = AllocPickId();
-    // Cache one-shot flags — apply to all submeshes, not just the first
-    bool emissive = ctx().emissive;
-    float glowR   = ctx().glowRadius;
-    for (auto& sub : it->second.submeshes) {
+    // Emissive: cache and clear — apply only on last submesh (one glow sphere per model)
+    bool emissive = std::exchange(ctx().emissive, false);
+    float glowR   = std::exchange(ctx().glowRadius, 0.f);
+    auto& subs = it->second.submeshes;
+    for (size_t i = 0; i < subs.size(); ++i) {
         SetMeshUniforms(color);
         ctx().twoSided = true;
-        if (emissive) { ctx().emissive = true; ctx().glowRadius = glowR; }
-        UploadGpuDraw(sub.mesh, Mat());
+        if (emissive && i + 1 == subs.size()) { ctx().emissive = true; ctx().glowRadius = glowR; }
+        UploadGpuDraw(subs[i].mesh, Mat());
     }
 }
 
@@ -151,13 +150,14 @@ void Model(ModelId id) {
     auto it = sModels.find(id);
     if (it == sModels.end()) return;
     ctx().activePickId = AllocPickId();
-    bool emissive = ctx().emissive;
-    float glowR   = ctx().glowRadius;
-    for (auto& sub : it->second.submeshes) {
-        SetMeshUniforms(sub.color);
+    bool emissive = std::exchange(ctx().emissive, false);
+    float glowR   = std::exchange(ctx().glowRadius, 0.f);
+    auto& subs = it->second.submeshes;
+    for (size_t i = 0; i < subs.size(); ++i) {
+        SetMeshUniforms(subs[i].color);
         ctx().twoSided = true;
-        if (emissive) { ctx().emissive = true; ctx().glowRadius = glowR; }
-        UploadGpuDraw(sub.mesh, Mat());
+        if (emissive && i + 1 == subs.size()) { ctx().emissive = true; ctx().glowRadius = glowR; }
+        UploadGpuDraw(subs[i].mesh, Mat());
     }
 }
 

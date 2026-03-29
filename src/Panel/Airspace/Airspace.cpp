@@ -26,7 +26,6 @@ static void DrawAircraft() {
     if (sJetModel == Render::kInvalidModel)
         sJetModel = Render::LoadModel(std::string(ASSETS_DIR) + "/models/Jet_Lowpoly.obj");
 
-    Render::Group group;
     Render::PushMatrix();
         Render::Scale(0.33f);
         Render::Translate(0, 0, -1.0f);
