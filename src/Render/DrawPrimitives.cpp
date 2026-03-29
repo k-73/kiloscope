@@ -448,40 +448,35 @@ void Cross(const glm::vec3& pos, float size, const glm::vec4& color, float width
 bool Marker(const glm::vec3& pos, const char* icon, const char* label,
             const glm::vec4& color, const char* detailFmt, ...) {
     auto p = XformPoint(pos);
-    auto screen = WorldToScreen(p);
-    if (screen.x < 0.f) return false;
+    auto scr = WorldToScreen(p);
+    if (scr.x < 0.f) return false;
 
-    // Icon centered on point (via worldPos projection)
+    constexpr float kGap = 3.f, kLabelUp = 2.f;
     auto iconSz = ImGui::CalcTextSize(icon);
+    auto lblSz  = ImGui::CalcTextSize(label);
+    glm::vec4 lblCol = {color.r, color.g, color.b, color.a * .8f};
+
+    // Icon (centered on point) + label (right of icon, aligned to icon center)
     ctx().textBatch.push_back({p, color, icon, true});
-    ++ctx().stats.textLabels;
+    ctx().textBatch.push_back({p, lblCol, label, false,
+        {scr.x + iconSz.x * .5f + kGap, scr.y - lblSz.y * .5f - kLabelUp}});
+    ctx().stats.textLabels += 2;
 
-    // Label to the right, vertically centered on icon
-    auto lblSz = ImGui::CalcTextSize(label);
-    float lx = screen.x + iconSz.x * .5f + 3.f;
-    float ly = screen.y - lblSz.y * .5f - 2.f;
-    ctx().textBatch.push_back({{}, {color.r, color.g, color.b, color.a * .8f}, label, false, {lx, ly}});
-    ++ctx().stats.textLabels;
+    // Hover: bounding box of icon + label
+    float hx = scr.x - iconSz.x * .5f;
+    float hy = scr.y - std::max(iconSz.y, lblSz.y) * .5f - kLabelUp;
+    bool hovered = ImGui::IsMouseHoveringRect(
+        {hx, hy}, {hx + iconSz.x + kGap + lblSz.x, hy + std::max(iconSz.y, lblSz.y) + kLabelUp}, false);
 
-    // Hover on icon+label area
-    float hx = screen.x - iconSz.x * .5f;
-    float hy = screen.y - std::max(iconSz.y, lblSz.y) * .5f;
-    float hw = iconSz.x + 3.f + lblSz.x;
-    float hh = std::max(iconSz.y, lblSz.y);
-    bool hovered = ImGui::IsMouseHoveringRect({hx, hy}, {hx + hw, hy + hh}, false);
-
-    // Tooltip popup on hover
     if (hovered) {
-        float dist = glm::length(p - sCamPos);
         ImGui::BeginTooltip();
         ImGui::TextColored({color.r, color.g, color.b, 1.f}, "%s %s", icon, label);
         ImGui::Separator();
         ImGui::Text("NED  %.1f  %.1f  %.1f", p.x, p.y, p.z);
-        ImGui::Text("Dist %.0f m", dist);
+        ImGui::Text("Dist %.0f m", glm::length(p - sCamPos));
         if (detailFmt) {
             char buf[256];
-            va_list args;
-            va_start(args, detailFmt);
+            va_list args; va_start(args, detailFmt);
             vsnprintf(buf, sizeof buf, detailFmt, args);
             va_end(args);
             ImGui::Separator();
