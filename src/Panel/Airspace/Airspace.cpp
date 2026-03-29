@@ -249,12 +249,20 @@ void Airspace::DrawGimbal() {
         cam.Fov() = gimbal_.fov;
         cam.NearPlane() = 0.05f;
 
+        float dist = glm::length(targetNed - gimbalNed);
+
         Render::Begin("gimbal");
             Render::SetFrame(Render::FrameId::NED);
             Render::Globe();
             DrawWorld(aircraftNed);
         Render::End();
         Render::Crosshair();
+        if (Render::HudBegin()) {
+            ImGui::TextColored({1,1,1,.4f}, "FOV %.0f\xc2\xb0  D %.0fm", gimbal_.fov, dist);
+            ImGui::TextColored({1,1,1,.3f}, "%.6f  %.6f  %.0fm",
+                gimbal_.targetLat, gimbal_.targetLon, gimbal_.targetAlt);
+            Render::HudEnd();
+        }
     ImGui::End();
 }
 

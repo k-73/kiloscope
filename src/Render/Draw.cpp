@@ -495,13 +495,8 @@ static void FlushText() {
             ImGui::ColorConvertFloat4ToU32({e.color.r, e.color.g, e.color.b, e.color.a}),
             e.text.c_str());
     }
-    for (auto& e : ctx().text2dBatch)
-        dl->AddText({sFrame.cx + e.x, sFrame.cy + e.y},
-            ImGui::ColorConvertFloat4ToU32({e.color.r, e.color.g, e.color.b, e.color.a}),
-            e.text.c_str());
     ImGui::PopClipRect();
     ctx().textBatch.clear();
-    ctx().text2dBatch.clear();
 }
 
 // ── Init ─────────────────────────────────────────────────────────────
@@ -737,7 +732,6 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     scene->lineBatch.clear();
     scene->pointBatch.clear();
     scene->textBatch.clear();
-    scene->text2dBatch.clear();
     // Reserve based on previous frame to avoid growth during draw
     scene->vboAccum.reserve(scene->stats.vertices + 256);
     scene->lineBatch.reserve(scene->stats.lineSegments * 6 + 64);

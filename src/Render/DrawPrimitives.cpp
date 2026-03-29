@@ -147,15 +147,6 @@ void Text(const glm::vec3& pos, const glm::vec4& color, const char* fmt, ...) {
     ++ctx().stats.textLabels;
 }
 
-void Text2D(float x, float y, const glm::vec4& color, const char* fmt, ...) {
-    char buf[256];
-    va_list args;
-    va_start(args, fmt);
-    vsnprintf(buf, sizeof(buf), fmt, args);
-    va_end(args);
-    ctx().text2dBatch.push_back({x, y, color, buf});
-}
-
 // ── basic geometry ───────────────────────────────────────────────────
 
 void Triangle(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c,
@@ -452,6 +443,18 @@ void Cross(const glm::vec3& pos, float size, const glm::vec4& color, float width
     Line(pos - glm::vec3(hs, 0, 0), pos + glm::vec3(hs, 0, 0), color, width);
     Line(pos - glm::vec3(0, hs, 0), pos + glm::vec3(0, hs, 0), color, width);
     Line(pos - glm::vec3(0, 0, hs), pos + glm::vec3(0, 0, hs), color, width);
+}
+
+bool HudBegin() {
+    ImGui::SetCursorScreenPos({sFrame.cx, sFrame.cy});
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, {0, 0, 0, 0});
+    return ImGui::BeginChild("##hud", {sFrame.w, sFrame.h}, ImGuiChildFlags_None,
+                              ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+}
+
+void HudEnd() {
+    ImGui::EndChild();
+    ImGui::PopStyleColor();
 }
 
 void Crosshair(float gap, float len, const glm::vec4& color) {

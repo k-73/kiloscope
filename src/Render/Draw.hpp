@@ -257,8 +257,6 @@ void Points(const glm::vec3* positions, const glm::vec4* colors,
 // ── text ─────────────────────────────────────────────────────────
 void Text(const glm::vec3& pos, const glm::vec4& color,
           const char* fmt, ...) __attribute__((format(printf, 3, 4)));
-void Text2D(float x, float y, const glm::vec4& color,
-            const char* fmt, ...) __attribute__((format(printf, 4, 5)));
 
 // ── basic geometry ───────────────────────────────────────────────
 void Triangle(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c,
@@ -334,6 +332,8 @@ void Frustum(const glm::mat4& viewProj,
              const glm::vec4& color, float width = 2.5f);
 
 // ── 2D overlays (call after End(), draws on current ImGui window) ────
+bool HudBegin();  // transparent ImGui overlay aligned to scene viewport
+void HudEnd();
 void Crosshair(float gap = 4.f, float len = 12.f,
                const glm::vec4& color = {1, 1, 1, .6f});
 void HUD();
