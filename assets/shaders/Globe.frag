@@ -42,16 +42,18 @@ out vec4 FragColor;
 
 // ── helpers ──────────────────────────────────────────────────────
 
+// Antialiased grid line: 1px wide, 1px AA (Evan Wallace / JCGT 2014)
 float gridLine(vec2 coord, float spacing) {
     vec2 c = coord / spacing;
-    vec2 d = fwidth(c);
-    vec2 g = abs(fract(c - 0.5) - 0.5) / d;
-    return max(1.0 - smoothstep(0.3, 1.2, g.x),
-               1.0 - smoothstep(0.3, 1.2, g.y));
+    vec2 d = fwidth(c);                            // pixel footprint in cell space
+    vec2 g = abs(fract(c - 0.5) - 0.5) / d;       // distance to line in pixels
+    return max(1.0 - smoothstep(0.0, 1.0, g.x),   // 1px line, smoothstep AA
+               1.0 - smoothstep(0.0, 1.0, g.y));
 }
 
+// Smooth distance fade: 0→maxDist (maximally gradual, no visible contour)
 float distFade(float dist, float maxDist) {
-    return 1.0 - smoothstep(maxDist * 0.15, maxDist, dist);
+    return 1.0 - smoothstep(0.0, maxDist, dist);
 }
 
 void main() {
@@ -106,18 +108,21 @@ void main() {
     // ── graticule ────────────────────────────────────────────────
     float dist = tHit;
 
-    // Fine grids — use llFrac (float32 precise) for sub-degree spacings
+    // Fine grids — uniform intensity, distFade handles LOD transitions
+    // llFrac (sub-degree) for spacings < 0.1° (float32 precision)
+    const float kFine = 0.3;
     float fine = 0.0;
     if (dist < uGridFades.w)
-        fine = gridLine(ll, 0.1) * 0.45 * distFade(dist, uGridFades.w);
+        fine = gridLine(ll, 0.1) * kFine * distFade(dist, uGridFades.w);
     if (dist < uGridFades.z)
-        fine = max(fine, gridLine(llFrac, 0.01) * 0.35 * distFade(dist, uGridFades.z));
+        fine = max(fine, gridLine(llFrac, 0.01) * kFine * distFade(dist, uGridFades.z));
     if (dist < uGridFades.y)
-        fine = max(fine, gridLine(llFrac, 0.001) * 0.25 * distFade(dist, uGridFades.y));
+        fine = max(fine, gridLine(llFrac, 0.001) * kFine * distFade(dist, uGridFades.y));
     if (dist < uGridFades.x)
-        fine = max(fine, gridLine(llFrac, 0.0001) * 0.18 * distFade(dist, uGridFades.x));
+        fine = max(fine, gridLine(llFrac, 0.0001) * kFine * distFade(dist, uGridFades.x));
 
-    // Coarse grids — ECEF Bowring fallback beyond 120°
+    // Coarse grids — slight hierarchy (major lines brighter)
+    // ECEF Bowring fallback beyond 120° from camera
     float angDist = max(abs(dLon), abs(dLat));
     vec2 llC = ll;
     if (angDist > 110.0) {
@@ -130,11 +135,11 @@ void main() {
                                 r - ab / uRadii.x * cT*cT*cT)));
     }
     float coarse = max(
-        max(gridLine(llC, 1.0)  * 0.4,
-            gridLine(llC, 5.0)  * 0.55),
-        max(gridLine(llC, 10.0) * 0.65,
-            max(gridLine(llC, 30.0) * 0.8,
-                gridLine(llC, 90.0) * 1.0)));
+        max(gridLine(llC, 1.0)  * 0.3,
+            gridLine(llC, 5.0)  * 0.35),
+        max(gridLine(llC, 10.0) * 0.4,
+            max(gridLine(llC, 30.0) * 0.45,
+                gridLine(llC, 90.0) * 0.5)));
 
     float line = clamp(max(fine, coarse), 0.0, 1.0);
 
