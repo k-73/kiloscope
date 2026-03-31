@@ -139,6 +139,12 @@ struct SceneData {
     GeoRef geoRef;
     bool flyLocked = false;         // per-scene fly-mode cursor lock
 
+    // Per-scene cached transforms (snapshot from last Begin/End)
+    glm::mat4  cachedViewProj{1.f};
+    glm::mat4  cachedInvViewProj{1.f};
+    glm::dvec3 cachedCamPosD{0.0};
+    float      cachedVpCx = 0, cachedVpCy = 0, cachedVpW = 1, cachedVpH = 1;
+
     // Mesh batching
     std::vector<MeshDraw> drawList;
     std::vector<MeshVert> vboAccum;
@@ -190,6 +196,7 @@ struct FrameState {
     float cx{}, cy{};       // viewport origin (screen coords)
     float w{}, h{};          // viewport size
     bool hovered{}, fly{};
+    bool insideBeginEnd{};   // true between Begin() and End()
 };
 
 // ── shared state (GPU resources + per-frame derived) ─────────────────

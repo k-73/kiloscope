@@ -142,6 +142,7 @@ void Example::OnDraw() {
         ImGui::DragFloat("Specular",    &env.specular,   0.01f, 0.f, 1.f);
         ImGui::DragFloat("Fresnel",     &env.fresnel,    0.01f, 0.f, 1.f);
         ImGui::DragFloat("Fog Density", &env.fogDensity, 0.00001f, 0.f, 0.01f);
+        ImGui::ColorEdit3("Fog Color", &env.fogColor.x);
         ImGui::Checkbox("Show Sun", &env.showSun);
     ImGui::End();
 
@@ -157,6 +158,7 @@ void Example::OnDraw() {
         ImGui::Separator();
         ImGui::ColorEdit4("Axis X", &grid.axisXColor.x);
         ImGui::ColorEdit4("Axis Y", &grid.axisYColor.x);
+        ImGui::ColorEdit4("Axis Z", &grid.axisZColor.x);
         ImGui::DragFloat("Axis Thickness", &grid.axisThickness, 0.001f, 0.001f, 0.5f);
         ImGui::Checkbox("Axis Scale With Cam", &grid.axisScaleWithCam);
         ImGui::Separator();

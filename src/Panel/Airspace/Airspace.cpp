@@ -16,6 +16,7 @@ namespace Kilo {
 
 Airspace::Airspace() : Panel("Airspace", "Airspace") {
     Render::GetCamera("flight").ResetFollow(12.f);
+    waypoints_.push_back({52.2297 + 1.0 / 111.32, 21.0122, 0.0, "WP1"});
 }
 
 // ── aircraft model ──────────────────────────────────────────────
@@ -86,6 +87,25 @@ void Airspace::DrawControls() {
         float cosLat = std::cos(glm::radians(float(aircraft_.lat)));
         gimbal_.targetLat += fy * std::cos(yr) - fx * std::sin(yr);
         gimbal_.targetLon += (fy * std::sin(yr) + fx * std::cos(yr)) / std::max(cosLat, 0.01f);
+    }
+    ImGui::Separator();
+
+    // Waypoints
+    if (ImGui::CollapsingHeader("Waypoints")) {
+        int removeIdx = -1;
+        for (size_t i = 0; i < waypoints_.size(); ++i) {
+            ImGui::PushID(int(i));
+            auto& wp = waypoints_[i];
+            ImGui::Text("%s", wp.label.c_str());
+            ImGui::SameLine();
+            ImGui::Text("%.6f, %.6f", wp.lat, wp.lon);
+            ImGui::SameLine();
+            if (ImGui::SmallButton("X")) removeIdx = int(i);
+            ImGui::PopID();
+        }
+        if (removeIdx >= 0)
+            waypoints_.erase(waypoints_.begin() + removeIdx);
+        ImGui::TextDisabled("Double-click globe to add waypoint");
     }
     ImGui::Separator();
 
@@ -181,12 +201,21 @@ void Airspace::UpdatePhysics(float dt) {
 // ── scene ───────────────────────────────────────────────────────
 
 void Airspace::DrawWorld(const glm::vec3& pos) {
-    // Waypoint marker (fixed geodetic position, 1km north of start)
-    static const double wpLat = 52.2297 + 1.0 / 111.32, wpLon = 21.0122;
-    auto wpNed = glm::vec3(Render::GeoToLocal("flight", wpLat, wpLon, 0.0));
-    float wpDist = glm::length(wpNed - pos) * 0.001f;
-    Render::Marker(wpNed, ICON_FA_LOCATION_DOT, "WP1", Render::Color::Orange,
-        "%.2f km\n%.6f, %.6f", wpDist, wpLat, wpLon);
+    // Waypoints (use current scene's GeoRef — works for both flight and gimbal)
+    for (auto& wp : waypoints_) {
+        auto wpLocal = glm::vec3(Render::GeoToLocal(wp.lat, wp.lon, wp.alt));
+        float dist = glm::length(wpLocal - pos) * 0.001f;
+        Render::Marker(wpLocal, ICON_FA_LOCATION_DOT, wp.label.c_str(), wp.color,
+            "%.2f km\n%.6f, %.6f\n%.0f m", dist, wp.lat, wp.lon, wp.alt);
+        // Drag waypoint on globe surface via pick system
+        if (Render::Event().Dragging()) {
+            auto& io = ImGui::GetIO();
+            double lat, lon, alt;
+            if (Render::ScreenToGeo(io.MousePos.x, io.MousePos.y, lat, lon, alt)) {
+                wp.lat = lat; wp.lon = lon;
+            }
+        }
+    }
 
     // Aircraft model (body frame: ZYX Euler rotation from NED)
     Render::PushMatrix();
@@ -216,7 +245,7 @@ void Airspace::DrawFlight(float dt) {
         Render::SetFrame(Render::FrameId::NED);
         Render::Globe();
 
-        // World objects (aircraft, waypoints)
+        // World objects (aircraft, waypoints — drag enabled per marker)
         DrawWorld(nedPos);
         auto aircraftEv = Render::Event();
         if (aircraftEv.Hovered())
@@ -227,20 +256,15 @@ void Airspace::DrawFlight(float dt) {
         Render::Cross({nedPos.x, nedPos.y, 0.f}, 0.5f, {1,1,1,.5f}, 2.f);
         Render::Line(nedPos, {nedPos.x, nedPos.y, 0.f}, {1,1,1,.15f}, 1.0f);
 
-        // Flight trail (ECEF cache → cheap per-frame NED conversion)
-        if (trailEcef_.size() > 1) {
-            trailBuf_.resize(trailEcef_.size());
-            for (size_t i = 0; i < trailEcef_.size(); ++i)
-                trailBuf_[i] = glm::vec3(Render::EcefToLocal(trailEcef_[i]));
-            Render::Trail(trailBuf_.data(), int(trailBuf_.size()), {.5f, .5f, .55f, .4f}, 1.5f);
-        }
+        trail_.Draw({.5f, .5f, .55f, .4f}, 1.5f);
 
         // Gimbal: sensor frustum + line to target
         auto gimbalNed = nedPos + BodyToNed() * gimbal_.bodyOffset;
         auto targetNed = glm::vec3(Render::GeoToLocal("flight", gimbal_.targetLat, gimbal_.targetLon, gimbal_.targetAlt));
         auto gimbalDir = glm::normalize(targetNed - gimbalNed);
+        auto gimbalUp  = BodyToNed() * glm::vec3(0, 0, -1);  // aircraft body up in NED
         Render::Line(nedPos, gimbalNed, Render::Color::Hex("#d4985b50"), 1.f);
-        Render::Sensor(gimbalNed, gimbalDir, {0,0,-1}, gimbal_.fov, gimbal_.aspect, 0.1,
+        Render::Sensor(gimbalNed, gimbalDir, gimbalUp, gimbal_.fov, gimbal_.aspect, 0.1,
             Render::Color::Hex("#90B0D0"), 1.0f);
         Render::Line(gimbalNed, targetNed, Render::Color::Hex("#00c3ffAA"), 1.f);
         Render::Marker(targetNed, ICON_FA_CROSSHAIRS, "Target", Render::Color::Hex("#00ccffff"),
@@ -248,15 +272,18 @@ void Airspace::DrawFlight(float dt) {
     Render::End();
     Render::HUD();
 
+    // Double-click on globe surface → create new waypoint
+    if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+        auto& io = ImGui::GetIO();
+        double lat, lon, alt;
+        if (Render::ScreenToGeo("flight", io.MousePos.x, io.MousePos.y, lat, lon, alt)) {
+            std::string label = "WP" + std::to_string(waypoints_.size() + 1);
+            waypoints_.push_back({lat, lon, 0.0, std::move(label)});
+        }
+    }
+
     if (!cameraFree_)
         cam.CaptureFollow();
-
-    // Record trail: one GeographicLib call per point, ECEF distance threshold (meters)
-    auto ecef = Render::GeoRef::ToEcef(aircraft_.lat, aircraft_.lon, aircraft_.alt);
-    if (trailEcef_.empty() || glm::length(ecef - trailEcef_.back()) > kTrailStep) {
-        trailEcef_.push_back(ecef);
-        if (trailEcef_.size() > kTrailMax) trailEcef_.pop_front();
-    }
 }
 
 void Airspace::DrawGimbal() {
@@ -301,14 +328,50 @@ void Airspace::SetupEnv(const char* scene) {
     env.lightDir = Render::ToInternal<Render::NED>({0.3f, 0.2f, -0.9f});
 }
 
-// ── orchestrator ────────────────────────────────────────────────
+// ── worker thread (1kHz fixed timestep) ────────────────────────
+
+void Airspace::OnLoop() {
+    constexpr float kDt = 0.001f;  // 1ms fixed timestep
+    UpdatePhysics(kDt);
+    trail_.Record(aircraft_.lat, aircraft_.lon, aircraft_.alt);
+}
+
+// ── main thread (rendering) ────────────────────────────────────
 
 void Airspace::OnDraw() {
-    const float dt = ImGui::GetIO().DeltaTime;
     DrawControls();
-    UpdatePhysics(dt);
-    DrawFlight(dt);
+    DrawFlight(ImGui::GetIO().DeltaTime);
     DrawGimbal();
+}
+
+// ── persistence ────────────────────────────────────────────────
+
+json Airspace::SaveSettings() const {
+    json j;
+    json wps = json::array();
+    for (auto& wp : waypoints_) {
+        json w = {{"lat", wp.lat}, {"lon", wp.lon}, {"alt", wp.alt}, {"label", wp.label}};
+        w["color"] = {wp.color.r, wp.color.g, wp.color.b, wp.color.a};
+        wps.push_back(w);
+    }
+    j["waypoints"] = wps;
+    return j;
+}
+
+void Airspace::LoadSettings(const json& j) {
+    if (j.contains("waypoints")) {
+        waypoints_.clear();
+        for (auto& w : j["waypoints"]) {
+            Waypoint wp;
+            wp.lat   = w.value("lat", 0.0);
+            wp.lon   = w.value("lon", 0.0);
+            wp.alt   = w.value("alt", 0.0);
+            wp.label = w.value("label", std::string("WP"));
+            if (w.contains("color") && w["color"].is_array() && w["color"].size() == 4)
+                wp.color = {w["color"][0], w["color"][1], w["color"][2], w["color"][3]};
+            waypoints_.push_back(std::move(wp));
+        }
+    }
 }
 
 static const bool reg_ = RegisterPanel<Airspace>("Airspace", "Airspace");

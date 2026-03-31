@@ -51,6 +51,83 @@ glm::dvec3 EcefToLocal(const glm::dvec3& ecef) {
     return glm::dvec3(glm::transpose(glm::dmat3(ctx().frameMat)) * gr.EcefToInternal(ecef));
 }
 
+// ── screen-to-geo (CPU ray-ellipsoid intersection) ─────────────────
+//
+// Pipeline: screen → NDC → camera-relative world ray → ENU world ray
+//           → ECEF normalized → quadratic → hit ECEF → geodetic (GeographicLib)
+//
+// Same math as Globe.frag but on CPU with full double precision.
+
+static bool ScreenToGeoImpl(const SceneData& sc,
+                            float screenX, float screenY,
+                            double& lat, double& lon, double& alt) {
+    auto& gr = sc.geoRef;
+    if (!gr.valid || sc.cachedVpW < 1.f) return false;
+
+    // 1. Screen → NDC (using per-scene cached viewport)
+    float ndcX = (screenX - sc.cachedVpCx) / sc.cachedVpW *  2.f - 1.f;
+    float ndcY = (1.f - (screenY - sc.cachedVpCy) / sc.cachedVpH) * 2.f - 1.f;
+    if (ndcX < -1.f || ndcX > 1.f || ndcY < -1.f || ndcY > 1.f) return false;
+
+    // 2. Unproject screen point onto near plane (camera-relative world space).
+    //    Camera is at origin in camera-relative space, so ray direction = normalize(nearP).
+    //    No far-plane unproject needed — avoids float32 precision loss at extreme far distances.
+    glm::vec4 nearH = sc.cachedInvViewProj * glm::vec4(ndcX, ndcY, -1.f, 1.f);
+    glm::dvec3 nearP = glm::dvec3(nearH) / double(nearH.w);
+    glm::dvec3 rd    = glm::normalize(nearP);
+
+    // 3. Ray origin = camera position in ENU (relative to GeoRef origin)
+    glm::dvec3 rayOriginEnu = sc.cachedCamPosD;
+
+    // 4. Transform ray to ECEF normalized space (unit ellipsoid)
+    constexpr double a = GeoRef::a, b = GeoRef::b;
+    glm::dvec3 invR(1.0 / a, 1.0 / a, 1.0 / b);
+    glm::dmat3 toEcef = glm::transpose(gr.ecefToEnu);
+    glm::dmat3 M(toEcef[0] * invR, toEcef[1] * invR, toEcef[2] * invR);
+
+    // Earth center in ENU = ecefToEnu * (-ecefRef)
+    glm::dvec3 earthCenterEnu = gr.ecefToEnu * (-gr.ecefRef);
+    glm::dvec3 oc = M * (rayOriginEnu - earthCenterEnu);
+    // M * v = diag(1/radii) * transpose(ecefToEnu)^-1 * v = normalized ECEF direction
+    glm::dvec3 dd = M * rd;
+
+    // 5. Solve quadratic: |oc + t*dd|² = 1
+    //    Standard formula with double precision — no GPU near-root trick needed.
+    double qa   = glm::dot(dd, dd);
+    double qb   = glm::dot(oc, dd);
+    double qc_  = glm::dot(oc, oc) - 1.0;
+    double disc = qb * qb - qa * qc_;
+    if (disc < 0.0) return false;
+
+    double sd = std::sqrt(disc);
+    double t1 = (-qb - sd) / qa;   // near root
+    double t2 = (-qb + sd) / qa;   // far root
+    double tD = (t1 > 0.0) ? t1 : t2;
+
+    if (tD < 0.0 || !std::isfinite(tD)) return false;
+
+    // 6. Hit point in ENU → ECEF → geodetic
+    glm::dvec3 hitEnu  = rayOriginEnu + rd * tD;
+    glm::dvec3 hitEcef = toEcef * hitEnu + gr.ecefRef;
+
+    if (!std::isfinite(hitEcef.x)) return false;
+
+    static const auto& earth = GeographicLib::Geocentric::WGS84();
+    earth.Reverse(hitEcef.x, hitEcef.y, hitEcef.z, lat, lon, alt);
+
+    return std::isfinite(lat) && std::isfinite(lon);
+}
+
+bool ScreenToGeo(float screenX, float screenY, double& lat, double& lon, double& alt) {
+    if (!sFrame.scene) return false;
+    return ScreenToGeoImpl(*sFrame.scene, screenX, screenY, lat, lon, alt);
+}
+
+bool ScreenToGeo(const char* scene, float screenX, float screenY,
+                 double& lat, double& lon, double& alt) {
+    return ScreenToGeoImpl(GetScene(scene), screenX, screenY, lat, lon, alt);
+}
+
 // ── rendering ───────────────────────────────────────────────────────
 
 void DrawGlobe(const GlobeConfig& cfg) {

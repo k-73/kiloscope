@@ -111,6 +111,7 @@ struct Environment {
     float fogDensity = 0.00015f;  // legacy (used when fogStart <= 0)
     float fogStart   = 5000.f;    // atmospheric haze begins (meters)
     float fogEnd     = 200000.f;  // full fog distance (meters)
+    glm::vec3 fogColor = {.02f, .04f, .08f};  // atmospheric haze tint
     bool  showSun    = false;
 };
 
@@ -141,6 +142,7 @@ struct GridConfig {
     glm::vec4 colorCoarse = {.48f, .52f, .58f, .65f};
     glm::vec4 axisXColor  = {.8f, .2f, .2f, 1.f};
     glm::vec4 axisYColor  = {.2f, .8f, .2f, 1.f};
+    glm::vec4 axisZColor  = {.35f, .50f, .95f, 1.f};
     float     axisThickness = 0.001f;
     bool      axisScaleWithCam = false;
     float     fadeStart   = 20.f;
@@ -186,6 +188,13 @@ glm::dvec3 EcefToLocal(const glm::dvec3& ecef);  // uses current scene (inside B
 
 // ── projection helpers ──────────────────────────────────────────
 glm::vec2 WorldToScreen(const glm::vec3& worldPos);
+
+// Screen to geodetic — CPU ray-ellipsoid intersection (WGS84).
+// screenX/screenY in window coordinates. Returns true if the ray hits the ellipsoid.
+// Uses the most recently rendered scene's GeoRef and camera.
+bool ScreenToGeo(float screenX, float screenY, double& lat, double& lon, double& alt);
+bool ScreenToGeo(const char* scene, float screenX, float screenY,
+                 double& lat, double& lon, double& alt);
 
 // ── interaction ─────────────────────────────────────────────────
 enum Button : int { Left = 0, Right = 1, Middle = 2 };

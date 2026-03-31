@@ -166,6 +166,7 @@ void SetMeshFrameUniforms() {
     sMeshShader.Set("uRoughness", env.roughness);
     sMeshShader.Set("uSpecular", env.specular);
     sMeshShader.Set("uFresnel", env.fresnel);
+    sMeshShader.Set("uFogColor", env.fogColor);
     sMeshShader.Set("uFogDensity", env.fogDensity);
     sMeshShader.Set("uFogStart", env.fogStart);
     sMeshShader.Set("uFogEnd", env.fogEnd);
@@ -656,6 +657,7 @@ GridConfig& GetGrid(const char* name) { return GetScene(name).gridCfg; }
 // ── Begin ────────────────────────────────────────────────────────────
 
 void Begin(const char* name, const ViewportConfig& cfg) {
+    assert(!sFrame.insideBeginEnd && "Nested Begin() calls are not supported — call End() first");
     auto& scene = sScenes[HashName(name)];
     if (!scene) scene = std::make_unique<SceneData>();
 
@@ -700,7 +702,7 @@ void Begin(const char* name, const ViewportConfig& cfg) {
         if (f || r || u) cam.FlyMove(f, r, u, io.DeltaTime);
     }
 
-    sFrame = {scene.get(), cursor.x, cursor.y, size.x, size.y, hovered, fly};
+    sFrame = {scene.get(), cursor.x, cursor.y, size.x, size.y, hovered, fly, true};
 
     // Drag tracking: start on click over hovered object
     for (int b = 0; b < kButtonCount; ++b) {
@@ -735,6 +737,13 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     sInvViewProj = glm::inverse(sViewProj);
     sFrustum     = ExtractFrustum(sViewProj);
     sLightDir = glm::normalize(scene->env.lightDir);
+
+    // Cache per-scene transforms for post-End() queries (e.g. ScreenToGeo)
+    scene->cachedViewProj    = sViewProj;
+    scene->cachedInvViewProj = sInvViewProj;
+    scene->cachedCamPosD     = sCamPosD;
+    scene->cachedVpCx = cursor.x; scene->cachedVpCy = cursor.y;
+    scene->cachedVpW  = size.x;   scene->cachedVpH  = size.y;
     sVpW = w; sVpH = h;
 
     if (hovered) scene->pickFbo.Clear();
@@ -798,7 +807,7 @@ static glm::vec4 FrameAxisColor(const glm::mat3& fm, int axis, const glm::vec4 (
 }
 
 static void DrawGrid(const GridConfig& cfg, float camDist) {
-    const glm::vec4 axisColors[3] = {cfg.axisXColor, cfg.axisYColor, {.35f,.50f,.95f,1.f}};
+    const glm::vec4 axisColors[3] = {cfg.axisXColor, cfg.axisYColor, cfg.axisZColor};
     const glm::mat3& fm = ctx().frameMat;
 
     sGridShader.Use();
@@ -939,6 +948,9 @@ static void ResolveAndPresent() {
 // ── End ──────────────────────────────────────────────────────────────
 
 void End() {
+    assert(sFrame.insideBeginEnd && "End() called without matching Begin()");
+    sFrame.insideBeginEnd = false;
+
     // Internal draws must not inherit pick IDs from user code
     ctx().activePickId = 0;
 
@@ -1000,6 +1012,7 @@ void TranslateGeo(double lat, double lon, double alt) {
     // Full double pipeline: geodetic → ECEF → ENU → frame → camera-relative → float32
     // No float32 truncation until the final cast — sub-mm precision at any distance.
     auto& gr = ctx().geoRef;
+    assert(gr.valid && "TranslateGeo() requires SetOrigin() to be called first");
     auto enu = gr.ToInternal(lat, lon, alt);                        // double
     auto framed = glm::dvec3(glm::transpose(glm::dmat3(ctx().frameMat)) * enu);  // double
     auto camRel = framed - sCamPosD;                                 // double

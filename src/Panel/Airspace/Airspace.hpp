@@ -2,16 +2,28 @@
 #include "Core/Panel/Panel.hpp"
 #include "Render/Frame.hpp"
 #include "Render/Geo.hpp"
+#include "Render/Trail.hpp"
 #include <glm/glm.hpp>
-#include <deque>
+#include <string>
 #include <vector>
 
 namespace Kilo {
 
+// Geodetic waypoint — lat/lon/alt with label and color.
+struct Waypoint {
+    double    lat = 0.0, lon = 0.0, alt = 0.0;
+    std::string label;
+    glm::vec4 color = {1.f, .6f, .2f, 1.f};  // orange default
+};
+
 class Airspace : public Panel {
 public:
     Airspace();
+    void OnLoop() override;
     void OnDraw() override;
+
+    json SaveSettings() const override;
+    void LoadSettings(const json& j) override;
 
 private:
     void DrawControls();
@@ -40,11 +52,8 @@ private:
     bool cameraFree_ = false;
     float bank_      = 0.f;   // bank input from HandleInput (focus-guarded)
 
-    // Trail (ECEF cache — GeographicLib once on record, cheap matrix per frame)
-    static constexpr size_t  kTrailMax  = 128;
-    static constexpr double  kTrailStep = 1.0;   // meters between trail points
-    std::deque<glm::dvec3>   trailEcef_;           // ECEF positions (O(1) pop_front)
-    std::vector<glm::vec3>   trailBuf_;           // NED positions (recomputed per frame)
+    std::vector<Waypoint> waypoints_;
+    Render::TrailBuffer trail_{128, 1.0};
 
 };
 

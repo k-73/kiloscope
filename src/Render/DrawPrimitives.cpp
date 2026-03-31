@@ -476,6 +476,15 @@ bool Marker(const glm::vec3& pos, const char* icon, const char* label,
     auto scr = WorldToScreen(p);
     if (scr.x < 0.f) return false;
 
+    // Pickable point — invisible (alpha 0) but participates in GPU pick pass.
+    // This makes Event() after Marker() work for hover, click, drag, release.
+    constexpr float kPickSize = 20.f;
+    auto& s = ctx();
+    s.activePickId = AllocPickId();
+    if (!s.pointBatch.empty() && kPickSize != s.pointSize) FlushPoints();
+    s.pointSize = kPickSize;
+    s.pointBatch.push_back({p, {0, 0, 0, 0}, s.activePickId});
+
     constexpr float kGap = 3.f, kLabelUp = 2.f;
     auto iconSz = ImGui::CalcTextSize(icon);
     auto lblSz  = ImGui::CalcTextSize(label);
@@ -487,17 +496,15 @@ bool Marker(const glm::vec3& pos, const char* icon, const char* label,
         {scr.x + iconSz.x * .5f + kGap, scr.y - lblSz.y * .5f - kLabelUp}});
     ctx().stats.textLabels += 2;
 
-    // Hover: bounding box of icon + label
-    float hx = scr.x - iconSz.x * .5f;
-    float hy = scr.y - std::max(iconSz.y, lblSz.y) * .5f - kLabelUp;
-    bool hovered = ImGui::IsMouseHoveringRect(
-        {hx, hy}, {hx + iconSz.x + kGap + lblSz.x, hy + std::max(iconSz.y, lblSz.y) + kLabelUp}, false);
+    // Hover from pick system (GPU) — if pick reports hover, show tooltip
+    bool hovered = sFrame.hovered
+                && s.activePickId != 0
+                && s.activePickId == s.hoveredPickId;
 
     if (hovered) {
         ImGui::BeginTooltip();
         ImGui::TextColored({color.r, color.g, color.b, 1.f}, "%s %s", icon, label);
         ImGui::Separator();
-        // World position in active frame (not camera-relative)
         auto world = glm::vec3(Mat() * glm::vec4(pos, 1.f));
         auto fp = glm::transpose(ctx().frameMat) * world;
         const char* fn = "XYZ";
@@ -506,7 +513,7 @@ bool Marker(const glm::vec3& pos, const char* icon, const char* label,
         else if (ctx().frameMat == FLU::M) fn = "FLU";
         else if (ctx().frameMat == FRD::M) fn = "FRD";
         ImGui::Text("%s  %.1f  %.1f  %.1f", fn, fp.x, fp.y, fp.z);
-        ImGui::Text("Cam  %.0f m", glm::length(p));  // p is camera-relative, camera at origin
+        ImGui::Text("Cam  %.0f m", glm::length(p));
         if (detailFmt) {
             char buf[256];
             va_list args; va_start(args, detailFmt);
@@ -518,7 +525,7 @@ bool Marker(const glm::vec3& pos, const char* icon, const char* label,
         ImGui::EndTooltip();
     }
 
-    return hovered && ImGui::IsMouseClicked(0);
+    return hovered;
 }
 
 bool HudBegin() {
@@ -724,6 +731,7 @@ void Sensor(const glm::vec3& pos, const glm::vec3& dir, const glm::vec3& up,
 }
 
 void Frustum(const glm::mat4& viewProj, const glm::vec4& color, float width) {
+    if (std::abs(glm::determinant(viewProj)) < 1e-12f) return;
     PickGroup pg;
     glm::mat4 inv = glm::inverse(viewProj);
     auto unproject = [&](float x, float y, float z) -> glm::vec3 {

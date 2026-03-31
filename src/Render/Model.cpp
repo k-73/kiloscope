@@ -138,13 +138,19 @@ static void DrawModel(ModelEntry& entry, const glm::vec4* color) {
     float glowR    = std::exchange(ctx().glowRadius, 0.f);
     auto& subs = entry.submeshes;
     for (size_t i = 0; i < subs.size(); ++i) {
-        SetMeshUniforms(color ? *color : subs[i].color);
-        ctx().twoSided = true;
+        // Restore emissive flags on the last submesh so glow emits once
         if (emissive && i + 1 == subs.size()) {
             ctx().emissive = true; ctx().glow = glow; ctx().glowRadius = glowR;
         }
+        SetMeshUniforms(color ? *color : subs[i].color);
+        ctx().twoSided = true;
         UploadGpuDraw(subs[i].mesh, Mat());
     }
+    // Ensure clean state after model draw (ConsumeEmissive resets on last submesh,
+    // but guard against models with zero submeshes or other edge cases)
+    ctx().emissive = false;
+    ctx().glow = false;
+    ctx().glowRadius = 0.f;
 }
 
 void Model(ModelId id, const glm::vec4& color) {

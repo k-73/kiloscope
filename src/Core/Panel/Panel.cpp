@@ -1,5 +1,6 @@
 #include "Core/Panel/Panel.hpp"
 #include <imgui.h>
+#include <mutex>
 #include <unordered_map>
 
 namespace Kilo {
@@ -26,7 +27,9 @@ void Panel::Draw() {
 }
 
 int Panel::NextInstanceId(const std::string& typeId) {
+    static std::mutex mutex;
     static std::unordered_map<std::string, int> counters;
+    std::lock_guard lock(mutex);
     return counters[typeId]++;
 }
 

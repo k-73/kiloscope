@@ -26,6 +26,7 @@ uniform float uDiffuse;
 uniform float uRoughness;
 uniform float uSpecular;
 uniform float uFresnel;
+uniform vec3  uFogColor;
 uniform float uFogDensity;
 uniform float uFogStart;
 uniform float uFogEnd;
@@ -47,10 +48,10 @@ out vec4 FragColor;
 
 float Fog(float d) {
     if (uFogStart > 0.0) {
-        float t = clamp((d - uFogStart) / (uFogEnd - uFogStart), 0.0, 1.0);
-        return 1.0 - t * t * (3.0 - 2.0 * t);
+        float t = smoothstep(uFogStart, uFogEnd, d);
+        return t * t;  // squared smoothstep — matches Globe fog profile
     }
-    return clamp(exp(-uFogDensity * d * d), 0.0, 1.0);
+    return 1.0 - clamp(exp(-uFogDensity * d * d), 0.0, 1.0);
 }
 
 float WrapDiffuse(float NdL) {
@@ -72,11 +73,10 @@ void main() {
 
     float dist = length(uCamPos - vWorldPos);
     float fog  = Fog(dist);
-    vec3  fogColor = mix(uBgColor, vec3(0.55, 0.62, 0.75), 0.3);
 
     // Mode 1: flat color
     if (uUnlit == 1) {
-        FragColor = vec4(mix(fogColor, uColor.rgb, fog), uColor.a);
+        FragColor = vec4(mix(uColor.rgb, uFogColor, fog), uColor.a);
         return;
     }
 
@@ -87,7 +87,7 @@ void main() {
         float NdV = max(dot(N, V), 0.0);
         float rim = pow(1.0 - NdV, 2.5);
         vec3  hot = mix(uColor.rgb, vec3(1.0), NdV * 0.3);
-        FragColor = vec4(mix(fogColor, hot * (1.0 + rim * 1.5), fog), uColor.a);
+        FragColor = vec4(mix(hot * (1.0 + rim * 1.5), uFogColor, fog), uColor.a);
         return;
     }
 
@@ -111,7 +111,7 @@ void main() {
     float r2  = max(uRoughness * uRoughness, 0.04);
 
     float diff    = WrapDiffuse(NdL);
-    float hemi    = N.z * 0.08 + uAmbient;
+    float hemi    = uAmbient + uAmbient * 0.35 * max(N.z, 0.0);  // hemisphere sky boost
     float spec    = GGXSpec(max(dot(N, H), 0.0), r2);
     float fresnel = pow(1.0 - max(NdV, 0.0), 4.0) * uFresnel;
 
@@ -128,5 +128,5 @@ void main() {
         lit += (uColor.rgb * pDiff + pSpec) * uPLColor[i] * atten;
     }
 
-    FragColor = vec4(mix(fogColor, lit, fog), uColor.a);
+    FragColor = vec4(mix(lit, uFogColor, fog), uColor.a);
 }
