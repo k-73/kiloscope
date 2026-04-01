@@ -14,21 +14,17 @@
 
 namespace Kilo {
 
+static Render::ModelId sJetModel = Render::kInvalidModel;
+
 Airspace::Airspace() : Panel("Airspace", "Airspace") {
     Render::GetCamera("flight").ResetFollow(12.f);
     waypoints_.push_back({52.2297 + 1.0 / 111.32, 21.0122, 0.0, "WP1"});
-}
-
-// ── aircraft model ──────────────────────────────────────────────
-
-static Render::ModelId sJetModel = Render::kInvalidModel;
-
-static void DrawAircraft(float speed) {
-    Render::Group group;  // model + afterburner = one pickable object
-
-    // Load model on first use
     if (sJetModel == Render::kInvalidModel)
         sJetModel = Render::LoadModel(std::string(ASSETS_DIR) + "/models/Jet_Lowpoly.obj");
+}
+
+static void DrawAircraft(float speed) {
+    Render::Group group;
 
     // OBJ → body frame: scale, offset, coordinate transform
     Render::PushMatrix();

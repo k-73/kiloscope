@@ -19,6 +19,8 @@ void PickFbo::Resize(int nw, int nh) {
     if (nw == w && nh == h) return;
     Destroy();
     w = nw; h = nh;
+
+    // Color (R32UI pick ID) + depth
     glCreateFramebuffers(1, &fbo);
     glCreateTextures(GL_TEXTURE_2D, 1, &color);
     glTextureStorage2D(color, 1, GL_R32UI, w, h);
@@ -26,16 +28,22 @@ void PickFbo::Resize(int nw, int nh) {
     glCreateRenderbuffers(1, &depth);
     glNamedRenderbufferStorage(depth, GL_DEPTH_COMPONENT32F, w, h);
     glNamedFramebufferRenderbuffer(fbo, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depth);
-    // Double-buffered PBOs for async pick readback
+
+    // Double-buffered PBOs with persistent mapping — avoids per-frame glMap/Unmap stalls
+    constexpr GLbitfield kPboFlags = GL_MAP_READ_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT;
     glCreateBuffers(2, pbo);
     uint32_t zero = 0;
-    for (auto p : pbo)
-        glNamedBufferStorage(p, sizeof(uint32_t), &zero, GL_MAP_READ_BIT);
+    for (int i = 0; i < 2; ++i) {
+        glNamedBufferStorage(pbo[i], sizeof(uint32_t), &zero, kPboFlags);
+        mapped[i] = static_cast<uint32_t*>(glMapNamedBufferRange(pbo[i], 0, sizeof(uint32_t), kPboFlags));
+    }
     pboIdx = 0;
     pboReady = false;
+
     if (glCheckNamedFramebufferStatus(fbo, GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
         Log::Render().error("PickFbo incomplete ({}x{})", w, h);
 }
+
 void PickFbo::Bind() {
     glBindFramebuffer(GL_FRAMEBUFFER, fbo);
     glViewport(0, 0, w, h);
@@ -43,7 +51,6 @@ void PickFbo::Bind() {
 
 void PickFbo::Clear(int cursorX, int cursorY, int radius) {
     Bind();
-    // Scissored clear — only the region around cursor needs zeroing (pick pass uses same scissor)
     int fy = h - 1 - cursorY;
     glEnable(GL_SCISSOR_TEST);
     glScissor(cursorX - radius, fy - radius, radius * 2, radius * 2);
@@ -55,11 +62,12 @@ void PickFbo::Clear(int cursorX, int cursorY, int radius) {
 void PickFbo::BeginAsyncRead(int screenX, int screenY) {
     int fy = h - 1 - screenY;
     if (screenX < 0 || screenX >= w || fy < 0 || fy >= h) return;
+
     glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
     glBindBuffer(GL_PIXEL_PACK_BUFFER, pbo[pboIdx]);
     glReadPixels(screenX, fy, 1, 1, GL_RED_INTEGER, GL_UNSIGNED_INT, nullptr);
     glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
-    // Fence: signals when the ReadPixels DMA transfer completes
+
     if (fence[pboIdx]) glDeleteSync(fence[pboIdx]);
     fence[pboIdx] = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 }
@@ -67,27 +75,29 @@ void PickFbo::BeginAsyncRead(int screenX, int screenY) {
 uint32_t PickFbo::FinishAsyncRead() {
     if (!pboReady) return 0;
     int readIdx = 1 - pboIdx;
-    // Non-blocking: check if GPU finished the readback, skip if not ready
+
+    // Non-blocking: if GPU hasn't finished the readback, reuse previous result
     if (fence[readIdx]) {
-        GLenum result = glClientWaitSync(fence[readIdx], 0, 0);  // timeout=0 → never block
-        if (result == GL_TIMEOUT_EXPIRED) return lastPickId;      // GPU not done — reuse previous
+        if (glClientWaitSync(fence[readIdx], 0, 0) == GL_TIMEOUT_EXPIRED)
+            return lastPickId;
         glDeleteSync(fence[readIdx]);
         fence[readIdx] = nullptr;
     }
-    auto* ptr = static_cast<uint32_t*>(
-        glMapNamedBufferRange(pbo[readIdx], 0, sizeof(uint32_t), GL_MAP_READ_BIT));
-    if (ptr) { lastPickId = *ptr; glUnmapNamedBuffer(pbo[readIdx]); }
+
+    if (mapped[readIdx]) lastPickId = *mapped[readIdx];
     return lastPickId;
 }
+
 void PickFbo::Destroy() {
-    if (fbo) { glDeleteFramebuffers(1, &fbo); fbo = 0; }
-    if (color) { glDeleteTextures(1, &color); color = 0; }
-    if (depth) { glDeleteRenderbuffers(1, &depth); depth = 0; }
+    if (fbo)    { glDeleteFramebuffers(1, &fbo);  fbo = 0; }
+    if (color)  { glDeleteTextures(1, &color);     color = 0; }
+    if (depth)  { glDeleteRenderbuffers(1, &depth); depth = 0; }
     if (pbo[0]) { glDeleteBuffers(2, pbo); pbo[0] = pbo[1] = 0; }
     for (auto& f : fence) { if (f) { glDeleteSync(f); f = nullptr; } }
-    w = h = 0;
+    mapped[0] = mapped[1] = nullptr;
     lastPickId = 0;
     pboReady = false;
+    w = h = 0;
 }
 
 // ── mesh cache (unit-size meshes, generated on first use) ────────────
@@ -601,6 +611,17 @@ void Init(const std::string& dir, int msaaSamples) {
     glCullFace(GL_BACK);
     glEnable(GL_MULTISAMPLE);
     glDisable(GL_SCISSOR_TEST);
+
+    // Pre-generate and upload all common mesh primitives to GPU (avoids first-frame stutter)
+    constexpr int segs[] = {6, 8, 16, 24, 32};
+    for (int s : segs) {
+        UploadGpuMesh(GetUnitSphere(s));
+        UploadGpuMesh(GetUnitCylinder(s));
+        UploadGpuMesh(GetUnitCone(s));
+        UploadGpuMesh(GetUnitCapsule(s));
+        UploadGpuMesh(GetUnitDisk(s));
+    }
+    UploadGpuMesh(GetUnitBox());
 }
 
 // ── Shutdown ─────────────────────────────────────────────────────────
@@ -677,6 +698,10 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     assert(!sFrame.insideBeginEnd && "Nested Begin() calls are not supported — call End() first");
     auto& scene = sScenes[HashName(name)];
     if (!scene) scene = std::make_unique<SceneData>();
+
+    // Read previous frame's pick result (deferred from End to give GPU time to finish)
+    if (scene->pickFbo.pboReady && !scene->pickConsumed)
+        scene->hoveredPickId = scene->pickFbo.FinishAsyncRead();
 
     auto avail = ImGui::GetContentRegionAvail();
     int w = std::max(1, static_cast<int>(cfg.width > 0 ? cfg.width : avail.x));
@@ -942,9 +967,9 @@ static void SubmitMeshes() {
     ctx().vboAccum.clear();
 }
 
-static void ProcessPicking() {
+// Queue async readback of this frame's pick result (read happens in next Begin).
+static void QueuePickReadback() {
     if (!sFrame.hovered || ctx().pickConsumed) return;
-    ctx().hoveredPickId = ctx().pickFbo.FinishAsyncRead();
     auto& io = ImGui::GetIO();
     int mx = static_cast<int>(io.MousePos.x - sFrame.cx);
     int my = static_cast<int>(io.MousePos.y - sFrame.cy);
@@ -1006,8 +1031,8 @@ void End() {
     SubmitMeshes();
     FlushPoints();
     FlushLines();
-    ProcessPicking();
     ResolveAndPresent();
+    QueuePickReadback();
 }
 
 // ── coordinate frame ────────────────────────────────────────────────

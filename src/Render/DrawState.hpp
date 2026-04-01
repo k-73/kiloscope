@@ -93,19 +93,24 @@ inline bool InsideFrustum(const ViewFrustum& f, const glm::vec3& center, float r
 
 // ── FBO types ────────────────────────────────────────────────────────
 
+// Pick framebuffer with double-buffered async readback via persistent-mapped PBOs.
+// BeginAsyncRead queues a 1-pixel read + fence.  FinishAsyncRead checks the fence
+// and reads directly from the persistent mapping — never blocks the CPU.
 struct PickFbo {
-    GLuint fbo = 0, color = 0, depth = 0;
-    GLuint pbo[2] = {};         // double-buffered PBOs for async readback
-    GLsync   fence[2] = {};       // fence per PBO — signals when readback is complete
-    uint32_t lastPickId = 0;      // cached result (reused when GPU not ready)
-    int      pboIdx = 0;          // current write PBO
-    bool     pboReady = false;    // first frame: no read yet
+    GLuint     fbo = 0, color = 0, depth = 0;
+    GLuint     pbo[2] = {};
+    GLsync     fence[2] = {};
+    uint32_t*  mapped[2] = {};        // persistent-mapped PBO pointers
+    uint32_t   lastPickId = 0;        // reused when GPU not ready
+    int        pboIdx = 0;
+    bool       pboReady = false;
     int w = 0, h = 0;
+
     void Resize(int nw, int nh);
     void Bind();
     void Clear(int cursorX, int cursorY, int radius);
-    void BeginAsyncRead(int screenX, int screenY);   // non-blocking: start read into PBO
-    uint32_t FinishAsyncRead();                       // non-blocking: read previous frame's PBO
+    void BeginAsyncRead(int screenX, int screenY);
+    uint32_t FinishAsyncRead();
     void Destroy();
     ~PickFbo() { Destroy(); }
     PickFbo() = default;
@@ -115,11 +120,11 @@ struct PickFbo {
         : fbo(o.fbo), color(o.color), depth(o.depth),
           lastPickId(o.lastPickId), pboIdx(o.pboIdx), pboReady(o.pboReady),
           w(o.w), h(o.h) {
-        pbo[0] = o.pbo[0]; pbo[1] = o.pbo[1];
-        fence[0] = o.fence[0]; fence[1] = o.fence[1];
+        for (int i = 0; i < 2; ++i) {
+            pbo[i] = o.pbo[i]; fence[i] = o.fence[i]; mapped[i] = o.mapped[i];
+            o.pbo[i] = 0; o.fence[i] = nullptr; o.mapped[i] = nullptr;
+        }
         o.fbo = o.color = o.depth = 0;
-        o.pbo[0] = o.pbo[1] = 0;
-        o.fence[0] = o.fence[1] = nullptr;
         o.w = o.h = 0; o.lastPickId = 0; o.pboReady = false;
     }
     PickFbo& operator=(PickFbo&& o) noexcept {
