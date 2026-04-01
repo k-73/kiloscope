@@ -31,10 +31,10 @@ inline constexpr glm::mat3 FrameMat(FrameId id) {
 //   FromInternal<NED>(v) — convert v from internal XYZ to NED
 
 template<typename F> constexpr glm::vec3 ToInternal(const glm::vec3& v)   { return F::M * v; }
-template<typename F> constexpr glm::vec3 FromInternal(const glm::vec3& v) { return glm::transpose(F::M) * v; }
+template<typename F> inline glm::vec3 FromInternal(const glm::vec3& v) { return glm::transpose(F::M) * v; }
 
 inline constexpr glm::vec3 ToInternal  (FrameId id, const glm::vec3& v) { return FrameMat(id) * v; }
-inline constexpr glm::vec3 FromInternal(FrameId id, const glm::vec3& v) { return glm::transpose(FrameMat(id)) * v; }
+inline glm::vec3 FromInternal(FrameId id, const glm::vec3& v) { return glm::transpose(FrameMat(id)) * v; }
 
 // ── frame axis queries ─────────────────────────────────────────────
 
