@@ -41,10 +41,15 @@ void PickFbo::Bind() {
     glViewport(0, 0, w, h);
 }
 
-void PickFbo::Clear() {
+void PickFbo::Clear(int cursorX, int cursorY, int radius) {
     Bind();
+    // Scissored clear — only the region around cursor needs zeroing (pick pass uses same scissor)
+    int fy = h - 1 - cursorY;
+    glEnable(GL_SCISSOR_TEST);
+    glScissor(cursorX - radius, fy - radius, radius * 2, radius * 2);
     GLuint zero = 0;  glClearBufferuiv(GL_COLOR, 0, &zero);
     float  one  = 1.f; glClearBufferfv(GL_DEPTH, 0, &one);
+    glDisable(GL_SCISSOR_TEST);
 }
 
 void PickFbo::BeginAsyncRead(int screenX, int screenY) {
@@ -54,22 +59,34 @@ void PickFbo::BeginAsyncRead(int screenX, int screenY) {
     glBindBuffer(GL_PIXEL_PACK_BUFFER, pbo[pboIdx]);
     glReadPixels(screenX, fy, 1, 1, GL_RED_INTEGER, GL_UNSIGNED_INT, nullptr);
     glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+    // Fence: signals when the ReadPixels DMA transfer completes
+    if (fence[pboIdx]) glDeleteSync(fence[pboIdx]);
+    fence[pboIdx] = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 }
 
 uint32_t PickFbo::FinishAsyncRead() {
     if (!pboReady) return 0;
-    int readIdx = 1 - pboIdx; // read from the OTHER PBO (previous frame)
-    auto* ptr = static_cast<uint32_t*>(glMapNamedBufferRange(pbo[readIdx], 0, sizeof(uint32_t), GL_MAP_READ_BIT));
-    uint32_t id = 0;
-    if (ptr) { id = *ptr; glUnmapNamedBuffer(pbo[readIdx]); }
-    return id;
+    int readIdx = 1 - pboIdx;
+    // Non-blocking: check if GPU finished the readback, skip if not ready
+    if (fence[readIdx]) {
+        GLenum result = glClientWaitSync(fence[readIdx], 0, 0);  // timeout=0 → never block
+        if (result == GL_TIMEOUT_EXPIRED) return lastPickId;      // GPU not done — reuse previous
+        glDeleteSync(fence[readIdx]);
+        fence[readIdx] = nullptr;
+    }
+    auto* ptr = static_cast<uint32_t*>(
+        glMapNamedBufferRange(pbo[readIdx], 0, sizeof(uint32_t), GL_MAP_READ_BIT));
+    if (ptr) { lastPickId = *ptr; glUnmapNamedBuffer(pbo[readIdx]); }
+    return lastPickId;
 }
 void PickFbo::Destroy() {
     if (fbo) { glDeleteFramebuffers(1, &fbo); fbo = 0; }
     if (color) { glDeleteTextures(1, &color); color = 0; }
     if (depth) { glDeleteRenderbuffers(1, &depth); depth = 0; }
     if (pbo[0]) { glDeleteBuffers(2, pbo); pbo[0] = pbo[1] = 0; }
+    for (auto& f : fence) { if (f) { glDeleteSync(f); f = nullptr; } }
     w = h = 0;
+    lastPickId = 0;
     pboReady = false;
 }
 
@@ -746,7 +763,11 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     scene->cachedVpW  = size.x;   scene->cachedVpH  = size.y;
     sVpW = w; sVpH = h;
 
-    if (hovered) scene->pickFbo.Clear();
+    if (hovered) {
+        int pmx = static_cast<int>(io.MousePos.x - cursor.x);
+        int pmy = static_cast<int>(io.MousePos.y - cursor.y);
+        scene->pickFbo.Clear(pmx, pmy, 4);
+    }
     glBindFramebuffer(GL_FRAMEBUFFER, scene->fbo.Handle());
     glViewport(0, 0, w, h);
 
