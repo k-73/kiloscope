@@ -15,6 +15,7 @@ namespace Kilo::UI {
 UiContext::UiContext(const AppConfig& config)  { InitGlfw(config); InitImGui(); ApplyStyle(); }
 
 UiContext::~UiContext() {
+    ImGui::SaveIniSettingsToDisk(ImGui::GetIO().IniFilename);
     ImPlot::DestroyContext();
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
@@ -46,6 +47,7 @@ void UiContext::InitImGui() {
     ImPlot::CreateContext();
     auto& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_NavEnableKeyboard;
+    io.IniSavingRate = 0.f;  // disable periodic auto-save (we save manually on shutdown)
     io.Fonts->SetFontLoader(ImGuiFreeType::GetFontLoader());
     io.Fonts->AddFontDefault();
 

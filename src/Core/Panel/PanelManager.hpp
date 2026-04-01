@@ -10,6 +10,34 @@
 
 namespace Kilo {
 
+// Lightweight snapshot of per-panel timing, updated each frame by PanelManager.
+// Diagnostics (or any panel) reads this without needing PanelManager access.
+// Peaks live only here — ResetPeaks zeroes them cleanly.
+struct PanelTimingEntry {
+    const char* title   = "";
+    float drawUs        = 0.f;
+    float loopUs        = 0.f;
+    float drawPeak      = 0.f;   // peak since last reset
+    float loopPeak      = 0.f;
+    float mutexWaitUs   = 0.f;
+    bool  visible       = false;
+};
+
+struct PanelTimingSnapshot {
+    std::vector<PanelTimingEntry> panels;
+    float workerCycleUs  = 0.f;  // EMA of worker cycle (µs)
+    float workerPeakUs   = 0.f;  // peak worker cycle since reset
+    int   workerOverruns = 0;    // ticks where cycle > 1ms since reset
+
+    static PanelTimingSnapshot& Get() { static PanelTimingSnapshot s; return s; }
+
+    void ResetPeaks() {
+        for (auto& e : panels) { e.drawPeak = e.loopPeak = 0.f; }
+        workerPeakUs = 0.f;
+        workerOverruns = 0;
+    }
+};
+
 class PanelManager {
 public:
     PanelManager();

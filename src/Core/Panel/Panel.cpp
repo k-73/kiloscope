@@ -1,4 +1,5 @@
 #include "Core/Panel/Panel.hpp"
+#include <chrono>
 #include <imgui.h>
 #include <mutex>
 #include <unordered_map>
@@ -17,13 +18,21 @@ Panel::Panel(std::string_view typeId, std::string title, PanelFlags flags)
 Panel::~Panel() = default;
 
 void Panel::Draw() {
+    using Clock = std::chrono::steady_clock;
+    auto t0 = Clock::now();
     std::lock_guard g(mutex_);
+    auto t1 = Clock::now();
+
+    timing_.mutexWaitUs = std::chrono::duration<float, std::micro>(t1 - t0).count();
+
     if (!visible_) return;
     bool open = true;
     ImGui::Begin(id_.c_str(), &open);
     if (!open) { visible_ = false; ImGui::End(); return; }
     OnDraw();
     ImGui::End();
+
+    timing_.drawUs = std::chrono::duration<float, std::micro>(Clock::now() - t1).count();
 }
 
 int Panel::NextInstanceId(const std::string& typeId) {

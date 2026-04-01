@@ -55,6 +55,14 @@ public:
     bool IsVisible()        const { return visible_; }
     void SetVisible(bool v)       { visible_ = v; }
 
+    // Timing (written by infrastructure, read by Diagnostics — no user action needed)
+    struct Timing {
+        float drawUs      = 0.f;  // last OnDraw duration (µs)
+        float loopUs      = 0.f;  // last OnLoop duration (µs)
+        float mutexWaitUs = 0.f;  // last mutex wait before Draw (µs)
+    };
+    const Timing& GetTiming() const { return timing_; }
+
     void Draw();
 
 private:
@@ -66,6 +74,7 @@ private:
     PanelFlags        flags_;
     std::atomic<bool> visible_{true};
     std::mutex        mutex_;
+    Timing            timing_;
 
     static int NextInstanceId(const std::string& typeId);
 };

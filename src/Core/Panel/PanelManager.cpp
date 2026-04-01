@@ -58,6 +58,21 @@ bool PanelManager::Empty() const {
 void PanelManager::Draw() {
     std::shared_lock lock(panelsMutex_);
     for (auto& p : panels_) p->Draw();
+
+    // Update timing snapshot (main thread only — no lock needed for snapshot)
+    auto& snap = PanelTimingSnapshot::Get();
+    snap.panels.resize(panels_.size());
+    for (size_t i = 0; i < panels_.size(); ++i) {
+        auto& t = panels_[i]->timing_;
+        auto& e = snap.panels[i];
+        e.title       = panels_[i]->Title().c_str();
+        e.drawUs      = t.drawUs;
+        e.loopUs      = t.loopUs;
+        e.drawPeak    = std::max(e.drawPeak, t.drawUs);
+        e.loopPeak    = std::max(e.loopPeak, t.loopUs);
+        e.mutexWaitUs = t.mutexWaitUs;
+        e.visible     = panels_[i]->IsVisible();
+    }
 }
 
 void PanelManager::DrawMenuBar() {
@@ -85,13 +100,22 @@ void PanelManager::WorkerLoop(std::stop_token st) {
     auto next = Clock::now() + kInterval;
 
     while (!st.stop_requested()) {
+        auto cycleStart = Clock::now();
         {
             std::shared_lock lock(panelsMutex_);
             for (auto& p : panels_) {
                 std::lock_guard g(p->mutex_);
+                auto t = Clock::now();
                 p->OnLoop();
+                p->timing_.loopUs = std::chrono::duration<float, std::micro>(Clock::now() - t).count();
             }
         }
+        float cycleUs = std::chrono::duration<float, std::micro>(Clock::now() - cycleStart).count();
+        auto& snap = PanelTimingSnapshot::Get();
+        // EMA smoothing (α=0.05 ≈ ~20 tick window at 1kHz)
+        snap.workerCycleUs += 0.05f * (cycleUs - snap.workerCycleUs);
+        snap.workerPeakUs  = std::max(snap.workerPeakUs, cycleUs);
+        if (cycleUs > 1000.f) ++snap.workerOverruns;
 
         // Fixed-rate timing: sleep until next tick, clamp to now if overrun
         auto now = Clock::now();
