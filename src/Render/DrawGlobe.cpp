@@ -319,6 +319,8 @@ TerrainMesh BuildTerrainMesh(const TerrainSet& terrain, double centerLat, double
     }
 
     // Vertex positions: inline ECEF with per-row trig caching
+    mesh.elevMin = std::numeric_limits<float>::max();
+    mesh.elevMax = std::numeric_limits<float>::lowest();
     std::vector<glm::dvec3> ecefFull(nv);
     for (int iy = 0; iy < ny; ++iy) {
         double lat = lat0 + iy * dLat;
@@ -336,8 +338,11 @@ TerrainMesh BuildTerrainMesh(const TerrainSet& terrain, double centerLat, double
                              (Nz + alt) * sLat};
             mesh.relPos[idx] = glm::vec3(ecefFull[idx] - mesh.ecefCenter);
             mesh.colors[idx] = glm::vec4(elev, 0.f, 0.f, 1.f);
+            mesh.elevMin = std::min(mesh.elevMin, elev);
+            mesh.elevMax = std::max(mesh.elevMax, elev);
         }
     }
+    if (mesh.elevMin > mesh.elevMax) mesh.elevMin = mesh.elevMax = 0.f;
 
     // Normals + slope (combined pass)
     for (int iy = 0; iy < ny; ++iy)
@@ -369,15 +374,12 @@ TerrainMesh BuildTerrainMesh(const TerrainSet& terrain, double centerLat, double
 }
 
 // Called by user code inside Begin/End — defers rendering to End() (after Globe).
-void DrawTerrain(TerrainMesh& mesh) {
+void DrawTerrain(TerrainMesh& mesh, float globalElevMin, float globalElevMax) {
     if (mesh.indices.empty()) return;
     mesh.Upload();
     ctx().pendingTerrain = &mesh;
-}
-
-void SetTerrainElevRange(float elevMin, float elevMax) {
-    ctx().terrainElevMin = elevMin;
-    ctx().terrainElevMax = elevMax;
+    ctx().globalElevMin = globalElevMin;
+    ctx().globalElevMax = globalElevMax;
 }
 
 // Called from End() after Globe/Grid — terrain renders on top of globe surface.
@@ -404,8 +406,10 @@ void RenderTerrain() {
     sTerrainShader.Set("uFogStart",   ctx().env.fogStart);
     sTerrainShader.Set("uFogEnd",     ctx().env.fogEnd);
     sTerrainShader.Set("uFcoefHalf",  fcoef * 0.5f);
-    sTerrainShader.Set("uElevMin",    ctx().terrainElevMin);
-    sTerrainShader.Set("uElevMax",    ctx().terrainElevMax);
+    sTerrainShader.Set("uElevMin",    ctx().globalElevMin);
+    sTerrainShader.Set("uElevMax",    ctx().globalElevMax);
+    sTerrainShader.Set("uLocalMin",   mesh->elevMin);
+    sTerrainShader.Set("uLocalMax",   mesh->elevMax);
 
     glDisable(GL_CULL_FACE);
     glBindVertexArray(mesh->vao);

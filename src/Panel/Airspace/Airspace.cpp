@@ -299,8 +299,7 @@ void Airspace::DrawFlight(float dt) {
 
         if (terrainReady_) {
             RebuildTerrainIfNeeded();
-            Render::SetTerrainElevRange(terrain_.elevMin, terrain_.elevMax);
-            Render::DrawTerrain(terrainMesh_);
+            Render::DrawTerrain(terrainMesh_, terrain_.elevMin, terrain_.elevMax);
         }
 
         // World objects (aircraft, waypoints — drag enabled per marker)
@@ -393,8 +392,7 @@ void Airspace::DrawGimbal() {
             Render::Globe();
             if (terrainReady_) {
                 RebuildTerrainIfNeeded();
-                Render::SetTerrainElevRange(terrain_.elevMin, terrain_.elevMax);
-                Render::DrawTerrain(terrainMesh_);
+                Render::DrawTerrain(terrainMesh_, terrain_.elevMin, terrain_.elevMax);
             }
             DrawWorld(aircraftNed);
         Render::End();

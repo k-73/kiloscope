@@ -174,6 +174,8 @@ struct TerrainMesh {
     std::vector<glm::vec3>  normals;        // ECEF-space normals
     std::vector<glm::vec4>  colors;         // per-vertex data: .x=elevation(m), .y=slope(0..1)
     std::vector<uint32_t>   indices;
+    // Local elevation range (for this mesh, not global)
+    float elevMin = 0.f, elevMax = 0.f;
     // GPU resources (uploaded once per build)
     unsigned int vao = 0, vbo = 0, ebo = 0;
     int indexCount = 0;
@@ -205,8 +207,7 @@ TerrainSet  LoadTerrainDir(const std::string& dir,
 
 TerrainMesh BuildTerrainMesh(const TerrainSet& terrain, double centerLat, double centerLon,
                              float latRadDeg, float lonRadDeg, float stepDeg);
-void DrawTerrain(TerrainMesh& mesh);
-void SetTerrainElevRange(float elevMin, float elevMax);
+void DrawTerrain(TerrainMesh& mesh, float globalElevMin, float globalElevMax);
 
 // ── globe (WGS84 ellipsoid) ─────────────────────────────────────
 struct GlobeConfig {
