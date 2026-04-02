@@ -5,6 +5,7 @@
 #include "Render/Geo.hpp"
 #include "Render/Trail.hpp"
 #include <glm/glm.hpp>
+#include <future>
 #include <string>
 #include <vector>
 
@@ -58,6 +59,8 @@ private:
     Render::TerrainSet terrain_;
     Render::TerrainMesh terrainMesh_;
     double terrainCenterLat_ = 0.0, terrainCenterLon_ = 0.0;
+    std::future<Render::TerrainSet> terrainFuture_;
+    bool terrainReady_ = false;
 
     struct TerrainCfg {
         float radiusKm = 15.f;    // mesh radius around aircraft

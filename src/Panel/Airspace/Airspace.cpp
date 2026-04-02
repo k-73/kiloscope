@@ -18,15 +18,13 @@ static Render::ModelId sJetModel = Render::kInvalidModel;
 
 Airspace::Airspace() : Panel("Airspace", "Airspace") {
     Render::GetCamera("flight").ResetFollow(12.f);
-    double wp1Lat = 52.2297 + 1.0 / 111.32, wp1Lon = 21.0122;
-    waypoints_.push_back({wp1Lat, wp1Lon, double(terrain_.Sample(wp1Lat, wp1Lon)), "WP1"});
+    waypoints_.push_back({52.2297 + 1.0 / 111.32, 21.0122, 0.0, "WP1"});
     if (sJetModel == Render::kInvalidModel)
         sJetModel = Render::LoadModel(std::string(ASSETS_DIR) + "/models/Jet_Lowpoly.obj");
-    terrain_ = Render::LoadTerrainDir(std::string(ASSETS_DIR) + "/terrain");
-    // Start aircraft above terrain surface
-    aircraft_.alt = double(terrain_.Sample(aircraft_.lat, aircraft_.lon)) + 50.0;
-    gimbal_.targetAlt = double(terrain_.Sample(gimbal_.targetLat, gimbal_.targetLon));
-    RebuildTerrainIfNeeded();
+    // Load terrain async — UI stays responsive, OnDraw shows progress
+    terrainFuture_ = std::async(std::launch::async, [] {
+        return Render::LoadTerrainDir(std::string(ASSETS_DIR) + "/terrain");
+    });
 }
 
 void Airspace::RebuildTerrainIfNeeded(bool force) {
@@ -290,9 +288,11 @@ void Airspace::DrawFlight(float dt) {
         Render::SetFrame(Render::FrameId::NED);
         Render::Globe();
 
-        RebuildTerrainIfNeeded();
-        Render::SetTerrainElevRange(terrain_.elevMin, terrain_.elevMax);
-        Render::DrawTerrain(terrainMesh_);
+        if (terrainReady_) {
+            RebuildTerrainIfNeeded();
+            Render::SetTerrainElevRange(terrain_.elevMin, terrain_.elevMax);
+            Render::DrawTerrain(terrainMesh_);
+        }
 
         // World objects (aircraft, waypoints — drag enabled per marker)
         DrawWorld(nedPos);
@@ -330,22 +330,29 @@ void Airspace::DrawFlight(float dt) {
     Render::End();
     Render::HUD();
 
-    // Double-click on terrain surface → create new waypoint
-    if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
-        auto& io = ImGui::GetIO();
-        double lat, lon, alt;
-        if (ScreenToTerrain(io.MousePos.x, io.MousePos.y, lat, lon, alt)) {
-            std::string label = "WP" + std::to_string(waypoints_.size() + 1);
-            waypoints_.push_back({lat, lon, alt, std::move(label)});
+    if (!terrainReady_) {
+        auto vp = ImGui::GetWindowPos();
+        auto sz = ImGui::GetWindowSize();
+        ImGui::SetCursorScreenPos({vp.x + sz.x * 0.5f - 60.f, vp.y + sz.y * 0.5f});
+        ImGui::TextColored({0.6f, 0.8f, 1.f, 1.f}, "Loading terrain...");
+    } else {
+        // Double-click on terrain surface → create new waypoint
+        if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+            auto& io = ImGui::GetIO();
+            double lat, lon, alt;
+            if (ScreenToTerrain(io.MousePos.x, io.MousePos.y, lat, lon, alt)) {
+                std::string label = "WP" + std::to_string(waypoints_.size() + 1);
+                waypoints_.push_back({lat, lon, alt, std::move(label)});
+            }
         }
-    }
 
-    // Right-click/hold on terrain → set gimbal target continuously
-    if (ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
-        auto& io = ImGui::GetIO();
-        double lat, lon, alt;
-        if (ScreenToTerrain(io.MousePos.x, io.MousePos.y, lat, lon, alt))
-            { gimbal_.targetLat = lat; gimbal_.targetLon = lon; gimbal_.targetAlt = alt; }
+        // Right-click/hold on terrain → set gimbal target continuously
+        if (ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
+            auto& io = ImGui::GetIO();
+            double lat, lon, alt;
+            if (ScreenToTerrain(io.MousePos.x, io.MousePos.y, lat, lon, alt))
+                { gimbal_.targetLat = lat; gimbal_.targetLon = lon; gimbal_.targetAlt = alt; }
+        }
     }
 
     if (!cameraFree_)
@@ -371,9 +378,11 @@ void Airspace::DrawGimbal() {
         Render::Begin("gimbal");
             Render::SetFrame(Render::FrameId::NED);
             Render::Globe();
-            RebuildTerrainIfNeeded();
-            Render::SetTerrainElevRange(terrain_.elevMin, terrain_.elevMax);
-            Render::DrawTerrain(terrainMesh_);
+            if (terrainReady_) {
+                RebuildTerrainIfNeeded();
+                Render::SetTerrainElevRange(terrain_.elevMin, terrain_.elevMax);
+                Render::DrawTerrain(terrainMesh_);
+            }
             DrawWorld(aircraftNed);
         Render::End();
         Render::Crosshair();
@@ -407,6 +416,19 @@ void Airspace::OnLoop() {
 // ── main thread (rendering) ────────────────────────────────────
 
 void Airspace::OnDraw() {
+    // Collect terrain when async load completes
+    if (!terrainReady_ && terrainFuture_.valid() &&
+        terrainFuture_.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+        terrain_ = terrainFuture_.get();
+        terrainReady_ = true;
+        // Snap positions to terrain surface
+        aircraft_.alt = double(terrain_.Sample(aircraft_.lat, aircraft_.lon)) + 50.0;
+        gimbal_.targetAlt = double(terrain_.Sample(gimbal_.targetLat, gimbal_.targetLon));
+        for (auto& wp : waypoints_)
+            wp.alt = double(terrain_.Sample(wp.lat, wp.lon));
+        RebuildTerrainIfNeeded(true);
+    }
+
     DrawControls();
     DrawFlight(ImGui::GetIO().DeltaTime);
     DrawGimbal();
