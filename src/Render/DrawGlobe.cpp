@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <limits>
 #include <tiffio.h>
+#include <GeographicLib/Geoid.hpp>
 
 namespace Kilo::Render {
 
@@ -157,12 +158,26 @@ float TerrainSet::Sample(double lat, double lon) const {
     return 0.f;
 }
 
-TerrainSet LoadTerrainDir(const std::string& dir) {
+TerrainSet LoadTerrainDir(const std::string& dir, const std::string& geoidPath) {
     TerrainSet set;
     if (!std::filesystem::is_directory(dir)) {
         Log::Render().error("Terrain directory not found: {}", dir);
         return set;
     }
+
+    // Optional geoid correction: convert EGM geoid heights → WGS84 ellipsoidal heights
+    std::unique_ptr<GeographicLib::Geoid> geoid;
+    if (!geoidPath.empty()) {
+        try {
+            // Geoid() wants dir + name without extension, e.g. ("assets/geoid", "egm2008-5")
+            auto gp = std::filesystem::path(geoidPath);
+            geoid = std::make_unique<GeographicLib::Geoid>(gp.stem().string(), gp.parent_path().string());
+            Log::Render().info("Geoid loaded: {}", geoidPath);
+        } catch (const std::exception& e) {
+            Log::Render().warn("Geoid not available ({}), loading without correction", e.what());
+        }
+    }
+
     std::vector<std::filesystem::path> paths;
     for (auto& e : std::filesystem::directory_iterator(dir))
         if (e.is_regular_file() && (e.path().extension() == ".tif" || e.path().extension() == ".tiff"))
@@ -177,6 +192,28 @@ TerrainSet LoadTerrainDir(const std::string& dir) {
     for (auto& p : paths) {
         auto tile = LoadTerrain(p.string());
         if (tile.elevation.empty()) continue;
+
+        // Apply geoid undulation — bilinear interpolation from 4 corners (~0.1m accuracy)
+        if (geoid) {
+            float uSW = float((*geoid)(tile.latMin, tile.lonMin));
+            float uSE = float((*geoid)(tile.latMin, tile.lonMax));
+            float uNW = float((*geoid)(tile.latMax, tile.lonMin));
+            float uNE = float((*geoid)(tile.latMax, tile.lonMax));
+            for (int y = 0; y < tile.rows; ++y) {
+                float v = float(y) / float(tile.rows - 1);  // 0=south, 1=north
+                float uW = uSW + (uNW - uSW) * v;
+                float uE = uSE + (uNE - uSE) * v;
+                for (int x = 0; x < tile.cols; ++x) {
+                    float u = float(x) / float(tile.cols - 1);
+                    tile.elevation[y * tile.cols + x] += uW + (uE - uW) * u;
+                }
+            }
+            float uMin = std::min({uSW, uSE, uNW, uNE});
+            float uMax = std::max({uSW, uSE, uNW, uNE});
+            tile.elevMin += uMin;
+            tile.elevMax += uMax;
+        }
+
         set.lonMin  = std::min(set.lonMin,  tile.lonMin);
         set.latMin  = std::min(set.latMin,  tile.latMin);
         set.lonMax  = std::max(set.lonMax,  tile.lonMax);
@@ -191,9 +228,9 @@ TerrainSet LoadTerrainDir(const std::string& dir) {
         Log::Render().error("No terrain tiles in: {}", dir);
         set.elevMin = set.elevMax = 0.f;
     } else {
-        Log::Render().info("TerrainSet: {} tiles [{:.1f},{:.1f}]→[{:.1f},{:.1f}] elev [{:.0f},{:.0f}]m",
+        Log::Render().info("TerrainSet: {} tiles [{:.1f},{:.1f}]→[{:.1f},{:.1f}] elev [{:.0f},{:.0f}]m{}",
                            set.tiles.size(), set.lonMin, set.latMin, set.lonMax, set.latMax,
-                           set.elevMin, set.elevMax);
+                           set.elevMin, set.elevMax, geoid ? " (geoid corrected)" : "");
     }
     return set;
 }

@@ -200,7 +200,8 @@ struct TerrainSet {
 };
 
 TerrainTile LoadTerrain(const std::string& path);   // single .tif (auto-detect metadata)
-TerrainSet  LoadTerrainDir(const std::string& dir); // all .tif in dir
+TerrainSet  LoadTerrainDir(const std::string& dir,
+                           const std::string& geoidPath = {}); // geoidPath: EGM pgm for geoid correction
 
 TerrainMesh BuildTerrainMesh(const TerrainSet& terrain, double centerLat, double centerLon,
                              float latRadDeg, float lonRadDeg, float stepDeg);

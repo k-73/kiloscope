@@ -23,7 +23,8 @@ Airspace::Airspace() : Panel("Airspace", "Airspace") {
         sJetModel = Render::LoadModel(std::string(ASSETS_DIR) + "/models/Jet_Lowpoly.obj");
     // Load terrain async — UI stays responsive, OnDraw shows progress
     terrainFuture_ = std::async(std::launch::async, [] {
-        return Render::LoadTerrainDir(std::string(ASSETS_DIR) + "/terrain");
+        return Render::LoadTerrainDir(std::string(ASSETS_DIR) + "/terrain",
+                                      std::string(ASSETS_DIR) + "/geoid/egm2008-5.pgm");
     });
 }
 

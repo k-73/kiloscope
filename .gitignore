@@ -18,6 +18,7 @@ compile_commands.json
 # Terrain data (download via tools/download_terrain.py)
 assets/terrain/*.tif
 assets/terrain/*.raw
+assets/geoid/
 
 # Runtime config files
 kiloscope.json
