@@ -321,6 +321,8 @@ void Airspace::DrawGimbal() {
         Render::Begin("gimbal");
             Render::SetFrame(Render::FrameId::NED);
             Render::Globe();
+            RebuildTerrainIfNeeded();
+            Render::DrawTerrain(terrainMesh_);
             DrawWorld(aircraftNed);
         Render::End();
         Render::Crosshair();
