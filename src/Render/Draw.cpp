@@ -1,6 +1,7 @@
 #include "Render/DrawState.hpp"
 #include "Render/DrawGlobe.hpp"
 #include "Core/Log.hpp"
+#include <imgui_internal.h>
 #include <GLFW/glfw3.h>
 #include <algorithm>
 #include <generator/SphereMesh.hpp>
@@ -538,8 +539,19 @@ static void FlushText() {
             if (screen.x < 0.f) continue;
             tx = screen.x; ty = screen.y;
             if (e.centered) {
-                auto sz = ImGui::CalcTextSize(e.text.c_str());
-                tx -= sz.x * 0.5f; ty -= sz.y * 0.5f;
+                // Use glyph metrics for precise visual centering (icons have asymmetric bearing)
+                auto* baked = ImGui::GetFontBaked();
+                const char* s = e.text.c_str();
+                unsigned int cp = 0;
+                ImTextCharFromUtf8(&cp, s, s + e.text.size());
+                const ImFontGlyph* g = cp ? baked->FindGlyph(ImWchar(cp)) : nullptr;
+                if (g) {
+                    tx -= g->X0 + (g->X1 - g->X0) * 0.5f;
+                    ty -= g->Y0 + (g->Y1 - g->Y0) * 0.5f;
+                } else {
+                    auto sz = ImGui::CalcTextSize(e.text.c_str());
+                    tx -= sz.x * 0.5f; ty -= sz.y * 0.5f;
+                }
             }
         }
         dl->AddText({tx, ty},
