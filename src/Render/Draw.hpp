@@ -186,6 +186,7 @@ struct TerrainMesh {
     TerrainMesh& operator=(const TerrainMesh&) = delete;
 };
 
+TerrainTile LoadTerrain(const std::string& path);  // auto-detect .tif
 TerrainTile LoadTerrain(const std::string& rawPath, int cols, int rows,
                         float lonMin, float latMin, float lonMax, float latMax);
 TerrainMesh BuildTerrainMesh(const TerrainTile& tile, double centerLat, double centerLon,

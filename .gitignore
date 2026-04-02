@@ -15,6 +15,10 @@ compile_commands.json
 .vscode/
 *.user
 
+# Terrain data (download via tools/download_terrain.py)
+assets/terrain/*.tif
+assets/terrain/*.raw
+
 # Runtime config files
 kiloscope.json
 panels.json

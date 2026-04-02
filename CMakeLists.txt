@@ -24,6 +24,7 @@ find_package(OpenGL REQUIRED)
 find_package(glfw3 3.3 REQUIRED)
 find_package(GLEW REQUIRED)
 find_package(Freetype REQUIRED)
+find_package(TIFF REQUIRED)
 include(cmake/FetchDependencies.cmake)
 
 # ── target ──────────────────────────────────────────────────────────
@@ -44,6 +45,6 @@ target_compile_options(kiloscope PRIVATE
 target_link_libraries(kiloscope PRIVATE
     imgui implot glm::glm spdlog::spdlog nlohmann_json::nlohmann_json
     generator glaze::glaze GeographicLib::GeographicLib
-    tinyobjloader
+    tinyobjloader TIFF::TIFF
     OpenGL::GL glfw GLEW::GLEW Freetype::Freetype
 )

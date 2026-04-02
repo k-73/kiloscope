@@ -22,8 +22,7 @@ Airspace::Airspace() : Panel("Airspace", "Airspace") {
     if (sJetModel == Render::kInvalidModel)
         sJetModel = Render::LoadModel(std::string(ASSETS_DIR) + "/models/Jet_Lowpoly.obj");
     terrain_ = Render::LoadTerrain(
-        std::string(ASSETS_DIR) + "/terrain/N52E021.raw", 2400, 3600,
-        21.f, 52.f, 22.f, 53.f);
+        std::string(ASSETS_DIR) + "/terrain/Copernicus_DSM_COG_10_N52_00_E021_00_DEM.tif");
     // Start aircraft above terrain surface
     aircraft_.alt = double(terrain_.Sample(aircraft_.lat, aircraft_.lon)) + 50.0;
     RebuildTerrainIfNeeded();
@@ -168,7 +167,7 @@ void Airspace::HandleInput(float dt, bool focused) {
     if (focused && ImGui::IsKeyPressed(ImGuiKey_C, false)) {
         cameraFree_ = !cameraFree_;
         if (!cameraFree_) Render::GetCamera("flight").ResetFollow();
-    }
+    } 
     if (!focused || cameraFree_) return;
 
     // WASD: pitch/yaw rate control + bank autopilot input

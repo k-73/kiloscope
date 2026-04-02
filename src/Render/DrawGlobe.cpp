@@ -3,6 +3,7 @@
 #include "Core/Log.hpp"
 #include <cstring>
 #include <fstream>
+#include <tiffio.h>
 
 namespace Kilo::Render {
 
@@ -23,6 +24,113 @@ float TerrainTile::Sample(double lat, double lon) const {
     float e00 = elevation[y0 * cols + x0],       e10 = elevation[y0 * cols + x0 + 1];
     float e01 = elevation[(y0 + 1) * cols + x0], e11 = elevation[(y0 + 1) * cols + x0 + 1];
     return (e00 * (1 - sx) + e10 * sx) * (1 - sy) + (e01 * (1 - sx) + e11 * sx) * sy;
+}
+
+// ── GeoTIFF reader ──────────────────────────────────────────────────
+
+// Suppress libtiff warnings about unknown GeoTIFF tags (33550, 33922, 34735-37).
+static void TiffWarningHandler(const char*, const char*, va_list) {}
+
+static constexpr uint16_t kGeoPixelScaleTag = 33550;
+static constexpr uint16_t kGeoTiepointTag   = 33922;
+static constexpr float    kNoData           = -32767.f;
+
+static TerrainTile LoadGeoTiff(const std::string& path) {
+    TerrainTile tile{};
+    auto* prevWarn = TIFFSetWarningHandler(TiffWarningHandler);
+    TIFF* tif = TIFFOpen(path.c_str(), "r");
+    auto restore = [&] { TIFFSetWarningHandler(prevWarn); };
+    if (!tif) { Log::Render().error("GeoTIFF not found: {}", path); restore(); return tile; }
+
+    uint32_t w = 0, h = 0;
+    TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &w);
+    TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &h);
+    if (!w || !h) { Log::Render().error("GeoTIFF bad dims: {}", path); TIFFClose(tif); restore(); return tile; }
+
+    // Geo metadata: pixel scale + tiepoint → bounds
+    uint16_t cnt = 0;
+    double* scale = nullptr;
+    double* tp    = nullptr;
+    TIFFGetField(tif, kGeoPixelScaleTag, &cnt, &scale);
+    TIFFGetField(tif, kGeoTiepointTag,   &cnt, &tp);
+    if (!scale || !tp) {
+        Log::Render().error("GeoTIFF missing geo tags: {}", path);
+        TIFFClose(tif); restore(); return tile;
+    }
+    double lonMin = tp[3] - tp[0] * scale[0];
+    double latMax = tp[4] + tp[1] * scale[1];
+    double lonMax = lonMin + w * scale[0];
+    double latMin = latMax - h * scale[1];
+
+    // Sample format (Float32 or Int16)
+    uint16_t bps = 0, sf = SAMPLEFORMAT_UINT;
+    TIFFGetField(tif, TIFFTAG_BITSPERSAMPLE, &bps);
+    TIFFGetField(tif, TIFFTAG_SAMPLEFORMAT, &sf);
+    bool isFloat = (sf == SAMPLEFORMAT_IEEEFP && bps == 32);
+    bool isInt16 = (sf == SAMPLEFORMAT_INT && bps == 16);
+    if (!isFloat && !isInt16) {
+        Log::Render().error("GeoTIFF unsupported format (bps={} sf={}): {}", bps, sf, path);
+        TIFFClose(tif); restore(); return tile;
+    }
+
+    // Read raster — TIFF stores top-down, TerrainTile needs bottom-up
+    tile.elevation.resize(w * h);
+    tile.cols = int(w); tile.rows = int(h);
+
+    if (TIFFIsTiled(tif)) {
+        uint32_t tw = 0, th = 0;
+        TIFFGetField(tif, TIFFTAG_TILEWIDTH, &tw);
+        TIFFGetField(tif, TIFFTAG_TILELENGTH, &th);
+        auto buf = std::vector<uint8_t>(TIFFTileSize(tif));
+        for (uint32_t y = 0; y < h; y += th)
+            for (uint32_t x = 0; x < w; x += tw) {
+                TIFFReadEncodedTile(tif, TIFFComputeTile(tif, x, y, 0, 0), buf.data(), buf.size());
+                for (uint32_t ty = 0; ty < th && y + ty < h; ++ty) {
+                    uint32_t dstRow = (h - 1) - (y + ty);  // flip
+                    for (uint32_t tx = 0; tx < tw && x + tx < w; ++tx) {
+                        float v;
+                        if (isFloat) v = reinterpret_cast<float*>(buf.data())[ty * tw + tx];
+                        else         v = float(reinterpret_cast<int16_t*>(buf.data())[ty * tw + tx]);
+                        if (v <= kNoData) v = 0.f;
+                        tile.elevation[dstRow * w + (x + tx)] = v;
+                    }
+                }
+            }
+    } else {
+        auto buf = std::vector<uint8_t>(TIFFScanlineSize(tif));
+        for (uint32_t y = 0; y < h; ++y) {
+            TIFFReadScanline(tif, buf.data(), y);
+            uint32_t dstRow = (h - 1) - y;
+            for (uint32_t x = 0; x < w; ++x) {
+                float v;
+                if (isFloat) v = reinterpret_cast<float*>(buf.data())[x];
+                else         v = float(reinterpret_cast<int16_t*>(buf.data())[x]);
+                if (v <= kNoData) v = 0.f;
+                tile.elevation[dstRow * w + x] = v;
+            }
+        }
+    }
+    TIFFClose(tif);
+    restore();
+
+    tile.lonMin = float(lonMin); tile.latMin = float(latMin);
+    tile.lonMax = float(lonMax); tile.latMax = float(latMax);
+    tile.elevMin = tile.elevation[0]; tile.elevMax = tile.elevation[0];
+    for (float v : tile.elevation) {
+        tile.elevMin = std::min(tile.elevMin, v);
+        tile.elevMax = std::max(tile.elevMax, v);
+    }
+
+    Log::Render().info("GeoTIFF: {}x{} [{:.4f},{:.4f}]→[{:.4f},{:.4f}] elev [{:.0f},{:.0f}]m",
+                       w, h, lonMin, latMin, lonMax, latMax, tile.elevMin, tile.elevMax);
+    return tile;
+}
+
+TerrainTile LoadTerrain(const std::string& path) {
+    auto ext = path.substr(path.find_last_of('.') + 1);
+    if (ext == "tif" || ext == "tiff") return LoadGeoTiff(path);
+    Log::Render().error("LoadTerrain: unsupported format '{}' (use .tif or explicit params): {}", ext, path);
+    return {};
 }
 
 TerrainTile LoadTerrain(const std::string& rawPath, int cols, int rows,
