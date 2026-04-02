@@ -145,23 +145,26 @@ TerrainMesh BuildTerrainMesh(const TerrainTile& tile, double centerLat, double c
                 t < 0.5f ? glm::mix(lo, mi, t * 2.f) : glm::mix(mi, hi, (t - 0.5f) * 2.f), 1.f);
         }
 
-    // Normals from cross product of grid neighbors (ECEF space)
+    // Normals: cross(east, north) = outward in ECEF (right-hand rule on Earth surface)
     for (int iy = 0; iy < ny; ++iy)
         for (int ix = 0; ix < nx; ++ix) {
-            int c = iy * nx + ix;
-            int r = std::min(ix + 1, nx - 1), l = std::max(ix - 1, 0);
-            int u = std::min(iy + 1, ny - 1), d = std::max(iy - 1, 0);
-            glm::dvec3 dx = ecefFull[iy * nx + r] - ecefFull[iy * nx + l];
-            glm::dvec3 dy = ecefFull[u * nx + ix] - ecefFull[d * nx + ix];
-            mesh.normals[c] = glm::vec3(glm::normalize(glm::cross(dx, dy)));
+            int idx = iy * nx + ix;
+            int xr = std::min(ix + 1, nx - 1), xl = std::max(ix - 1, 0);
+            int yu = std::min(iy + 1, ny - 1), yd = std::max(iy - 1, 0);
+            glm::dvec3 dEast  = ecefFull[iy * nx + xr] - ecefFull[iy * nx + xl];
+            glm::dvec3 dNorth = ecefFull[yu * nx + ix]  - ecefFull[yd * nx + ix];
+            glm::dvec3 n = glm::cross(dEast, dNorth);
+            // Ensure outward-facing (dot with radial direction > 0)
+            if (glm::dot(n, ecefFull[idx]) < 0.0) n = -n;
+            mesh.normals[idx] = glm::vec3(glm::normalize(n));
         }
 
-    // Triangle indices
+    // Triangle indices (two triangles per quad)
     mesh.indices.reserve((nx - 1) * (ny - 1) * 6);
     for (int iy = 0; iy + 1 < ny; ++iy)
         for (int ix = 0; ix + 1 < nx; ++ix) {
-            uint32_t a = iy * nx + ix, b = a + 1, c = a + nx, d2 = c + 1;
-            mesh.indices.insert(mesh.indices.end(), {a, b, c,  b, d2, c});
+            uint32_t a = iy * nx + ix, b = a + 1, c = a + nx, d = c + 1;
+            mesh.indices.insert(mesh.indices.end(), {a, b, c,  b, d, c});
         }
 
     return mesh;
@@ -183,25 +186,21 @@ void RenderTerrain() {
     auto& gr = ctx().geoRef;
     if (!gr.valid) return;
 
-    // ECEF → ENU (internal space, same as sCamPosD and sViewProj)
     glm::mat3 ecefToEnu = glm::mat3(gr.ecefToEnu);
-    glm::vec3 meshOffset = glm::vec3(mesh->ecefCenter - gr.ecefRef);
-    glm::vec3 camLocal   = glm::vec3(sCamPosD);
+    float fcoef = 2.f / std::log2(sFarPlane + 1.f);
 
     sTerrainShader.Use();
-    sTerrainShader.Set("uEcefToLocal", ecefToEnu);
-    sTerrainShader.Set("uMeshOffset",  meshOffset);
-    sTerrainShader.Set("uCamLocal",    camLocal);
-    sTerrainShader.Set("uViewProj",    sViewProj);
-    sTerrainShader.Set("uNormalMat",   ecefToEnu);
-    sTerrainShader.Set("uFcoef",       2.f / std::log2(sFarPlane + 1.f));
-    sTerrainShader.Set("uLightDir",    sLightDir);
-    sTerrainShader.Set("uCamPos",      glm::vec3(0.f));
-    sTerrainShader.Set("uAmbient",     ctx().env.ambient);
-    sTerrainShader.Set("uFogColor",    ctx().env.fogColor);
-    sTerrainShader.Set("uFogStart",    ctx().env.fogStart);
-    sTerrainShader.Set("uFogEnd",      ctx().env.fogEnd);
-    sTerrainShader.Set("uFcoefHalf",   1.f / std::log2(sFarPlane + 1.f));
+    sTerrainShader.Set("uEcefToEnu",  ecefToEnu);
+    sTerrainShader.Set("uMeshOffset", glm::vec3(mesh->ecefCenter - gr.ecefRef));
+    sTerrainShader.Set("uCamEnu",     glm::vec3(sCamPosD));
+    sTerrainShader.Set("uViewProj",   sViewProj);
+    sTerrainShader.Set("uFcoef",      fcoef);
+    sTerrainShader.Set("uLightDir",   sLightDir);
+    sTerrainShader.Set("uAmbient",    ctx().env.ambient);
+    sTerrainShader.Set("uFogColor",   ctx().env.fogColor);
+    sTerrainShader.Set("uFogStart",   ctx().env.fogStart);
+    sTerrainShader.Set("uFogEnd",     ctx().env.fogEnd);
+    sTerrainShader.Set("uFcoefHalf",  fcoef * 0.5f);
 
     glDisable(GL_CULL_FACE);
     glBindVertexArray(mesh->vao);

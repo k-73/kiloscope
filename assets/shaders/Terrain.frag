@@ -1,13 +1,13 @@
-// Terrain fragment shader — lit per-vertex color with fog, logarithmic depth.
+// Terrain fragment shader — lit per-vertex color with fog + logarithmic depth.
+// Normals and light direction are in ENU space. Fog uses camera-relative distance.
 #version 450 core
 
-in vec3  vWorldPos;
-in vec3  vNormal;
+in vec3  vWorldPos;   // camera-relative ENU
+in vec3  vNormal;     // ENU-space normal
 in vec4  vColor;
 in float vLogZ;
 
-uniform vec3  uLightDir;
-uniform vec3  uCamPos;
+uniform vec3  uLightDir;    // ENU-space light direction (normalized)
 uniform float uAmbient;
 uniform vec3  uFogColor;
 uniform float uFogStart;
@@ -17,20 +17,18 @@ uniform float uFcoefHalf;   // 1.0 / log2(farPlane + 1.0)
 out vec4 FragColor;
 
 void main() {
-    // Terrain always wins over Globe (Globe has +1e-4 bias, terrain uses -2e-3)
-    gl_FragDepth = log2(vLogZ) * uFcoefHalf - 2e-3;
+    // Terrain wins over Globe (Globe writes depth with +1e-4 bias)
+    gl_FragDepth = log2(vLogZ) * uFcoefHalf;
 
     vec3 N = normalize(vNormal);
     vec3 L = normalize(uLightDir);
 
-    // Two-sided lighting (terrain normals may point inward depending on winding)
-    float NdL = dot(N, L);
-    float diff = max(abs(NdL), 0.0) * 0.7;
-    float hemi = uAmbient + uAmbient * 0.3 * max(abs(N.z), 0.0);
+    float diff = max(dot(N, L), 0.0) * 0.7;
+    float hemi = uAmbient + uAmbient * 0.3 * max(N.z, 0.0);  // hemisphere sky boost (Z = up in ENU)
     vec3 lit = vColor.rgb * (hemi + diff);
 
-    // Distance fog (matches Globe fog profile)
-    float dist = length(uCamPos - vWorldPos);
+    // Distance fog (camera at origin in camera-relative coords)
+    float dist = length(vWorldPos);
     if (uFogStart > 0.0) {
         float fog = smoothstep(uFogStart, uFogEnd, dist);
         fog *= fog;
