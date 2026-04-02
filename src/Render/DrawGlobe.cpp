@@ -183,16 +183,15 @@ void RenderTerrain() {
     auto& gr = ctx().geoRef;
     if (!gr.valid) return;
 
-    glm::dmat3 toLocal = glm::transpose(glm::dmat3(ctx().frameMat)) * glm::dmat3(gr.ecefToEnu);
-    glm::dvec3 centerLocal = toLocal * (mesh->ecefCenter - gr.ecefRef);
-    glm::vec3  centerCamRel = glm::vec3(centerLocal - sCamPosD);
-
-    // Normal matrix: rotate ECEF normals to ENU only (not frame), so they match sLightDir space
+    // ECEF → ENU (internal space, same as sCamPosD and sViewProj)
     glm::mat3 ecefToEnu = glm::mat3(gr.ecefToEnu);
+    glm::vec3 meshOffset = glm::vec3(mesh->ecefCenter - gr.ecefRef);
+    glm::vec3 camLocal   = glm::vec3(sCamPosD);
 
     sTerrainShader.Use();
-    sTerrainShader.Set("uEcefToLocal", glm::mat3(toLocal));
-    sTerrainShader.Set("uRefEcefHi",   centerCamRel);
+    sTerrainShader.Set("uEcefToLocal", ecefToEnu);
+    sTerrainShader.Set("uMeshOffset",  meshOffset);
+    sTerrainShader.Set("uCamLocal",    camLocal);
     sTerrainShader.Set("uViewProj",    sViewProj);
     sTerrainShader.Set("uNormalMat",   ecefToEnu);
     sTerrainShader.Set("uFcoef",       2.f / std::log2(sFarPlane + 1.f));

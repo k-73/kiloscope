@@ -17,8 +17,8 @@ uniform float uFcoefHalf;   // 1.0 / log2(farPlane + 1.0)
 out vec4 FragColor;
 
 void main() {
-    // Depth bias: terrain slightly closer than Globe (Globe uses +1e-4 bias away from camera)
-    gl_FragDepth = log2(vLogZ) * uFcoefHalf - 1e-4;
+    // Terrain always wins over Globe (Globe has +1e-4 bias, terrain uses -2e-3)
+    gl_FragDepth = log2(vLogZ) * uFcoefHalf - 2e-3;
 
     vec3 N = normalize(vNormal);
     vec3 L = normalize(uLightDir);

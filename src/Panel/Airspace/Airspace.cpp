@@ -24,6 +24,8 @@ Airspace::Airspace() : Panel("Airspace", "Airspace") {
     terrain_ = Render::LoadTerrain(
         std::string(ASSETS_DIR) + "/terrain/N52E021.raw", 2400, 3600,
         21.f, 52.f, 22.f, 53.f);
+    // Start aircraft above terrain surface
+    aircraft_.alt = double(terrain_.Sample(aircraft_.lat, aircraft_.lon)) + 50.0;
     RebuildTerrainIfNeeded();
 }
 
@@ -34,7 +36,7 @@ void Airspace::RebuildTerrainIfNeeded() {
     if (terrainMesh_.indices.empty() || dLat * dLat + dLon * dLon > kRebuildThresholdDeg * kRebuildThresholdDeg) {
         terrainCenterLat_ = aircraft_.lat;
         terrainCenterLon_ = aircraft_.lon;
-        terrainMesh_ = Render::BuildTerrainMesh(terrain_, aircraft_.lat, aircraft_.lon, 0.15f, 0.002f);
+        terrainMesh_ = Render::BuildTerrainMesh(terrain_, aircraft_.lat, aircraft_.lon, 0.08f, 0.0005f);
     }
 }
 
@@ -258,6 +260,7 @@ void Airspace::DrawFlight(float dt) {
 
         RebuildTerrainIfNeeded();
         Render::DrawTerrain(terrainMesh_);
+
 
         // World objects (aircraft, waypoints — drag enabled per marker)
         DrawWorld(nedPos);
