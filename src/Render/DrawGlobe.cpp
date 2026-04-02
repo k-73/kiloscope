@@ -310,21 +310,36 @@ TerrainMesh BuildTerrainMesh(const TerrainSet& terrain, double centerLat, double
     mesh.normals.resize(nv);
     mesh.colors.resize(nv);
 
-    // Vertex positions: ECEF relative to ecefCenter (preserves float32 precision)
+    // Precompute lon trig (constant per column) — avoids redundant sin/cos per vertex
+    std::vector<double> cosLon(nx), sinLon(nx);
+    for (int ix = 0; ix < nx; ++ix) {
+        double lonR = glm::radians(double(lon0 + ix * dLon));
+        cosLon[ix] = std::cos(lonR);
+        sinLon[ix] = std::sin(lonR);
+    }
+
+    // Vertex positions: inline ECEF with per-row trig caching
     std::vector<glm::dvec3> ecefFull(nv);
-    for (int iy = 0; iy < ny; ++iy)
+    for (int iy = 0; iy < ny; ++iy) {
+        double lat = lat0 + iy * dLat;
+        double latR = glm::radians(lat);
+        double sLat = std::sin(latR), cLat = std::cos(latR);
+        double N = GeoRef::a / std::sqrt(1.0 - GeoRef::e2 * sLat * sLat);
+        double Nz = N * (1.0 - GeoRef::e2);
+
         for (int ix = 0; ix < nx; ++ix) {
-            double lat = lat0 + iy * dLat;
-            double lon = lon0 + ix * dLon;
-            float  elev = terrain.Sample(lat, lon);
+            float  elev = terrain.Sample(lat, lon0 + ix * dLon);
+            double alt  = double(elev);
             int    idx  = iy * nx + ix;
-            ecefFull[idx] = GeoRef::ToEcef(lat, lon, double(elev));
+            ecefFull[idx] = {(N + alt) * cLat * cosLon[ix],
+                             (N + alt) * cLat * sinLon[ix],
+                             (Nz + alt) * sLat};
             mesh.relPos[idx] = glm::vec3(ecefFull[idx] - mesh.ecefCenter);
-
-            mesh.colors[idx] = glm::vec4(elev, 0.f, 0.f, 1.f);  // .x = elevation (shader colorizes)
+            mesh.colors[idx] = glm::vec4(elev, 0.f, 0.f, 1.f);
         }
+    }
 
-    // Normals: cross(east, north) = outward in ECEF (right-hand rule on Earth surface)
+    // Normals + slope (combined pass)
     for (int iy = 0; iy < ny; ++iy)
         for (int ix = 0; ix < nx; ++ix) {
             int idx = iy * nx + ix;
@@ -333,21 +348,21 @@ TerrainMesh BuildTerrainMesh(const TerrainSet& terrain, double centerLat, double
             glm::dvec3 dEast  = ecefFull[iy * nx + xr] - ecefFull[iy * nx + xl];
             glm::dvec3 dNorth = ecefFull[yu * nx + ix]  - ecefFull[yd * nx + ix];
             glm::dvec3 n = glm::cross(dEast, dNorth);
-            // Ensure outward-facing (dot with radial direction > 0)
             if (glm::dot(n, ecefFull[idx]) < 0.0) n = -n;
             glm::dvec3 nn = glm::normalize(n);
             mesh.normals[idx] = glm::vec3(nn);
-            // Slope: 0 = flat, 1 = vertical (dot of normal with radial = cos of slope angle)
             glm::dvec3 radial = glm::normalize(ecefFull[idx]);
             mesh.colors[idx].y = float(1.0 - std::abs(glm::dot(nn, radial)));
         }
 
-    // Triangle indices (two triangles per quad)
-    mesh.indices.reserve((nx - 1) * (ny - 1) * 6);
+    // Triangle indices (direct write, no per-quad allocation)
+    mesh.indices.resize(size_t(nx - 1) * (ny - 1) * 6);
+    uint32_t* idx = mesh.indices.data();
     for (int iy = 0; iy + 1 < ny; ++iy)
         for (int ix = 0; ix + 1 < nx; ++ix) {
             uint32_t a = iy * nx + ix, b = a + 1, c = a + nx, d = c + 1;
-            mesh.indices.insert(mesh.indices.end(), {a, b, c,  b, d, c});
+            *idx++ = a; *idx++ = b; *idx++ = c;
+            *idx++ = b; *idx++ = d; *idx++ = c;
         }
 
     return mesh;
