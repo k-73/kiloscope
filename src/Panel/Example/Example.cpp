@@ -122,7 +122,7 @@ void Example::OnDraw() {
         Render::Text({0, 1.1f, 0}, Hex("#55CC55"), "Y");
         Render::Text({0, 0, 1.1f}, Hex("#5580E6"), "Z");
     Render::End();
-    Render::HUD();
+    Render::StatusBar();
 
     if (ImGui::BeginPopup("StarInfo")) {
         ImGui::SeparatorText("Star");

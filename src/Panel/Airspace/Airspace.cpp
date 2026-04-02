@@ -336,7 +336,10 @@ void Airspace::DrawFlight(float dt) {
             }
         }
     Render::End();
-    Render::HUD();
+    Render::StatusBar();
+    Render::Overlay();
+        ImGui::TextColored({1,1,1,.5f}, "Speed = %.1f km/h", aircraft_.speed * 3.6f);
+    Render::OverlayEnd();
 
     if (!terrainReady_) {
         auto vp = ImGui::GetWindowPos();
@@ -399,11 +402,11 @@ void Airspace::DrawGimbal() {
         Render::Crosshair();
 
         // HUD overlay: FOV, distance, target coords
-        if (Render::HudBegin()) {
+        if (Render::Overlay()) {
             ImGui::TextColored({1,1,1,.4f}, "FOV %.0f\xc2\xb0  D %.0fm", gimbal_.fov, dist);
             ImGui::TextColored({1,1,1,.3f}, "%.6f  %.6f  %.0fm",
                 gimbal_.targetLat, gimbal_.targetLon, gimbal_.targetAlt);
-            Render::HudEnd();
+            Render::OverlayEnd();
         }
     ImGui::End();
 }

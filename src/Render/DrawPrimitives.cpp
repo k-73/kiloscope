@@ -532,14 +532,15 @@ bool Marker(const glm::vec3& pos, const char* icon, const char* label,
     return hovered;
 }
 
-bool HudBegin() {
+bool Overlay() {
     ImGui::SetCursorScreenPos({sFrame.cx, sFrame.cy});
     ImGui::PushStyleColor(ImGuiCol_ChildBg, {0, 0, 0, 0});
-    return ImGui::BeginChild("##hud", {sFrame.w, sFrame.h}, ImGuiChildFlags_None,
-                              ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    return ImGui::BeginChild("##overlay", {sFrame.w, sFrame.h}, ImGuiChildFlags_None,
+                              ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse
+                              | ImGuiWindowFlags_NoInputs);
 }
 
-void HudEnd() {
+void OverlayEnd() {
     ImGui::EndChild();
     ImGui::PopStyleColor();
 }
@@ -557,7 +558,7 @@ void Crosshair(float gap, float len, const glm::vec4& color) {
     dl->AddLine({cx, cy + gap}, {cx, cy + gap + len}, c);
 }
 
-void HUD() {
+void StatusBar() {
     if (!sFrame.scene) return;
     auto& sc  = *sFrame.scene;
     auto& cam = sc.cam;

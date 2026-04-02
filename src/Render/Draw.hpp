@@ -425,10 +425,10 @@ void Frustum(const glm::mat4& viewProj,
              const glm::vec4& color, float width = 2.5f);
 
 // ── 2D overlays (call after End(), draws on current ImGui window) ────
-bool HudBegin();  // transparent ImGui overlay aligned to scene viewport
-void HudEnd();
+bool Overlay();      // transparent pass-through overlay (no input capture), call OverlayEnd() after
+void OverlayEnd();
 void Crosshair(float gap = 4.f, float len = 12.f,
                const glm::vec4& color = {1, 1, 1, .6f});
-void HUD();
+void StatusBar();    // camera/frame info bar at bottom of viewport
 
 } // namespace Kilo::Render
