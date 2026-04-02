@@ -80,7 +80,7 @@ def main():
     parser.add_argument("-o", "--output", type=str, default=str(DEFAULT_OUT), help="Output directory")
     args = parser.parse_args()
 
-    if not args.lat and not args.bbox:
+    if args.lat is None and not args.bbox:
         parser.error("Specify --lat/--lon or --bbox")
     if args.lat is not None and args.lon is None:
         parser.error("--lon required with --lat")

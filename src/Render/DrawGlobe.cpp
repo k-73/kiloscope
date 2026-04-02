@@ -3,6 +3,7 @@
 #include "Core/Log.hpp"
 #include <cstring>
 #include <fstream>
+#include <limits>
 #include <tiffio.h>
 
 namespace Kilo::Render {
@@ -77,37 +78,37 @@ static TerrainTile LoadGeoTiff(const std::string& path) {
     tile.elevation.resize(w * h);
     tile.cols = int(w); tile.rows = int(h);
 
+    // Convert one scanline of raw bytes into float elevation, writing to dst[0..count).
+    auto decodeLine = [&](const uint8_t* src, float* dst, uint32_t count) {
+        if (isFloat)
+            std::memcpy(dst, src, count * sizeof(float));
+        else
+            for (uint32_t i = 0; i < count; ++i)
+                dst[i] = float(reinterpret_cast<const int16_t*>(src)[i]);
+    };
+
     if (TIFFIsTiled(tif)) {
         uint32_t tw = 0, th = 0;
         TIFFGetField(tif, TIFFTAG_TILEWIDTH, &tw);
         TIFFGetField(tif, TIFFTAG_TILELENGTH, &th);
-        auto buf = std::vector<uint8_t>(TIFFTileSize(tif));
+        std::vector<uint8_t> buf(TIFFTileSize(tif));
         for (uint32_t y = 0; y < h; y += th)
             for (uint32_t x = 0; x < w; x += tw) {
-                TIFFReadEncodedTile(tif, TIFFComputeTile(tif, x, y, 0, 0), buf.data(), buf.size());
+                if (TIFFReadEncodedTile(tif, TIFFComputeTile(tif, x, y, 0, 0),
+                                        buf.data(), buf.size()) < 0) continue;
+                uint32_t copyW = std::min(tw, w - x);
+                uint32_t bpp   = bps / 8;
                 for (uint32_t ty = 0; ty < th && y + ty < h; ++ty) {
-                    uint32_t dstRow = (h - 1) - (y + ty);  // flip
-                    for (uint32_t tx = 0; tx < tw && x + tx < w; ++tx) {
-                        float v;
-                        if (isFloat) v = reinterpret_cast<float*>(buf.data())[ty * tw + tx];
-                        else         v = float(reinterpret_cast<int16_t*>(buf.data())[ty * tw + tx]);
-                        if (v <= kNoData) v = 0.f;
-                        tile.elevation[dstRow * w + (x + tx)] = v;
-                    }
+                    uint32_t dstRow = (h - 1) - (y + ty);
+                    decodeLine(&buf[ty * tw * bpp], &tile.elevation[dstRow * w + x], copyW);
                 }
             }
     } else {
-        auto buf = std::vector<uint8_t>(TIFFScanlineSize(tif));
+        std::vector<uint8_t> buf(TIFFScanlineSize(tif));
         for (uint32_t y = 0; y < h; ++y) {
-            TIFFReadScanline(tif, buf.data(), y);
+            if (TIFFReadScanline(tif, buf.data(), y) < 0) continue;
             uint32_t dstRow = (h - 1) - y;
-            for (uint32_t x = 0; x < w; ++x) {
-                float v;
-                if (isFloat) v = reinterpret_cast<float*>(buf.data())[x];
-                else         v = float(reinterpret_cast<int16_t*>(buf.data())[x]);
-                if (v <= kNoData) v = 0.f;
-                tile.elevation[dstRow * w + x] = v;
-            }
+            decodeLine(buf.data(), &tile.elevation[dstRow * w], w);
         }
     }
     TIFFClose(tif);
@@ -115,11 +116,16 @@ static TerrainTile LoadGeoTiff(const std::string& path) {
 
     tile.lonMin = float(lonMin); tile.latMin = float(latMin);
     tile.lonMax = float(lonMax); tile.latMax = float(latMax);
-    tile.elevMin = tile.elevation[0]; tile.elevMax = tile.elevation[0];
-    for (float v : tile.elevation) {
+
+    // Compute elevation range, treating nodata as missing
+    tile.elevMin = std::numeric_limits<float>::max();
+    tile.elevMax = std::numeric_limits<float>::lowest();
+    for (float& v : tile.elevation) {
+        if (v <= kNoData) { v = 0.f; continue; }
         tile.elevMin = std::min(tile.elevMin, v);
         tile.elevMax = std::max(tile.elevMax, v);
     }
+    if (tile.elevMin > tile.elevMax) tile.elevMin = tile.elevMax = 0.f;  // all nodata
 
     Log::Render().info("GeoTIFF: {}x{} [{:.4f},{:.4f}]→[{:.4f},{:.4f}] elev [{:.0f},{:.0f}]m",
                        w, h, lonMin, latMin, lonMax, latMax, tile.elevMin, tile.elevMax);
