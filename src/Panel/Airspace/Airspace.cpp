@@ -28,14 +28,17 @@ Airspace::Airspace() : Panel("Airspace", "Airspace") {
     RebuildTerrainIfNeeded();
 }
 
-void Airspace::RebuildTerrainIfNeeded() {
-    constexpr double kRebuildThresholdDeg = 0.05;  // ~5.5 km
+void Airspace::RebuildTerrainIfNeeded(bool force) {
+    constexpr double kDegPerKm = 1.0 / 111.32;
+    double threshDeg = terrainCfg_.rebuildKm * kDegPerKm;
     double dLat = aircraft_.lat - terrainCenterLat_;
     double dLon = aircraft_.lon - terrainCenterLon_;
-    if (terrainMesh_.indices.empty() || dLat * dLat + dLon * dLon > kRebuildThresholdDeg * kRebuildThresholdDeg) {
+    if (force || terrainMesh_.indices.empty() || dLat * dLat + dLon * dLon > threshDeg * threshDeg) {
         terrainCenterLat_ = aircraft_.lat;
         terrainCenterLon_ = aircraft_.lon;
-        terrainMesh_ = Render::BuildTerrainMesh(terrain_, aircraft_.lat, aircraft_.lon, 0.08f, 0.0005f);
+        float radiusDeg = float(terrainCfg_.radiusKm * kDegPerKm);
+        float stepDeg   = float(terrainCfg_.resolutionM / 111320.0);
+        terrainMesh_ = Render::BuildTerrainMesh(terrain_, aircraft_.lat, aircraft_.lon, radiusDeg, stepDeg);
     }
 }
 
@@ -155,6 +158,17 @@ void Airspace::DrawControls() {
         ImGui::DragFloat("0.001\xc2\xb0",  &g.gridFades.y, 100.f, 100.f, 50000.f, "%.0f");
         ImGui::DragFloat("0.01\xc2\xb0",   &g.gridFades.z, 1000.f, 1000.f, 500000.f, "%.0f");
         ImGui::DragFloat("0.1\xc2\xb0",    &g.gridFades.w, 5000.f, 5000.f, 2000000.f, "%.0f");
+    }
+
+    if (ImGui::CollapsingHeader("Terrain")) {
+        bool changed = false;
+        changed |= ImGui::DragFloat("Radius",     &terrainCfg_.radiusKm,   0.5f, 1.f, 50.f, "%.1f km");
+        changed |= ImGui::DragFloat("Resolution", &terrainCfg_.resolutionM, 5.f, 10.f, 500.f, "%.0f m");
+        changed |= ImGui::DragFloat("Rebuild",    &terrainCfg_.rebuildKm,  0.5f, 1.f, 30.f, "%.1f km");
+        if (changed) RebuildTerrainIfNeeded(true);
+        int verts = int(terrainMesh_.relPos.size());
+        int tris  = terrainMesh_.indexCount / 3;
+        ImGui::TextDisabled("%d verts, %d tris", verts, tris);
     }
 
     ImGui::End();
@@ -372,10 +386,21 @@ json Airspace::SaveSettings() const {
         wps.push_back(w);
     }
     j["waypoints"] = wps;
+    j["terrain"] = {
+        {"radiusKm",    terrainCfg_.radiusKm},
+        {"resolutionM", terrainCfg_.resolutionM},
+        {"rebuildKm",   terrainCfg_.rebuildKm},
+    };
     return j;
 }
 
 void Airspace::LoadSettings(const json& j) {
+    if (j.contains("terrain")) {
+        auto& t = j["terrain"];
+        terrainCfg_.radiusKm    = t.value("radiusKm",    terrainCfg_.radiusKm);
+        terrainCfg_.resolutionM = t.value("resolutionM", terrainCfg_.resolutionM);
+        terrainCfg_.rebuildKm   = t.value("rebuildKm",   terrainCfg_.rebuildKm);
+    }
     if (j.contains("waypoints")) {
         waypoints_.clear();
         for (auto& w : j["waypoints"]) {

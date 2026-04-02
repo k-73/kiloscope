@@ -59,7 +59,13 @@ private:
     Render::TerrainMesh terrainMesh_;
     double terrainCenterLat_ = 0.0, terrainCenterLon_ = 0.0;
 
-    void RebuildTerrainIfNeeded();
+    struct TerrainCfg {
+        float radiusKm = 15.f;    // mesh radius around aircraft
+        float resolutionM = 50.f; // vertex spacing in meters
+        float rebuildKm = 5.f;    // rebuild when aircraft moves this far
+    } terrainCfg_;
+
+    void RebuildTerrainIfNeeded(bool force = false);
 };
 
 } // namespace Kilo
