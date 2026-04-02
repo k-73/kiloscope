@@ -55,7 +55,7 @@ private:
 
     std::vector<Waypoint> waypoints_;
     Render::TrailBuffer trail_{128, 1.0};
-    Render::TerrainTile terrain_;
+    Render::TerrainSet terrain_;
     Render::TerrainMesh terrainMesh_;
     double terrainCenterLat_ = 0.0, terrainCenterLon_ = 0.0;
 

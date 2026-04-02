@@ -21,8 +21,7 @@ Airspace::Airspace() : Panel("Airspace", "Airspace") {
     waypoints_.push_back({52.2297 + 1.0 / 111.32, 21.0122, 0.0, "WP1"});
     if (sJetModel == Render::kInvalidModel)
         sJetModel = Render::LoadModel(std::string(ASSETS_DIR) + "/models/Jet_Lowpoly.obj");
-    terrain_ = Render::LoadTerrain(
-        std::string(ASSETS_DIR) + "/terrain/Copernicus_DSM_COG_10_N52_00_E021_00_DEM.tif");
+    terrain_ = Render::LoadTerrainDir(std::string(ASSETS_DIR) + "/terrain");
     // Start aircraft above terrain surface
     aircraft_.alt = double(terrain_.Sample(aircraft_.lat, aircraft_.lon)) + 50.0;
     RebuildTerrainIfNeeded();

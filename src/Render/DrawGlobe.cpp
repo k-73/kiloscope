@@ -2,6 +2,7 @@
 #include "Render/DrawState.hpp"
 #include "Core/Log.hpp"
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <limits>
 #include <tiffio.h>
@@ -49,7 +50,7 @@ static TerrainTile LoadGeoTiff(const std::string& path) {
     if (!w || !h) { Log::Render().error("GeoTIFF bad dims: {}", path); TIFFClose(tif); restore(); return tile; }
 
     // Geo metadata: pixel scale + tiepoint → bounds
-    uint16_t cnt = 0;
+    uint32_t cnt = 0;
     double* scale = nullptr;
     double* tp    = nullptr;
     TIFFGetField(tif, kGeoPixelScaleTag, &cnt, &scale);
@@ -166,6 +167,61 @@ TerrainTile LoadTerrain(const std::string& rawPath, int cols, int rows,
     return tile;
 }
 
+// ── TerrainSet (multi-tile) ─────────────────────────────────────
+
+void TerrainSet::BuildIndex() {
+    index.clear();
+    for (size_t i = 0; i < tiles.size(); ++i) {
+        auto& t = tiles[i];
+        int latI = int(std::floor(t.latMin));
+        int lonI = int(std::floor(t.lonMin));
+        index[TileKey(latI, lonI)] = i;
+    }
+}
+
+float TerrainSet::Sample(double lat, double lon) const {
+    auto it = index.find(TileKey(int(std::floor(lat)), int(std::floor(lon))));
+    if (it != index.end()) return tiles[it->second].Sample(lat, lon);
+    return 0.f;
+}
+
+TerrainSet LoadTerrainDir(const std::string& dir) {
+    TerrainSet set;
+    std::vector<std::filesystem::path> paths;
+    for (auto& e : std::filesystem::directory_iterator(dir))
+        if (e.is_regular_file() && (e.path().extension() == ".tif" || e.path().extension() == ".tiff"))
+            paths.push_back(e.path());
+    std::sort(paths.begin(), paths.end());
+
+    set.elevMin = std::numeric_limits<float>::max();
+    set.elevMax = std::numeric_limits<float>::lowest();
+    set.lonMin  = 999.f; set.latMin = 999.f;
+    set.lonMax  = -999.f; set.latMax = -999.f;
+
+    for (auto& p : paths) {
+        auto tile = LoadTerrain(p.string());
+        if (tile.elevation.empty()) continue;
+        set.lonMin  = std::min(set.lonMin,  tile.lonMin);
+        set.latMin  = std::min(set.latMin,  tile.latMin);
+        set.lonMax  = std::max(set.lonMax,  tile.lonMax);
+        set.latMax  = std::max(set.latMax,  tile.latMax);
+        set.elevMin = std::min(set.elevMin, tile.elevMin);
+        set.elevMax = std::max(set.elevMax, tile.elevMax);
+        set.tiles.push_back(std::move(tile));
+    }
+
+    set.BuildIndex();
+    if (set.tiles.empty()) {
+        Log::Render().error("No terrain tiles in: {}", dir);
+        set.elevMin = set.elevMax = 0.f;
+    } else {
+        Log::Render().info("TerrainSet: {} tiles [{:.1f},{:.1f}]→[{:.1f},{:.1f}] elev [{:.0f},{:.0f}]m",
+                           set.tiles.size(), set.lonMin, set.latMin, set.lonMax, set.latMax,
+                           set.elevMin, set.elevMax);
+    }
+    return set;
+}
+
 // ── TerrainMesh GPU ─────────────────────────────────────────────────
 
 TerrainMesh::TerrainMesh(TerrainMesh&& o) noexcept
@@ -217,22 +273,22 @@ void TerrainMesh::Destroy() {
     indexCount = 0;
 }
 
-TerrainMesh BuildTerrainMesh(const TerrainTile& tile, double centerLat, double centerLon,
+TerrainMesh BuildTerrainMesh(const TerrainSet& terrain, double centerLat, double centerLon,
                              float radiusDeg, float stepDeg) {
     TerrainMesh mesh;
-    if (tile.elevation.empty()) return mesh;
+    if (terrain.empty()) return mesh;
 
-    float lat0 = std::max(float(centerLat - radiusDeg), tile.latMin);
-    float lat1 = std::min(float(centerLat + radiusDeg), tile.latMax);
-    float lon0 = std::max(float(centerLon - radiusDeg), tile.lonMin);
-    float lon1 = std::min(float(centerLon + radiusDeg), tile.lonMax);
+    float lat0 = std::max(float(centerLat - radiusDeg), terrain.latMin);
+    float lat1 = std::min(float(centerLat + radiusDeg), terrain.latMax);
+    float lon0 = std::max(float(centerLon - radiusDeg), terrain.lonMin);
+    float lon1 = std::min(float(centerLon + radiusDeg), terrain.lonMax);
     if (lat0 >= lat1 || lon0 >= lon1) return mesh;
 
     int nx = std::max(2, int((lon1 - lon0) / stepDeg) + 1);
     int ny = std::max(2, int((lat1 - lat0) / stepDeg) + 1);
     float dLon = (lon1 - lon0) / (nx - 1);
     float dLat = (lat1 - lat0) / (ny - 1);
-    float eRange = std::max(1.f, tile.elevMax - tile.elevMin);
+    float eRange = std::max(1.f, terrain.elevMax - terrain.elevMin);
 
     // ECEF reference = center of mesh (for float32 relative positions)
     mesh.ecefCenter = GeoRef::ToEcef(centerLat, centerLon, 0.0);
@@ -248,12 +304,12 @@ TerrainMesh BuildTerrainMesh(const TerrainTile& tile, double centerLat, double c
         for (int ix = 0; ix < nx; ++ix) {
             double lat = lat0 + iy * dLat;
             double lon = lon0 + ix * dLon;
-            float  elev = tile.Sample(lat, lon);
+            float  elev = terrain.Sample(lat, lon);
             int    idx  = iy * nx + ix;
             ecefFull[idx] = GeoRef::ToEcef(lat, lon, double(elev));
             mesh.relPos[idx] = glm::vec3(ecefFull[idx] - mesh.ecefCenter);
 
-            float t = (elev - tile.elevMin) / eRange;
+            float t = (elev - terrain.elevMin) / eRange;
             glm::vec3 lo{0.18f, 0.30f, 0.12f}, mi{0.40f, 0.32f, 0.20f}, hi{0.78f, 0.76f, 0.72f};
             mesh.colors[idx] = glm::vec4(
                 t < 0.5f ? glm::mix(lo, mi, t * 2.f) : glm::mix(mi, hi, (t - 0.5f) * 2.f), 1.f);

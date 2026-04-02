@@ -3,6 +3,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <string>
+#include <unordered_map>
 #include <vector>
 #include <cmath>
 #include <cstring>
@@ -186,10 +187,24 @@ struct TerrainMesh {
     TerrainMesh& operator=(const TerrainMesh&) = delete;
 };
 
-TerrainTile LoadTerrain(const std::string& path);  // auto-detect .tif
+// Multi-tile terrain set — loads all .tif files from a directory.
+struct TerrainSet {
+    std::vector<TerrainTile> tiles;
+    std::unordered_map<uint32_t, size_t> index;  // spatial index: key → tile idx
+    float lonMin = 0.f, latMin = 0.f, lonMax = 0.f, latMax = 0.f;
+    float elevMin = 0.f, elevMax = 0.f;
+    float Sample(double lat, double lon) const;
+    bool  empty() const { return tiles.empty(); }
+    void  BuildIndex();
+    static uint32_t TileKey(int lat, int lon) { return uint32_t(int16_t(lat)) << 16 | uint32_t(int16_t(lon)); }
+};
+
+TerrainTile LoadTerrain(const std::string& path);  // single .tif
 TerrainTile LoadTerrain(const std::string& rawPath, int cols, int rows,
                         float lonMin, float latMin, float lonMax, float latMax);
-TerrainMesh BuildTerrainMesh(const TerrainTile& tile, double centerLat, double centerLon,
+TerrainSet  LoadTerrainDir(const std::string& dir); // all .tif in dir
+
+TerrainMesh BuildTerrainMesh(const TerrainSet& terrain, double centerLat, double centerLon,
                              float radiusDeg, float stepDeg);
 void DrawTerrain(TerrainMesh& mesh);
 
