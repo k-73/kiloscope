@@ -477,12 +477,16 @@ bool Marker(const glm::vec3& pos, const char* icon, const char* label,
     if (scr.x < 0.f) return false;
 
     // Pickable point — invisible (alpha 0) but participates in GPU pick pass.
-    // This makes Event() after Marker() work for hover, click, drag, release.
-    constexpr float kPickSize = 20.f;
+    // Constant screen-size: compute world-space size that yields ~24px on screen.
+    constexpr float kScreenPx = 24.f;
+    float dist = glm::length(p);
+    float projScale = sProj[1][1] * sFrame.h * 0.5f;
+    float pickSize  = (projScale > 0.f && dist > 0.f) ? kScreenPx * dist / projScale : 0.1f;
+
     auto& s = ctx();
     s.activePickId = AllocPickId();
-    if (!s.pointBatch.empty() && kPickSize != s.pointSize) FlushPoints();
-    s.pointSize = kPickSize;
+    if (!s.pointBatch.empty() && pickSize != s.pointSize) FlushPoints();
+    s.pointSize = pickSize;
     s.pointBatch.push_back({p, {0, 0, 0, 0}, s.activePickId});
 
     constexpr float kGap = 3.f, kLabelUp = 2.f;

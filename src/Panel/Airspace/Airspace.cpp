@@ -232,6 +232,18 @@ void Airspace::UpdatePhysics(float dt) {
     aircraft_.roll += (bank_ * 35.f - aircraft_.roll) * std::min(1.f, 5.f * dt);
 }
 
+// Iterative ray-terrain intersection: converges in 3 passes.
+bool Airspace::ScreenToTerrain(float sx, float sy, double& lat, double& lon, double& alt,
+                               const char* scene) {
+    double h = 0.0;
+    for (int i = 0; i < 3; ++i) {
+        if (!Render::ScreenToGeo(scene, sx, sy, lat, lon, alt, h)) return false;
+        h = double(terrain_.Sample(lat, lon));
+    }
+    alt = h;
+    return true;
+}
+
 // ── scene ───────────────────────────────────────────────────────
 
 void Airspace::DrawWorld(const glm::vec3& pos) {
@@ -245,11 +257,8 @@ void Airspace::DrawWorld(const glm::vec3& pos) {
         if (Render::Event().Dragging()) {
             auto& io = ImGui::GetIO();
             double lat, lon, alt;
-            // Intersect ellipsoid inflated by current waypoint terrain height
-            if (Render::ScreenToGeo(io.MousePos.x, io.MousePos.y, lat, lon, alt, wp.alt)) {
-                wp.lat = lat; wp.lon = lon;
-                wp.alt = double(terrain_.Sample(lat, lon));
-            }
+            if (ScreenToTerrain(io.MousePos.x, io.MousePos.y, lat, lon, alt))
+                { wp.lat = lat; wp.lon = lon; wp.alt = alt; }
         }
     }
 
@@ -314,11 +323,8 @@ void Airspace::DrawFlight(float dt) {
             if (Render::Event().Dragging()) {
                 auto& io = ImGui::GetIO();
                 double lat, lon, alt;
-                if (Render::ScreenToGeo(io.MousePos.x, io.MousePos.y, lat, lon, alt, gimbal_.targetAlt)) {
-                    gimbal_.targetLat = lat;
-                    gimbal_.targetLon = lon;
-                    gimbal_.targetAlt = double(terrain_.Sample(lat, lon));
-                }
+                if (ScreenToTerrain(io.MousePos.x, io.MousePos.y, lat, lon, alt))
+                    { gimbal_.targetLat = lat; gimbal_.targetLon = lon; gimbal_.targetAlt = alt; }
             }
         }
     Render::End();
@@ -328,13 +334,9 @@ void Airspace::DrawFlight(float dt) {
     if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
         auto& io = ImGui::GetIO();
         double lat, lon, alt;
-        // First pass: hit ellipsoid to get approximate lat/lon
-        if (Render::ScreenToGeo("flight", io.MousePos.x, io.MousePos.y, lat, lon, alt)) {
-            // Refine: re-intersect ellipsoid inflated by terrain height
-            double h = double(terrain_.Sample(lat, lon));
-            Render::ScreenToGeo("flight", io.MousePos.x, io.MousePos.y, lat, lon, alt, h);
+        if (ScreenToTerrain(io.MousePos.x, io.MousePos.y, lat, lon, alt)) {
             std::string label = "WP" + std::to_string(waypoints_.size() + 1);
-            waypoints_.push_back({lat, lon, double(terrain_.Sample(lat, lon)), std::move(label)});
+            waypoints_.push_back({lat, lon, alt, std::move(label)});
         }
     }
 
@@ -342,12 +344,8 @@ void Airspace::DrawFlight(float dt) {
     if (ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
         auto& io = ImGui::GetIO();
         double lat, lon, alt;
-        // Use current target alt as intersection height — stable during continuous drag
-        if (Render::ScreenToGeo("flight", io.MousePos.x, io.MousePos.y, lat, lon, alt, gimbal_.targetAlt)) {
-            gimbal_.targetLat = lat;
-            gimbal_.targetLon = lon;
-            gimbal_.targetAlt = double(terrain_.Sample(lat, lon));
-        }
+        if (ScreenToTerrain(io.MousePos.x, io.MousePos.y, lat, lon, alt))
+            { gimbal_.targetLat = lat; gimbal_.targetLon = lon; gimbal_.targetAlt = alt; }
     }
 
     if (!cameraFree_)

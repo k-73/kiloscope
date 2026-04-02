@@ -66,6 +66,8 @@ private:
     } terrainCfg_;
 
     void RebuildTerrainIfNeeded(bool force = false);
+    bool ScreenToTerrain(float sx, float sy, double& lat, double& lon, double& alt,
+                         const char* scene = "flight");
 };
 
 } // namespace Kilo
