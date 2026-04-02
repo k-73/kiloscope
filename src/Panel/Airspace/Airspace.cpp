@@ -247,18 +247,26 @@ bool Airspace::ScreenToTerrain(float sx, float sy, double& lat, double& lon, dou
 
 void Airspace::DrawWorld(const glm::vec3& pos) {
     // Waypoints (use current scene's GeoRef — works for both flight and gimbal)
+    targetOnWaypoint_ = false;
     if (terrainReady_) {
         for (auto& wp : waypoints_) {
+            bool isTarget = (wp.lat == gimbal_.targetLat && wp.lon == gimbal_.targetLon);
+            if (isTarget) targetOnWaypoint_ = true;
             auto wpLocal = glm::vec3(Render::GeoToLocal(wp.lat, wp.lon, wp.alt));
             float dist = glm::length(wpLocal - pos) * 0.001f;
-            Render::Marker(wpLocal, ICON_FA_LOCATION_DOT, wp.label.c_str(), wp.color,
-                "%.2f km\n%.6f, %.6f\n%.0f m", dist, wp.lat, wp.lon, wp.alt);
+            const char* icon = isTarget ? ICON_FA_CROSSHAIRS : ICON_FA_LOCATION_DOT;
+            auto color = isTarget ? Render::Color::Hex("#00ccffff") : wp.color;
+            Render::Marker(wpLocal, icon, wp.label.c_str(), color,
+                "%s%.2f km\n%.6f, %.6f\n%.0f m",
+                isTarget ? "Target\n" : "", dist, wp.lat, wp.lon, wp.alt);
             auto ev = Render::Event();
             if (ev.Dragging()) {
                 auto& io = ImGui::GetIO();
                 double lat, lon, alt;
-                if (ScreenToTerrain(io.MousePos.x, io.MousePos.y, lat, lon, alt))
-                    { wp.lat = lat; wp.lon = lon; wp.alt = alt; }
+                if (ScreenToTerrain(io.MousePos.x, io.MousePos.y, lat, lon, alt)) {
+                    wp.lat = lat; wp.lon = lon; wp.alt = alt;
+                    if (isTarget) { gimbal_.targetLat = lat; gimbal_.targetLon = lon; gimbal_.targetAlt = alt; }
+                }
             }
             if (ev.Clicked(Render::Right)) {
                 gimbal_.targetLat = wp.lat;
@@ -324,7 +332,7 @@ void Airspace::DrawFlight(float dt) {
         Render::Sensor(gimbalNed, gimbalDir, gimbalUp, gimbal_.fov, gimbal_.aspect, 0.1,
             Render::Color::Hex("#90B0D0"), 1.0f);
         Render::Line(gimbalNed, targetNed, Render::Color::Hex("#00c3ffAA"), 1.f);
-        {
+        if (!targetOnWaypoint_) {
             Render::Group tgtGroup;
             Render::Marker(targetNed, ICON_FA_CROSSHAIRS, "Target", Render::Color::Hex("#00ccffff"),
                 "Lat %.6f\nLon %.6f\nAlt %.0f m", gimbal_.targetLat, gimbal_.targetLon, gimbal_.targetAlt);
