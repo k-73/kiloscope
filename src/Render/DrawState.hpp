@@ -147,6 +147,7 @@ struct SceneData {
     // Configuration
     Camera cam; Environment env; GridConfig gridCfg; GlobeConfig globeCfg;
     GeoRef geoRef;
+    struct TerrainMesh* pendingTerrain = nullptr;  // set by DrawTerrain, drawn in End() after Globe
     bool flyLocked = false;         // per-scene fly-mode cursor lock
 
     // Per-scene cached transforms (snapshot from last Begin/End)

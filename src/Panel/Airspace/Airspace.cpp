@@ -21,6 +21,21 @@ Airspace::Airspace() : Panel("Airspace", "Airspace") {
     waypoints_.push_back({52.2297 + 1.0 / 111.32, 21.0122, 0.0, "WP1"});
     if (sJetModel == Render::kInvalidModel)
         sJetModel = Render::LoadModel(std::string(ASSETS_DIR) + "/models/Jet_Lowpoly.obj");
+    terrain_ = Render::LoadTerrain(
+        std::string(ASSETS_DIR) + "/terrain/N52E021.raw", 2400, 3600,
+        21.f, 52.f, 22.f, 53.f);
+    RebuildTerrainIfNeeded();
+}
+
+void Airspace::RebuildTerrainIfNeeded() {
+    constexpr double kRebuildThresholdDeg = 0.05;  // ~5.5 km
+    double dLat = aircraft_.lat - terrainCenterLat_;
+    double dLon = aircraft_.lon - terrainCenterLon_;
+    if (terrainMesh_.indices.empty() || dLat * dLat + dLon * dLon > kRebuildThresholdDeg * kRebuildThresholdDeg) {
+        terrainCenterLat_ = aircraft_.lat;
+        terrainCenterLon_ = aircraft_.lon;
+        terrainMesh_ = Render::BuildTerrainMesh(terrain_, aircraft_.lat, aircraft_.lon, 0.15f, 0.002f);
+    }
 }
 
 static void DrawAircraft(float speed) {
@@ -241,6 +256,9 @@ void Airspace::DrawFlight(float dt) {
         Render::SetFrame(Render::FrameId::NED);
         Render::Globe();
 
+        RebuildTerrainIfNeeded();
+        Render::DrawTerrain(terrainMesh_);
+
         // World objects (aircraft, waypoints — drag enabled per marker)
         DrawWorld(nedPos);
         auto aircraftEv = Render::Event();
@@ -316,7 +334,6 @@ void Airspace::DrawGimbal() {
 }
 
 void Airspace::SetupEnv(const char* scene) {
-    // Origin tracks aircraft — keeps NED coordinates small for float32 precision
     Render::SetOrigin(scene, aircraft_.lat, aircraft_.lon, 0.0);
     auto& env    = Render::GetEnvironment(scene);
     env.bgColor  = {0.015f, 0.02f, 0.04f};

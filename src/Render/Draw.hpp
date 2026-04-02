@@ -3,6 +3,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <string>
+#include <vector>
 #include <cmath>
 #include <cstring>
 
@@ -154,6 +155,43 @@ void Grid(const GridConfig& cfg);
 GridConfig& GetGrid();
 GridConfig& GetGrid(const char* name);
 
+// ── terrain ─────────────────────────────────────────────────────
+
+struct TerrainTile {
+    std::vector<float> elevation;         // row-major, bottom-up (lat ascending)
+    int   cols    = 0, rows = 0;
+    float lonMin  = 0.f, latMin = 0.f;
+    float lonMax  = 0.f, latMax = 0.f;
+    float elevMin = 0.f, elevMax = 0.f;
+    float Sample(double lat, double lon) const;
+};
+
+struct TerrainMesh {
+    // CPU data (kept for rebuild)
+    glm::dvec3              ecefCenter{};   // ECEF reference for float32 relative positions
+    std::vector<glm::vec3>  relPos;         // ECEF position relative to ecefCenter (float32)
+    std::vector<glm::vec3>  normals;        // ECEF-space normals
+    std::vector<glm::vec4>  colors;         // elevation color per vertex
+    std::vector<uint32_t>   indices;
+    // GPU resources (uploaded once per build)
+    unsigned int vao = 0, vbo = 0, ebo = 0;
+    int indexCount = 0;
+    void Upload();
+    void Destroy();
+    ~TerrainMesh() { Destroy(); }
+    TerrainMesh() = default;
+    TerrainMesh(TerrainMesh&& o) noexcept;
+    TerrainMesh& operator=(TerrainMesh&& o) noexcept;
+    TerrainMesh(const TerrainMesh&) = delete;
+    TerrainMesh& operator=(const TerrainMesh&) = delete;
+};
+
+TerrainTile LoadTerrain(const std::string& rawPath, int cols, int rows,
+                        float lonMin, float latMin, float lonMax, float latMax);
+TerrainMesh BuildTerrainMesh(const TerrainTile& tile, double centerLat, double centerLon,
+                             float radiusDeg, float stepDeg);
+void DrawTerrain(TerrainMesh& mesh);
+
 // ── globe (WGS84 ellipsoid) ─────────────────────────────────────
 struct GlobeConfig {
     bool      enabled      = false;
@@ -164,15 +202,15 @@ struct GlobeConfig {
     float     ambient      = 0.25f;
     // Atmosphere rim
     glm::vec3 atmosphereColor = {.18f, .38f, .78f};
-    float     atmospherePow   = 4.f;        // Fresnel exponent (higher = thinner rim)
-    float     atmosphereStr   = 0.5f;        // intensity multiplier
+    float     atmospherePow   = 4.f;
+    float     atmosphereStr   = 0.5f;
     // Ground fog
     bool      fog          = true;
     glm::vec3 fogColor     = {.02f, .04f, .08f};
-    float     fogStart     = 5000.f;     // meters — fog begins
-    float     fogEnd       = 150000.f;   // meters — fully opaque
-    // Grid fade distances (meters) — fine grids invisible beyond these
-    glm::vec4 gridFades    = {500.f, 5000.f, 50000.f, 200000.f};  // 0.0001°, 0.001°, 0.01°, 0.1°
+    float     fogStart     = 5000.f;
+    float     fogEnd       = 150000.f;
+    // Grid fade distances (meters)
+    glm::vec4 gridFades    = {500.f, 5000.f, 50000.f, 200000.f};
 };
 
 void SetOrigin(double lat, double lon, double alt = 0.0);

@@ -808,6 +808,7 @@ void Begin(const char* name, const ViewportConfig& cfg) {
     scene->glow              = false;
     scene->glowRadius = 0.f;
     scene->numPointLights    = 0;
+    scene->pendingTerrain    = nullptr;
 
     // Clear but keep capacity (avoid realloc every frame)
     scene->drawList.clear();
@@ -1024,9 +1025,10 @@ void End() {
 
     ctx().stats.pointLights = ctx().numPointLights;
 
-    // Surface extensions (render first — globe/grid are the farthest geometry)
+    // Surface extensions (globe/grid are farthest geometry, terrain on top)
     if (ctx().globeCfg.enabled) DrawGlobe(ctx().globeCfg);
     if (ctx().gridCfg.enabled)  DrawGrid(ctx().gridCfg, float(ctx().cam.Distance()));
+    RenderTerrain();
 
     SubmitMeshes();
     FlushPoints();

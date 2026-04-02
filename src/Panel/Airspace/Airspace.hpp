@@ -1,5 +1,6 @@
 #pragma once
 #include "Core/Panel/Panel.hpp"
+#include "Render/Draw.hpp"
 #include "Render/Frame.hpp"
 #include "Render/Geo.hpp"
 #include "Render/Trail.hpp"
@@ -54,7 +55,11 @@ private:
 
     std::vector<Waypoint> waypoints_;
     Render::TrailBuffer trail_{128, 1.0};
+    Render::TerrainTile terrain_;
+    Render::TerrainMesh terrainMesh_;
+    double terrainCenterLat_ = 0.0, terrainCenterLon_ = 0.0;
 
+    void RebuildTerrainIfNeeded();
 };
 
 } // namespace Kilo

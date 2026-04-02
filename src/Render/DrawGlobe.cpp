@@ -1,20 +1,228 @@
 #include "Render/DrawGlobe.hpp"
 #include "Render/DrawState.hpp"
+#include "Core/Log.hpp"
+#include <cstring>
+#include <fstream>
 
 namespace Kilo::Render {
 
 static Shader sGlobeShader;
+static Shader sTerrainShader;
 static GLuint sGlobeVao = 0;
+
+// ── terrain ─────────────────────────────────────────────────────────
+
+float TerrainTile::Sample(double lat, double lon) const {
+    if (elevation.empty()) return 0.f;
+    float u = float((lon - lonMin) / (lonMax - lonMin));
+    float v = float((lat - latMin) / (latMax - latMin));
+    if (u < 0.f || u > 1.f || v < 0.f || v > 1.f) return 0.f;
+    float fx = u * (cols - 1), fy = v * (rows - 1);
+    int x0 = std::min(int(fx), cols - 2), y0 = std::min(int(fy), rows - 2);
+    float sx = fx - x0, sy = fy - y0;
+    float e00 = elevation[y0 * cols + x0],       e10 = elevation[y0 * cols + x0 + 1];
+    float e01 = elevation[(y0 + 1) * cols + x0], e11 = elevation[(y0 + 1) * cols + x0 + 1];
+    return (e00 * (1 - sx) + e10 * sx) * (1 - sy) + (e01 * (1 - sx) + e11 * sx) * sy;
+}
+
+TerrainTile LoadTerrain(const std::string& rawPath, int cols, int rows,
+                        float lonMin, float latMin, float lonMax, float latMax) {
+    TerrainTile tile{};
+    std::ifstream f(rawPath, std::ios::binary);
+    if (!f) { Log::Render().error("Terrain not found: {}", rawPath); return tile; }
+
+    std::vector<float> data(cols * rows);
+    f.read(reinterpret_cast<char*>(data.data()), data.size() * sizeof(float));
+    if (!f) { Log::Render().error("Terrain read error: {}", rawPath); return tile; }
+
+    tile.elevation.resize(cols * rows);
+    for (int y = 0; y < rows; ++y)
+        std::memcpy(&tile.elevation[y * cols], &data[(rows - 1 - y) * cols], cols * sizeof(float));
+
+    tile.cols = cols; tile.rows = rows;
+    tile.lonMin = lonMin; tile.latMin = latMin;
+    tile.lonMax = lonMax; tile.latMax = latMax;
+    tile.elevMin = tile.elevation[0]; tile.elevMax = tile.elevation[0];
+    for (float v : tile.elevation) {
+        tile.elevMin = std::min(tile.elevMin, v);
+        tile.elevMax = std::max(tile.elevMax, v);
+    }
+
+    Log::Render().info("Terrain: {}x{} elev [{:.0f}, {:.0f}]m", cols, rows, tile.elevMin, tile.elevMax);
+    return tile;
+}
+
+// ── TerrainMesh GPU ─────────────────────────────────────────────────
+
+TerrainMesh::TerrainMesh(TerrainMesh&& o) noexcept
+    : ecefCenter(o.ecefCenter), relPos(std::move(o.relPos)), normals(std::move(o.normals)),
+      colors(std::move(o.colors)), indices(std::move(o.indices)),
+      vao(o.vao), vbo(o.vbo), ebo(o.ebo), indexCount(o.indexCount) {
+    o.vao = o.vbo = o.ebo = 0; o.indexCount = 0;
+}
+
+TerrainMesh& TerrainMesh::operator=(TerrainMesh&& o) noexcept {
+    if (this != &o) { Destroy(); new (this) TerrainMesh(std::move(o)); }
+    return *this;
+}
+
+void TerrainMesh::Upload() {
+    if (vao || indices.empty()) return;
+
+    // Interleaved: pos(3f) + normal(3f) + color(4f) = 40 bytes/vertex
+    struct Vert { glm::vec3 pos, nrm; glm::vec4 col; };
+    std::vector<Vert> verts(relPos.size());
+    for (size_t i = 0; i < relPos.size(); ++i)
+        verts[i] = {relPos[i], normals[i], colors[i]};
+
+    glCreateVertexArrays(1, &vao);
+    glCreateBuffers(1, &vbo);
+    glCreateBuffers(1, &ebo);
+    glNamedBufferStorage(vbo, GLsizeiptr(verts.size() * sizeof(Vert)), verts.data(), 0);
+    glNamedBufferStorage(ebo, GLsizeiptr(indices.size() * sizeof(uint32_t)), indices.data(), 0);
+
+    auto attr = [&](GLuint idx, GLint size, GLenum type, GLuint offset) {
+        glEnableVertexArrayAttrib(vao, idx);
+        glVertexArrayAttribFormat(vao, idx, size, type, GL_FALSE, offset);
+        glVertexArrayAttribBinding(vao, idx, 0);
+    };
+    glVertexArrayVertexBuffer(vao, 0, vbo, 0, sizeof(Vert));
+    glVertexArrayElementBuffer(vao, ebo);
+    attr(0, 3, GL_FLOAT, offsetof(Vert, pos));
+    attr(1, 3, GL_FLOAT, offsetof(Vert, nrm));
+    attr(2, 4, GL_FLOAT, offsetof(Vert, col));
+
+    indexCount = static_cast<int>(indices.size());
+    Log::Render().info("TerrainMesh GPU: {} verts, {} tris", relPos.size(), indexCount / 3);
+}
+
+void TerrainMesh::Destroy() {
+    if (vao) { glDeleteVertexArrays(1, &vao); vao = 0; }
+    if (vbo) { glDeleteBuffers(1, &vbo); vbo = 0; }
+    if (ebo) { glDeleteBuffers(1, &ebo); ebo = 0; }
+    indexCount = 0;
+}
+
+TerrainMesh BuildTerrainMesh(const TerrainTile& tile, double centerLat, double centerLon,
+                             float radiusDeg, float stepDeg) {
+    TerrainMesh mesh;
+    if (tile.elevation.empty()) return mesh;
+
+    float lat0 = std::max(float(centerLat - radiusDeg), tile.latMin);
+    float lat1 = std::min(float(centerLat + radiusDeg), tile.latMax);
+    float lon0 = std::max(float(centerLon - radiusDeg), tile.lonMin);
+    float lon1 = std::min(float(centerLon + radiusDeg), tile.lonMax);
+    if (lat0 >= lat1 || lon0 >= lon1) return mesh;
+
+    int nx = std::max(2, int((lon1 - lon0) / stepDeg) + 1);
+    int ny = std::max(2, int((lat1 - lat0) / stepDeg) + 1);
+    float dLon = (lon1 - lon0) / (nx - 1);
+    float dLat = (lat1 - lat0) / (ny - 1);
+    float eRange = std::max(1.f, tile.elevMax - tile.elevMin);
+
+    // ECEF reference = center of mesh (for float32 relative positions)
+    mesh.ecefCenter = GeoRef::ToEcef(centerLat, centerLon, 0.0);
+
+    int nv = nx * ny;
+    mesh.relPos.resize(nv);
+    mesh.normals.resize(nv);
+    mesh.colors.resize(nv);
+
+    // Vertex positions: ECEF relative to ecefCenter (preserves float32 precision)
+    std::vector<glm::dvec3> ecefFull(nv);
+    for (int iy = 0; iy < ny; ++iy)
+        for (int ix = 0; ix < nx; ++ix) {
+            double lat = lat0 + iy * dLat;
+            double lon = lon0 + ix * dLon;
+            float  elev = tile.Sample(lat, lon);
+            int    idx  = iy * nx + ix;
+            ecefFull[idx] = GeoRef::ToEcef(lat, lon, double(elev));
+            mesh.relPos[idx] = glm::vec3(ecefFull[idx] - mesh.ecefCenter);
+
+            float t = (elev - tile.elevMin) / eRange;
+            glm::vec3 lo{0.18f, 0.30f, 0.12f}, mi{0.40f, 0.32f, 0.20f}, hi{0.78f, 0.76f, 0.72f};
+            mesh.colors[idx] = glm::vec4(
+                t < 0.5f ? glm::mix(lo, mi, t * 2.f) : glm::mix(mi, hi, (t - 0.5f) * 2.f), 1.f);
+        }
+
+    // Normals from cross product of grid neighbors (ECEF space)
+    for (int iy = 0; iy < ny; ++iy)
+        for (int ix = 0; ix < nx; ++ix) {
+            int c = iy * nx + ix;
+            int r = std::min(ix + 1, nx - 1), l = std::max(ix - 1, 0);
+            int u = std::min(iy + 1, ny - 1), d = std::max(iy - 1, 0);
+            glm::dvec3 dx = ecefFull[iy * nx + r] - ecefFull[iy * nx + l];
+            glm::dvec3 dy = ecefFull[u * nx + ix] - ecefFull[d * nx + ix];
+            mesh.normals[c] = glm::vec3(glm::normalize(glm::cross(dx, dy)));
+        }
+
+    // Triangle indices
+    mesh.indices.reserve((nx - 1) * (ny - 1) * 6);
+    for (int iy = 0; iy + 1 < ny; ++iy)
+        for (int ix = 0; ix + 1 < nx; ++ix) {
+            uint32_t a = iy * nx + ix, b = a + 1, c = a + nx, d2 = c + 1;
+            mesh.indices.insert(mesh.indices.end(), {a, b, c,  b, d2, c});
+        }
+
+    return mesh;
+}
+
+// Called by user code inside Begin/End — defers rendering to End() (after Globe).
+void DrawTerrain(TerrainMesh& mesh) {
+    if (mesh.indices.empty()) return;
+    mesh.Upload();
+    ctx().pendingTerrain = &mesh;
+}
+
+// Called from End() after Globe/Grid — terrain renders on top of globe surface.
+void RenderTerrain() {
+    auto* mesh = ctx().pendingTerrain;
+    ctx().pendingTerrain = nullptr;
+    if (!mesh || !mesh->vao) return;
+
+    auto& gr = ctx().geoRef;
+    if (!gr.valid) return;
+
+    glm::dmat3 toLocal = glm::transpose(glm::dmat3(ctx().frameMat)) * glm::dmat3(gr.ecefToEnu);
+    glm::dvec3 centerLocal = toLocal * (mesh->ecefCenter - gr.ecefRef);
+    glm::vec3  centerCamRel = glm::vec3(centerLocal - sCamPosD);
+
+    // Normal matrix: rotate ECEF normals to ENU only (not frame), so they match sLightDir space
+    glm::mat3 ecefToEnu = glm::mat3(gr.ecefToEnu);
+
+    sTerrainShader.Use();
+    sTerrainShader.Set("uEcefToLocal", glm::mat3(toLocal));
+    sTerrainShader.Set("uRefEcefHi",   centerCamRel);
+    sTerrainShader.Set("uViewProj",    sViewProj);
+    sTerrainShader.Set("uNormalMat",   ecefToEnu);
+    sTerrainShader.Set("uFcoef",       2.f / std::log2(sFarPlane + 1.f));
+    sTerrainShader.Set("uLightDir",    sLightDir);
+    sTerrainShader.Set("uCamPos",      glm::vec3(0.f));
+    sTerrainShader.Set("uAmbient",     ctx().env.ambient);
+    sTerrainShader.Set("uFogColor",    ctx().env.fogColor);
+    sTerrainShader.Set("uFogStart",    ctx().env.fogStart);
+    sTerrainShader.Set("uFogEnd",      ctx().env.fogEnd);
+    sTerrainShader.Set("uFcoefHalf",   1.f / std::log2(sFarPlane + 1.f));
+
+    glDisable(GL_CULL_FACE);
+    glBindVertexArray(mesh->vao);
+    glDrawElements(GL_TRIANGLES, mesh->indexCount, GL_UNSIGNED_INT, nullptr);
+    glEnable(GL_CULL_FACE);
+    ++ctx().stats.drawCalls;
+    ctx().stats.vertices += mesh->indexCount;
+}
 
 // ── init / shutdown ─────────────────────────────────────────────────
 
 void InitGlobe(const std::string& dir) {
-    sGlobeShader = Shader(dir + "/Globe.vert", dir + "/Globe.frag");
+    sGlobeShader   = Shader(dir + "/Globe.vert",   dir + "/Globe.frag");
+    sTerrainShader = Shader(dir + "/Terrain.vert",  dir + "/Terrain.frag");
     glCreateVertexArrays(1, &sGlobeVao);
 }
 
 void ShutdownGlobe() {
     sGlobeShader = {};
+    sTerrainShader = {};
     if (sGlobeVao) { glDeleteVertexArrays(1, &sGlobeVao); sGlobeVao = 0; }
 }
 

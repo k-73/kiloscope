@@ -10,4 +10,5 @@ struct GlobeConfig;
 void InitGlobe(const std::string& shaderDir);
 void ShutdownGlobe();
 void DrawGlobe(const GlobeConfig& cfg);
+void RenderTerrain();
 } // namespace Kilo::Render
