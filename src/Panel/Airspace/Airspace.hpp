@@ -51,8 +51,9 @@ private:
         double    targetLat  = 52.2297, targetLon = 21.0122, targetAlt = 0.0;
     } gimbal_;
 
-    bool cameraFree_ = false;
-    float bank_      = 0.f;   // bank input from HandleInput (focus-guarded)
+    bool cameraFree_    = false;
+    bool rightOnMarker_ = false;  // right-press started on a marker — suppress terrain handler
+    float bank_         = 0.f;    // bank input from HandleInput (focus-guarded)
 
     std::vector<Waypoint> waypoints_;
     Render::TrailBuffer trail_{128, 1.0};

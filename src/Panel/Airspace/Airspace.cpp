@@ -247,17 +247,25 @@ bool Airspace::ScreenToTerrain(float sx, float sy, double& lat, double& lon, dou
 
 void Airspace::DrawWorld(const glm::vec3& pos) {
     // Waypoints (use current scene's GeoRef — works for both flight and gimbal)
-    for (auto& wp : waypoints_) {
-        auto wpLocal = glm::vec3(Render::GeoToLocal(wp.lat, wp.lon, wp.alt));
-        float dist = glm::length(wpLocal - pos) * 0.001f;
-        Render::Marker(wpLocal, ICON_FA_LOCATION_DOT, wp.label.c_str(), wp.color,
-            "%.2f km\n%.6f, %.6f\n%.0f m", dist, wp.lat, wp.lon, wp.alt);
-        // Drag waypoint on terrain surface via pick system
-        if (Render::Event().Dragging()) {
-            auto& io = ImGui::GetIO();
-            double lat, lon, alt;
-            if (ScreenToTerrain(io.MousePos.x, io.MousePos.y, lat, lon, alt))
-                { wp.lat = lat; wp.lon = lon; wp.alt = alt; }
+    if (terrainReady_) {
+        for (auto& wp : waypoints_) {
+            auto wpLocal = glm::vec3(Render::GeoToLocal(wp.lat, wp.lon, wp.alt));
+            float dist = glm::length(wpLocal - pos) * 0.001f;
+            Render::Marker(wpLocal, ICON_FA_LOCATION_DOT, wp.label.c_str(), wp.color,
+                "%.2f km\n%.6f, %.6f\n%.0f m", dist, wp.lat, wp.lon, wp.alt);
+            auto ev = Render::Event();
+            if (ev.Dragging()) {
+                auto& io = ImGui::GetIO();
+                double lat, lon, alt;
+                if (ScreenToTerrain(io.MousePos.x, io.MousePos.y, lat, lon, alt))
+                    { wp.lat = lat; wp.lon = lon; wp.alt = alt; }
+            }
+            if (ev.Clicked(Render::Right)) {
+                gimbal_.targetLat = wp.lat;
+                gimbal_.targetLon = wp.lon;
+                gimbal_.targetAlt = wp.alt;
+                rightOnMarker_ = true;
+            }
         }
     }
 
@@ -347,8 +355,12 @@ void Airspace::DrawFlight(float dt) {
             }
         }
 
-        // Right-click/hold on terrain → set gimbal target continuously
-        if (ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
+        // Reset marker flag when right button released
+        if (!ImGui::IsMouseDown(ImGuiMouseButton_Right))
+            rightOnMarker_ = false;
+
+        // Right-click/hold on terrain → set gimbal target (skip if press started on marker)
+        if (!rightOnMarker_ && ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
             auto& io = ImGui::GetIO();
             double lat, lon, alt;
             if (ScreenToTerrain(io.MousePos.x, io.MousePos.y, lat, lon, alt))
