@@ -245,9 +245,10 @@ glm::vec2 WorldToScreen(const glm::vec3& worldPos);
 // Screen to geodetic — CPU ray-ellipsoid intersection (WGS84).
 // screenX/screenY in window coordinates. Returns true if the ray hits the ellipsoid.
 // Uses the most recently rendered scene's GeoRef and camera.
-bool ScreenToGeo(float screenX, float screenY, double& lat, double& lon, double& alt);
+bool ScreenToGeo(float screenX, float screenY, double& lat, double& lon, double& alt,
+                 double altOffset = 0.0);
 bool ScreenToGeo(const char* scene, float screenX, float screenY,
-                 double& lat, double& lon, double& alt);
+                 double& lat, double& lon, double& alt, double altOffset = 0.0);
 
 // ── interaction ─────────────────────────────────────────────────
 enum Button : int { Left = 0, Right = 1, Middle = 2 };

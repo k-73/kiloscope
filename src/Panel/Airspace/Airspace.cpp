@@ -18,12 +18,14 @@ static Render::ModelId sJetModel = Render::kInvalidModel;
 
 Airspace::Airspace() : Panel("Airspace", "Airspace") {
     Render::GetCamera("flight").ResetFollow(12.f);
-    waypoints_.push_back({52.2297 + 1.0 / 111.32, 21.0122, 0.0, "WP1"});
+    double wp1Lat = 52.2297 + 1.0 / 111.32, wp1Lon = 21.0122;
+    waypoints_.push_back({wp1Lat, wp1Lon, double(terrain_.Sample(wp1Lat, wp1Lon)), "WP1"});
     if (sJetModel == Render::kInvalidModel)
         sJetModel = Render::LoadModel(std::string(ASSETS_DIR) + "/models/Jet_Lowpoly.obj");
     terrain_ = Render::LoadTerrainDir(std::string(ASSETS_DIR) + "/terrain");
     // Start aircraft above terrain surface
     aircraft_.alt = double(terrain_.Sample(aircraft_.lat, aircraft_.lon)) + 50.0;
+    gimbal_.targetAlt = double(terrain_.Sample(gimbal_.targetLat, gimbal_.targetLon));
     RebuildTerrainIfNeeded();
 }
 
@@ -89,9 +91,12 @@ void Airspace::DrawControls() {
     // Gimbal target — heading-relative joystick + manual lat/lon/alt
     ImGui::SliderFloat("FOV", &gimbal_.fov, 5.f, 120.f, "%.1f\xc2\xb0");
     ImGui::SliderFloat("Aspect", &gimbal_.aspect, 0.5f, 3.f, "%.2f");
-    ImGui::InputDouble("Target Lat", &gimbal_.targetLat, 0.01, 0.1, "%.6f");
-    ImGui::InputDouble("Target Lon", &gimbal_.targetLon, 0.01, 0.1, "%.6f");
-    ImGui::InputDouble("Target Alt", &gimbal_.targetAlt, 1.0, 10.0, "%.0f");
+    if (ImGui::InputDouble("Target Lat", &gimbal_.targetLat, 0.01, 0.1, "%.6f") |
+        ImGui::InputDouble("Target Lon", &gimbal_.targetLon, 0.01, 0.1, "%.6f"))
+        gimbal_.targetAlt = double(terrain_.Sample(gimbal_.targetLat, gimbal_.targetLon));
+    ImGui::BeginDisabled();
+    ImGui::InputDouble("Target Alt", &gimbal_.targetAlt, 0, 0, "%.0f m");
+    ImGui::EndDisabled();
 
     // Joystick: quadratic response, heading-relative, cos(lat)-corrected longitude
     glm::vec2 joy;
@@ -104,6 +109,7 @@ void Airspace::DrawControls() {
         float cosLat = std::cos(glm::radians(float(aircraft_.lat)));
         gimbal_.targetLat += fy * std::cos(yr) - fx * std::sin(yr);
         gimbal_.targetLon += (fy * std::sin(yr) + fx * std::cos(yr)) / std::max(cosLat, 0.01f);
+        gimbal_.targetAlt = double(terrain_.Sample(gimbal_.targetLat, gimbal_.targetLon));
     }
     ImGui::Separator();
 
@@ -235,12 +241,14 @@ void Airspace::DrawWorld(const glm::vec3& pos) {
         float dist = glm::length(wpLocal - pos) * 0.001f;
         Render::Marker(wpLocal, ICON_FA_LOCATION_DOT, wp.label.c_str(), wp.color,
             "%.2f km\n%.6f, %.6f\n%.0f m", dist, wp.lat, wp.lon, wp.alt);
-        // Drag waypoint on globe surface via pick system
+        // Drag waypoint on terrain surface via pick system
         if (Render::Event().Dragging()) {
             auto& io = ImGui::GetIO();
             double lat, lon, alt;
-            if (Render::ScreenToGeo(io.MousePos.x, io.MousePos.y, lat, lon, alt)) {
+            // Intersect ellipsoid inflated by current waypoint terrain height
+            if (Render::ScreenToGeo(io.MousePos.x, io.MousePos.y, lat, lon, alt, wp.alt)) {
                 wp.lat = lat; wp.lon = lon;
+                wp.alt = double(terrain_.Sample(lat, lon));
             }
         }
     }
@@ -299,18 +307,34 @@ void Airspace::DrawFlight(float dt) {
         Render::Sensor(gimbalNed, gimbalDir, gimbalUp, gimbal_.fov, gimbal_.aspect, 0.1,
             Render::Color::Hex("#90B0D0"), 1.0f);
         Render::Line(gimbalNed, targetNed, Render::Color::Hex("#00c3ffAA"), 1.f);
-        Render::Marker(targetNed, ICON_FA_CROSSHAIRS, "Target", Render::Color::Hex("#00ccffff"),
-            "Lat %.6f\nLon %.6f\nAlt %.0f m", gimbal_.targetLat, gimbal_.targetLon, gimbal_.targetAlt);
+        {
+            Render::Group tgtGroup;
+            Render::Marker(targetNed, ICON_FA_CROSSHAIRS, "Target", Render::Color::Hex("#00ccffff"),
+                "Lat %.6f\nLon %.6f\nAlt %.0f m", gimbal_.targetLat, gimbal_.targetLon, gimbal_.targetAlt);
+            if (Render::Event().Dragging()) {
+                auto& io = ImGui::GetIO();
+                double lat, lon, alt;
+                if (Render::ScreenToGeo(io.MousePos.x, io.MousePos.y, lat, lon, alt, gimbal_.targetAlt)) {
+                    gimbal_.targetLat = lat;
+                    gimbal_.targetLon = lon;
+                    gimbal_.targetAlt = double(terrain_.Sample(lat, lon));
+                }
+            }
+        }
     Render::End();
     Render::HUD();
 
-    // Double-click on globe surface → create new waypoint
+    // Double-click on terrain surface → create new waypoint
     if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
         auto& io = ImGui::GetIO();
         double lat, lon, alt;
+        // First pass: hit ellipsoid to get approximate lat/lon
         if (Render::ScreenToGeo("flight", io.MousePos.x, io.MousePos.y, lat, lon, alt)) {
+            // Refine: re-intersect ellipsoid inflated by terrain height
+            double h = double(terrain_.Sample(lat, lon));
+            Render::ScreenToGeo("flight", io.MousePos.x, io.MousePos.y, lat, lon, alt, h);
             std::string label = "WP" + std::to_string(waypoints_.size() + 1);
-            waypoints_.push_back({lat, lon, 0.0, std::move(label)});
+            waypoints_.push_back({lat, lon, double(terrain_.Sample(lat, lon)), std::move(label)});
         }
     }
 
@@ -410,7 +434,7 @@ void Airspace::LoadSettings(const json& j) {
             Waypoint wp;
             wp.lat   = w.value("lat", 0.0);
             wp.lon   = w.value("lon", 0.0);
-            wp.alt   = w.value("alt", 0.0);
+            wp.alt   = double(terrain_.Sample(w.value("lat", 0.0), w.value("lon", 0.0)));
             wp.label = w.value("label", std::string("WP"));
             if (w.contains("color") && w["color"].is_array() && w["color"].size() == 4)
                 wp.color = {w["color"][0], w["color"][1], w["color"][2], w["color"][3]};

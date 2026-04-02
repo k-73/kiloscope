@@ -419,7 +419,8 @@ glm::dvec3 EcefToLocal(const glm::dvec3& ecef) {
 
 static bool ScreenToGeoImpl(const SceneData& sc,
                             float screenX, float screenY,
-                            double& lat, double& lon, double& alt) {
+                            double& lat, double& lon, double& alt,
+                            double altOffset = 0.0) {
     auto& gr = sc.geoRef;
     if (!gr.valid || sc.cachedVpW < 1.f) return false;
 
@@ -438,9 +439,9 @@ static bool ScreenToGeoImpl(const SceneData& sc,
     // 3. Ray origin = camera position in ENU (relative to GeoRef origin)
     glm::dvec3 rayOriginEnu = sc.cachedCamPosD;
 
-    // 4. Transform ray to ECEF normalized space (unit ellipsoid)
-    constexpr double a = GeoRef::a, b = GeoRef::b;
-    glm::dvec3 invR(1.0 / a, 1.0 / a, 1.0 / b);
+    // 4. Transform ray to ECEF normalized space (unit ellipsoid, optionally inflated by altOffset)
+    double ra = GeoRef::a + altOffset, rb = GeoRef::b + altOffset;
+    glm::dvec3 invR(1.0 / ra, 1.0 / ra, 1.0 / rb);
     glm::dmat3 toEcef = glm::transpose(gr.ecefToEnu);
     glm::dmat3 M(toEcef[0] * invR, toEcef[1] * invR, toEcef[2] * invR);
 
@@ -477,14 +478,15 @@ static bool ScreenToGeoImpl(const SceneData& sc,
     return std::isfinite(lat) && std::isfinite(lon);
 }
 
-bool ScreenToGeo(float screenX, float screenY, double& lat, double& lon, double& alt) {
+bool ScreenToGeo(float screenX, float screenY, double& lat, double& lon, double& alt,
+                 double altOffset) {
     if (!sFrame.scene) return false;
-    return ScreenToGeoImpl(*sFrame.scene, screenX, screenY, lat, lon, alt);
+    return ScreenToGeoImpl(*sFrame.scene, screenX, screenY, lat, lon, alt, altOffset);
 }
 
 bool ScreenToGeo(const char* scene, float screenX, float screenY,
-                 double& lat, double& lon, double& alt) {
-    return ScreenToGeoImpl(GetScene(scene), screenX, screenY, lat, lon, alt);
+                 double& lat, double& lon, double& alt, double altOffset) {
+    return ScreenToGeoImpl(GetScene(scene), screenX, screenY, lat, lon, alt, altOffset);
 }
 
 // ── rendering ───────────────────────────────────────────────────────
