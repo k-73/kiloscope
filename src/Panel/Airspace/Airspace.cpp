@@ -338,6 +338,18 @@ void Airspace::DrawFlight(float dt) {
         }
     }
 
+    // Right-click/hold on terrain → set gimbal target continuously
+    if (ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
+        auto& io = ImGui::GetIO();
+        double lat, lon, alt;
+        // Use current target alt as intersection height — stable during continuous drag
+        if (Render::ScreenToGeo("flight", io.MousePos.x, io.MousePos.y, lat, lon, alt, gimbal_.targetAlt)) {
+            gimbal_.targetLat = lat;
+            gimbal_.targetLon = lon;
+            gimbal_.targetAlt = double(terrain_.Sample(lat, lon));
+        }
+    }
+
     if (!cameraFree_)
         cam.CaptureFollow();
 }
