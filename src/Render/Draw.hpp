@@ -172,7 +172,7 @@ struct TerrainMesh {
     glm::dvec3              ecefCenter{};   // ECEF reference for float32 relative positions
     std::vector<glm::vec3>  relPos;         // ECEF position relative to ecefCenter (float32)
     std::vector<glm::vec3>  normals;        // ECEF-space normals
-    std::vector<glm::vec4>  colors;         // elevation color per vertex
+    std::vector<glm::vec4>  colors;         // per-vertex data: .x=elevation(m), .y=slope(0..1)
     std::vector<uint32_t>   indices;
     // GPU resources (uploaded once per build)
     unsigned int vao = 0, vbo = 0, ebo = 0;
@@ -196,17 +196,16 @@ struct TerrainSet {
     float Sample(double lat, double lon) const;
     bool  empty() const { return tiles.empty(); }
     void  BuildIndex();
-    static uint32_t TileKey(int lat, int lon) { return uint32_t(int16_t(lat)) << 16 | uint32_t(int16_t(lon)); }
+    static uint32_t TileKey(int lat, int lon) { return uint32_t(uint16_t(lat)) << 16 | uint32_t(uint16_t(lon)); }
 };
 
-TerrainTile LoadTerrain(const std::string& path);  // single .tif
-TerrainTile LoadTerrain(const std::string& rawPath, int cols, int rows,
-                        float lonMin, float latMin, float lonMax, float latMax);
+TerrainTile LoadTerrain(const std::string& path);   // single .tif (auto-detect metadata)
 TerrainSet  LoadTerrainDir(const std::string& dir); // all .tif in dir
 
 TerrainMesh BuildTerrainMesh(const TerrainSet& terrain, double centerLat, double centerLon,
-                             float radiusDeg, float stepDeg);
+                             float latRadDeg, float lonRadDeg, float stepDeg);
 void DrawTerrain(TerrainMesh& mesh);
+void SetTerrainElevRange(float elevMin, float elevMax);
 
 // ── globe (WGS84 ellipsoid) ─────────────────────────────────────
 struct GlobeConfig {

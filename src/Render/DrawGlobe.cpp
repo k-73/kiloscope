@@ -3,7 +3,6 @@
 #include "Core/Log.hpp"
 #include <cstring>
 #include <filesystem>
-#include <fstream>
 #include <limits>
 #include <tiffio.h>
 
@@ -140,33 +139,6 @@ TerrainTile LoadTerrain(const std::string& path) {
     return {};
 }
 
-TerrainTile LoadTerrain(const std::string& rawPath, int cols, int rows,
-                        float lonMin, float latMin, float lonMax, float latMax) {
-    TerrainTile tile{};
-    std::ifstream f(rawPath, std::ios::binary);
-    if (!f) { Log::Render().error("Terrain not found: {}", rawPath); return tile; }
-
-    std::vector<float> data(cols * rows);
-    f.read(reinterpret_cast<char*>(data.data()), data.size() * sizeof(float));
-    if (!f) { Log::Render().error("Terrain read error: {}", rawPath); return tile; }
-
-    tile.elevation.resize(cols * rows);
-    for (int y = 0; y < rows; ++y)
-        std::memcpy(&tile.elevation[y * cols], &data[(rows - 1 - y) * cols], cols * sizeof(float));
-
-    tile.cols = cols; tile.rows = rows;
-    tile.lonMin = lonMin; tile.latMin = latMin;
-    tile.lonMax = lonMax; tile.latMax = latMax;
-    tile.elevMin = tile.elevation[0]; tile.elevMax = tile.elevation[0];
-    for (float v : tile.elevation) {
-        tile.elevMin = std::min(tile.elevMin, v);
-        tile.elevMax = std::max(tile.elevMax, v);
-    }
-
-    Log::Render().info("Terrain: {}x{} elev [{:.0f}, {:.0f}]m", cols, rows, tile.elevMin, tile.elevMax);
-    return tile;
-}
-
 // ── TerrainSet (multi-tile) ─────────────────────────────────────
 
 void TerrainSet::BuildIndex() {
@@ -187,6 +159,10 @@ float TerrainSet::Sample(double lat, double lon) const {
 
 TerrainSet LoadTerrainDir(const std::string& dir) {
     TerrainSet set;
+    if (!std::filesystem::is_directory(dir)) {
+        Log::Render().error("Terrain directory not found: {}", dir);
+        return set;
+    }
     std::vector<std::filesystem::path> paths;
     for (auto& e : std::filesystem::directory_iterator(dir))
         if (e.is_regular_file() && (e.path().extension() == ".tif" || e.path().extension() == ".tiff"))
@@ -274,21 +250,20 @@ void TerrainMesh::Destroy() {
 }
 
 TerrainMesh BuildTerrainMesh(const TerrainSet& terrain, double centerLat, double centerLon,
-                             float radiusDeg, float stepDeg) {
+                             float latRadDeg, float lonRadDeg, float stepDeg) {
     TerrainMesh mesh;
     if (terrain.empty()) return mesh;
 
-    float lat0 = std::max(float(centerLat - radiusDeg), terrain.latMin);
-    float lat1 = std::min(float(centerLat + radiusDeg), terrain.latMax);
-    float lon0 = std::max(float(centerLon - radiusDeg), terrain.lonMin);
-    float lon1 = std::min(float(centerLon + radiusDeg), terrain.lonMax);
+    float lat0 = std::max(float(centerLat - latRadDeg), terrain.latMin);
+    float lat1 = std::min(float(centerLat + latRadDeg), terrain.latMax);
+    float lon0 = std::max(float(centerLon - lonRadDeg), terrain.lonMin);
+    float lon1 = std::min(float(centerLon + lonRadDeg), terrain.lonMax);
     if (lat0 >= lat1 || lon0 >= lon1) return mesh;
 
     int nx = std::max(2, int((lon1 - lon0) / stepDeg) + 1);
     int ny = std::max(2, int((lat1 - lat0) / stepDeg) + 1);
     float dLon = (lon1 - lon0) / (nx - 1);
     float dLat = (lat1 - lat0) / (ny - 1);
-    float eRange = std::max(1.f, terrain.elevMax - terrain.elevMin);
 
     // ECEF reference = center of mesh (for float32 relative positions)
     mesh.ecefCenter = GeoRef::ToEcef(centerLat, centerLon, 0.0);
@@ -309,10 +284,7 @@ TerrainMesh BuildTerrainMesh(const TerrainSet& terrain, double centerLat, double
             ecefFull[idx] = GeoRef::ToEcef(lat, lon, double(elev));
             mesh.relPos[idx] = glm::vec3(ecefFull[idx] - mesh.ecefCenter);
 
-            float t = (elev - terrain.elevMin) / eRange;
-            glm::vec3 lo{0.18f, 0.30f, 0.12f}, mi{0.40f, 0.32f, 0.20f}, hi{0.78f, 0.76f, 0.72f};
-            mesh.colors[idx] = glm::vec4(
-                t < 0.5f ? glm::mix(lo, mi, t * 2.f) : glm::mix(mi, hi, (t - 0.5f) * 2.f), 1.f);
+            mesh.colors[idx] = glm::vec4(elev, 0.f, 0.f, 1.f);  // .x = elevation (shader colorizes)
         }
 
     // Normals: cross(east, north) = outward in ECEF (right-hand rule on Earth surface)
@@ -326,7 +298,11 @@ TerrainMesh BuildTerrainMesh(const TerrainSet& terrain, double centerLat, double
             glm::dvec3 n = glm::cross(dEast, dNorth);
             // Ensure outward-facing (dot with radial direction > 0)
             if (glm::dot(n, ecefFull[idx]) < 0.0) n = -n;
-            mesh.normals[idx] = glm::vec3(glm::normalize(n));
+            glm::dvec3 nn = glm::normalize(n);
+            mesh.normals[idx] = glm::vec3(nn);
+            // Slope: 0 = flat, 1 = vertical (dot of normal with radial = cos of slope angle)
+            glm::dvec3 radial = glm::normalize(ecefFull[idx]);
+            mesh.colors[idx].y = float(1.0 - std::abs(glm::dot(nn, radial)));
         }
 
     // Triangle indices (two triangles per quad)
@@ -345,6 +321,11 @@ void DrawTerrain(TerrainMesh& mesh) {
     if (mesh.indices.empty()) return;
     mesh.Upload();
     ctx().pendingTerrain = &mesh;
+}
+
+void SetTerrainElevRange(float elevMin, float elevMax) {
+    ctx().terrainElevMin = elevMin;
+    ctx().terrainElevMax = elevMax;
 }
 
 // Called from End() after Globe/Grid — terrain renders on top of globe surface.
@@ -371,6 +352,8 @@ void RenderTerrain() {
     sTerrainShader.Set("uFogStart",   ctx().env.fogStart);
     sTerrainShader.Set("uFogEnd",     ctx().env.fogEnd);
     sTerrainShader.Set("uFcoefHalf",  fcoef * 0.5f);
+    sTerrainShader.Set("uElevMin",    ctx().terrainElevMin);
+    sTerrainShader.Set("uElevMax",    ctx().terrainElevMax);
 
     glDisable(GL_CULL_FACE);
     glBindVertexArray(mesh->vao);

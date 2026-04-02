@@ -6,7 +6,7 @@
 
 layout(location = 0) in vec3 aRelPos;    // ECEF position relative to mesh center
 layout(location = 1) in vec3 aNormal;    // ECEF-space normal (outward-facing)
-layout(location = 2) in vec4 aColor;     // per-vertex elevation color
+layout(location = 2) in vec4 aColor;     // .x = elevation (m), .y = slope (0..1)
 
 uniform mat3  uEcefToEnu;    // ECEF → ENU rotation at current GeoRef origin
 uniform vec3  uMeshOffset;   // mesh ECEF center − GeoRef ECEF origin (float32, nearby)
@@ -16,7 +16,7 @@ uniform float uFcoef;        // 2.0 / log2(farPlane + 1.0)
 
 out vec3  vWorldPos;   // camera-relative ENU (for fog distance)
 out vec3  vNormal;     // ENU-space normal (for lighting)
-out vec4  vColor;
+out vec4  vColor;      // .x = elevation, .y = slope (passed to fragment)
 out float vLogZ;
 
 void main() {

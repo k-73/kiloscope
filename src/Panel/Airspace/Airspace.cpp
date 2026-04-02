@@ -29,15 +29,18 @@ Airspace::Airspace() : Panel("Airspace", "Airspace") {
 
 void Airspace::RebuildTerrainIfNeeded(bool force) {
     constexpr double kDegPerKm = 1.0 / 111.32;
+    double cosLat = std::cos(glm::radians(aircraft_.lat));
     double threshDeg = terrainCfg_.rebuildKm * kDegPerKm;
     double dLat = aircraft_.lat - terrainCenterLat_;
-    double dLon = aircraft_.lon - terrainCenterLon_;
+    double dLon = (aircraft_.lon - terrainCenterLon_) * cosLat;  // scale lon by cos(lat)
     if (force || terrainMesh_.indices.empty() || dLat * dLat + dLon * dLon > threshDeg * threshDeg) {
         terrainCenterLat_ = aircraft_.lat;
         terrainCenterLon_ = aircraft_.lon;
-        float radiusDeg = float(terrainCfg_.radiusKm * kDegPerKm);
+        float latRadDeg = float(terrainCfg_.radiusKm * kDegPerKm);
+        float lonRadDeg = float(latRadDeg / std::max(cosLat, 0.01));  // wider in lon at high lat
         float stepDeg   = float(terrainCfg_.resolutionM / 111320.0);
-        terrainMesh_ = Render::BuildTerrainMesh(terrain_, aircraft_.lat, aircraft_.lon, radiusDeg, stepDeg);
+        terrainMesh_ = Render::BuildTerrainMesh(terrain_, aircraft_.lat, aircraft_.lon,
+                                                latRadDeg, lonRadDeg, stepDeg);
     }
 }
 
@@ -271,8 +274,8 @@ void Airspace::DrawFlight(float dt) {
         Render::Globe();
 
         RebuildTerrainIfNeeded();
+        Render::SetTerrainElevRange(terrain_.elevMin, terrain_.elevMax);
         Render::DrawTerrain(terrainMesh_);
-
 
         // World objects (aircraft, waypoints — drag enabled per marker)
         DrawWorld(nedPos);
@@ -335,6 +338,7 @@ void Airspace::DrawGimbal() {
             Render::SetFrame(Render::FrameId::NED);
             Render::Globe();
             RebuildTerrainIfNeeded();
+            Render::SetTerrainElevRange(terrain_.elevMin, terrain_.elevMax);
             Render::DrawTerrain(terrainMesh_);
             DrawWorld(aircraftNed);
         Render::End();
