@@ -111,23 +111,8 @@ void Airspace::DrawFlightView(float dt) {
 
         trail_.Draw({.5f, .5f, .55f, .4f}, 1.5f);
 
-        // Gimbal: precompute positions, share between frustum + target marker
-        auto gimbalNed = gimbal_.PositionFrom(nedPos, aircraft_);
-        auto targetNed = gimbal_.TargetInScene("flight");
-        gimbal_.DrawFrustum(nedPos, gimbalNed, targetNed, aircraft_);
-
-        // Standalone target marker — skip when target coincides with a waypoint
-        if (!targetOnWaypoint_) {
-            Render::Group tgtGroup;
-            Render::Marker(targetNed, ICON_FA_CROSSHAIRS, "Target", Render::Color::Hex("#00ccffff"),
-                "Lat %.6f\nLon %.6f\nAlt %.0f m", gimbal_.targetLat, gimbal_.targetLon, gimbal_.targetAlt);
-            if (Render::Event().Dragging()) {
-                auto& io = ImGui::GetIO();
-                double lat, lon, alt;
-                if (terrain_.ScreenToSurface(io.MousePos.x, io.MousePos.y, lat, lon, alt))
-                    gimbal_.SetTarget(lat, lon, alt);
-            }
-        }
+        gimbal_.DrawFrustum(nedPos, aircraft_);
+        if (!targetOnWaypoint_) gimbal_.DrawTargetMarker(terrain_);
     Render::End();
     Render::StatusBar();
     Render::Overlay();

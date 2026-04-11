@@ -27,10 +27,12 @@ public:
     glm::vec3 TargetInScene(const char* scene) const;
 
     // Render sensor frustum + connecting lines (call inside Begin/End).
-    void DrawFrustum(const glm::vec3& aircraftNed,
-                     const glm::vec3& gimbalNed,
-                     const glm::vec3& targetNed,
-                     const Aircraft& aircraft) const;
+    // Uses current scene's GeoRef for target position.
+    void DrawFrustum(const glm::vec3& aircraftNed, const Aircraft& aircraft) const;
+
+    // Render clickable/draggable target marker (call inside Begin/End).
+    // Drag updates target via terrain raycast.
+    void DrawTargetMarker(const Terrain& terrain);
 
     void DrawControls(const Aircraft& aircraft, const Terrain& terrain);
 };

@@ -3,6 +3,7 @@
 #include "Terrain.hpp"
 #include "Render/Draw.hpp"
 #include "Render/Geo.hpp"
+#include "Ui/IconsFontAwesome7.h"
 #include "Ui/Widget.hpp"
 #include <imgui.h>
 #include <cmath>
@@ -17,16 +18,29 @@ glm::vec3 Gimbal::TargetInScene(const char* scene) const {
     return glm::vec3(Render::GeoToLocal(scene, targetLat, targetLon, targetAlt));
 }
 
-void Gimbal::DrawFrustum(const glm::vec3& aircraftNed,
-                         const glm::vec3& gimbalNed,
-                         const glm::vec3& targetNed,
-                         const Aircraft& aircraft) const {
-    auto dir = glm::normalize(targetNed - gimbalNed);
-    auto up  = aircraft.BodyToNed() * glm::vec3(0, 0, -1);  // body up in NED
+void Gimbal::DrawFrustum(const glm::vec3& aircraftNed, const Aircraft& aircraft) const {
+    auto bodyToNed = aircraft.BodyToNed();
+    auto gimbalNed = aircraftNed + bodyToNed * bodyOffset;
+    auto targetNed = glm::vec3(Render::GeoToLocal(targetLat, targetLon, targetAlt));
+    auto dir       = glm::normalize(targetNed - gimbalNed);
+    auto up        = bodyToNed * glm::vec3(0, 0, -1);  // body up in NED
     Render::Line(aircraftNed, gimbalNed, Render::Color::Hex("#d4985b50"), 1.f);
     Render::Sensor(gimbalNed, dir, up, fov, aspect, 0.1,
         Render::Color::Hex("#90B0D0"), 1.0f);
     Render::Line(gimbalNed, targetNed, Render::Color::Hex("#00c3ffAA"), 1.f);
+}
+
+void Gimbal::DrawTargetMarker(const Terrain& terrain) {
+    Render::Group g;
+    auto targetNed = glm::vec3(Render::GeoToLocal(targetLat, targetLon, targetAlt));
+    Render::Marker(targetNed, ICON_FA_CROSSHAIRS, "Target", Render::Color::Hex("#00ccffff"),
+        "Lat %.6f\nLon %.6f\nAlt %.0f m", targetLat, targetLon, targetAlt);
+    if (Render::Event().Dragging()) {
+        auto& io = ImGui::GetIO();
+        double lat, lon, alt;
+        if (terrain.ScreenToSurface(io.MousePos.x, io.MousePos.y, lat, lon, alt))
+            SetTarget(lat, lon, alt);
+    }
 }
 
 void Gimbal::DrawControls(const Aircraft& aircraft, const Terrain& terrain) {
