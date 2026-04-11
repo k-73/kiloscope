@@ -44,55 +44,34 @@ void Airspace::DrawFlightView(float dt) {
     auto aircraftNed = glm::vec3(Render::GeoToLocal("flight",
         aircraft_.lat, aircraft_.lon, aircraft_.alt));
 
-    UpdateFlightCamera(aircraftNed);
-    HandleFlightInput(dt);
-    DrawFlightScene(aircraftNed);
-    DrawFlightOverlays();
-    HandleFlightMouse();
-
-    if (!cameraFree_) Render::GetCamera("flight").CaptureFollow();
-}
-
-// Chase camera follows aircraft heading; freecam orbits freely.
-void Airspace::UpdateFlightCamera(const glm::vec3& aircraftNed) {
+    // Camera: chase follows heading, freecam orbits freely (C toggles)
     auto& cam = Render::GetCamera("flight");
-    if (!cameraFree_) cam.Follow(aircraftNed, aircraft_.yaw);
-    else              cam.Unfollow();
-}
-
-// C key toggles camera mode; aircraft takes keyboard only when focused + in chase.
-void Airspace::HandleFlightInput(float dt) {
     bool focused = ImGui::IsWindowFocused();
     if (focused && ImGui::IsKeyPressed(ImGuiKey_C, false)) {
         cameraFree_ = !cameraFree_;
-        if (!cameraFree_) Render::GetCamera("flight").ResetFollow();
+        if (!cameraFree_) cam.ResetFollow();
     }
+    if (!cameraFree_) cam.Follow(aircraftNed, aircraft_.yaw);
+    else              cam.Unfollow();
     aircraft_.HandleInput(dt, focused && !cameraFree_);
-}
 
-// Terrain-dependent mouse actions (ray-casted to surface) — run after scene render.
-void Airspace::HandleFlightMouse() {
-    if (!terrain_.Ready()) return;
+    DrawFlightScene(aircraftNed);
 
-    auto& io = ImGui::GetIO();
-    auto raycast = [&](double& lat, double& lon, double& alt) {
-        return terrain_.ScreenToSurface(io.MousePos.x, io.MousePos.y, lat, lon, alt);
-    };
+    // Overlays: status bar + speed readout + loading indicator
+    Render::StatusBar();
+    Render::Overlay();
+        ImGui::TextColored({1,1,1,.5f}, "Speed = %.1f km/h", aircraft_.speed * 3.6f);
+    Render::OverlayEnd();
 
-    // Double-click → add waypoint at surface
-    if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
-        double lat, lon, alt;
-        if (raycast(lat, lon, alt)) waypoints_.Add(lat, lon, alt);
+    if (!terrain_.Ready()) {
+        auto vp = ImGui::GetWindowPos();
+        auto sz = ImGui::GetWindowSize();
+        ImGui::SetCursorScreenPos({vp.x + sz.x * 0.5f - 60.f, vp.y + sz.y * 0.5f});
+        ImGui::TextColored({0.6f, 0.8f, 1.f, 1.f}, "Loading terrain...");
     }
 
-    // Right-hold on terrain → continuously update gimbal target
-    // (suppressed when the press started on a marker)
-    bool rmb = ImGui::IsMouseDown(ImGuiMouseButton_Right);
-    if (!rmb) rightOnMarker_ = false;
-    if (rmb && !rightOnMarker_) {
-        double lat, lon, alt;
-        if (raycast(lat, lon, alt)) gimbal_.SetTarget(lat, lon, alt);
-    }
+    HandleFlightMouse();
+    if (!cameraFree_) cam.CaptureFollow();
 }
 
 void Airspace::DrawFlightScene(const glm::vec3& aircraftNed) {
@@ -119,17 +98,28 @@ void Airspace::DrawFlightScene(const glm::vec3& aircraftNed) {
     Render::End();
 }
 
-void Airspace::DrawFlightOverlays() {
-    Render::StatusBar();
-    Render::Overlay();
-        ImGui::TextColored({1,1,1,.5f}, "Speed = %.1f km/h", aircraft_.speed * 3.6f);
-    Render::OverlayEnd();
+// Terrain-dependent mouse actions — run after scene render.
+void Airspace::HandleFlightMouse() {
+    if (!terrain_.Ready()) return;
 
-    if (!terrain_.Ready()) {
-        auto vp = ImGui::GetWindowPos();
-        auto sz = ImGui::GetWindowSize();
-        ImGui::SetCursorScreenPos({vp.x + sz.x * 0.5f - 60.f, vp.y + sz.y * 0.5f});
-        ImGui::TextColored({0.6f, 0.8f, 1.f, 1.f}, "Loading terrain...");
+    auto& io = ImGui::GetIO();
+    auto raycast = [&](double& lat, double& lon, double& alt) {
+        return terrain_.ScreenToSurface(io.MousePos.x, io.MousePos.y, lat, lon, alt);
+    };
+
+    // Double-click → add waypoint at surface
+    if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+        double lat, lon, alt;
+        if (raycast(lat, lon, alt)) waypoints_.Add(lat, lon, alt);
+    }
+
+    // Right-hold on terrain → continuously update gimbal target
+    // (suppressed when the press started on a marker)
+    bool rmb = ImGui::IsMouseDown(ImGuiMouseButton_Right);
+    if (!rmb) rightOnMarker_ = false;
+    if (rmb && !rightOnMarker_) {
+        double lat, lon, alt;
+        if (raycast(lat, lon, alt)) gimbal_.SetTarget(lat, lon, alt);
     }
 }
 
@@ -144,17 +134,22 @@ void Airspace::DrawGimbalView() {
         auto gimbalNed   = gimbal_.PositionFrom(aircraftNed, aircraft_);
         auto targetNed   = gimbal_.TargetInScene("gimbal");
 
-        UpdateGimbalCamera(gimbalNed, targetNed);
-        DrawGimbalScene(aircraftNed);
-        DrawGimbalOverlay(glm::length(targetNed - gimbalNed));
-    ImGui::End();
-}
+        // Camera: LookAt from gimbal mount to geodetic target
+        auto& cam = Render::GetCamera("gimbal");
+        cam.LookAt(gimbalNed, targetNed);
+        cam.Fov()       = gimbal_.fov;
+        cam.NearPlane() = 0.05f;
 
-void Airspace::UpdateGimbalCamera(const glm::vec3& gimbalNed, const glm::vec3& targetNed) {
-    auto& cam = Render::GetCamera("gimbal");
-    cam.LookAt(gimbalNed, targetNed);
-    cam.Fov()       = gimbal_.fov;
-    cam.NearPlane() = 0.05f;
+        DrawGimbalScene(aircraftNed);
+
+        if (Render::Overlay()) {
+            float dist = glm::length(targetNed - gimbalNed);
+            ImGui::TextColored({1,1,1,.4f}, "FOV %.0f\xc2\xb0  D %.0fm", gimbal_.fov, dist);
+            ImGui::TextColored({1,1,1,.3f}, "%.6f  %.6f  %.0fm",
+                gimbal_.targetLat, gimbal_.targetLon, gimbal_.targetAlt);
+            Render::OverlayEnd();
+        }
+    ImGui::End();
 }
 
 void Airspace::DrawGimbalScene(const glm::vec3& aircraftNed) {
@@ -165,14 +160,6 @@ void Airspace::DrawGimbalScene(const glm::vec3& aircraftNed) {
         DrawWorld(aircraftNed);
     Render::End();
     Render::Crosshair();
-}
-
-void Airspace::DrawGimbalOverlay(float distance) {
-    if (!Render::Overlay()) return;
-    ImGui::TextColored({1,1,1,.4f}, "FOV %.0f\xc2\xb0  D %.0fm", gimbal_.fov, distance);
-    ImGui::TextColored({1,1,1,.3f}, "%.6f  %.6f  %.0fm",
-        gimbal_.targetLat, gimbal_.targetLon, gimbal_.targetAlt);
-    Render::OverlayEnd();
 }
 
 // ── shared world content (drawn in both scenes) ────────────────

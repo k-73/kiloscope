@@ -10,11 +10,6 @@ namespace Kilo {
 
 // Airspace — interactive flight visualization with terrain, waypoints, and gimbal POV.
 // Orchestrates two scenes (flight + gimbal) over a shared world state.
-//
-// Method organization enforces separation between state mutation and rendering:
-//   Update*/Handle*  mutate state (camera math, input, physics sync)
-//   Draw*            read state and emit render calls (no state mutation)
-//   SaveSettings/LoadSettings  persistence
 class Airspace : public Panel {
 public:
     Airspace();
@@ -26,32 +21,24 @@ public:
     void LoadSettings(const json& j) override;
 
 private:
-    // ── orchestration ─────────────────────────────────────
+    // views
     void DrawFlightView(float dt);
-    void DrawGimbalView();
-
-    // ── state update (math, input, lifecycle) ────────────
-    void OnTerrainReady();
-    void UpdateFlightCamera(const glm::vec3& aircraftNed);
-    void HandleFlightInput(float dt);
-    void HandleFlightMouse();
-    void UpdateGimbalCamera(const glm::vec3& gimbalNed, const glm::vec3& targetNed);
-
-    // ── rendering (scene + overlays) ──────────────────────
     void DrawFlightScene(const glm::vec3& aircraftNed);
-    void DrawFlightOverlays();
+    void HandleFlightMouse();
+
+    void DrawGimbalView();
     void DrawGimbalScene(const glm::vec3& aircraftNed);
-    void DrawGimbalOverlay(float distance);
+
+    // shared world content (drawn in both scenes)
     void DrawWorld(const glm::vec3& aircraftNed);
 
-    // ── UI ────────────────────────────────────────────────
+    // lifecycle & ui
+    void OnTerrainReady();
     void DrawControls();
     void DrawGlobeControls();
-
-    // ── scene config ──────────────────────────────────────
     void SetupEnv(const char* scene);
 
-    // ── state ─────────────────────────────────────────────
+    // state
     Aircraft  aircraft_;
     Gimbal    gimbal_;
     Waypoints waypoints_;
