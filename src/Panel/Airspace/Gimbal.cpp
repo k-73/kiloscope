@@ -18,6 +18,21 @@ glm::vec3 Gimbal::TargetInScene(const char* scene) const {
     return glm::vec3(Render::GeoToLocal(scene, targetLat, targetLon, targetAlt));
 }
 
+void Gimbal::ApplyJoystickInput(glm::vec2 joy, float dt,
+                                const Aircraft& aircraft, const Terrain& terrain) {
+    constexpr float kRate = 0.0002f;
+    // Quadratic response — fine control near center, fast at edges
+    float fx = joy.x * std::abs(joy.x) * kRate * dt;
+    float fy = -joy.y * std::abs(joy.y) * kRate * dt;
+
+    // Rotate stick axes to aircraft heading, then apply cos(lat) correction for longitude
+    float yr     = glm::radians(aircraft.yaw);
+    float cosLat = std::cos(glm::radians(float(aircraft.lat)));
+    targetLat += fy * std::cos(yr) - fx * std::sin(yr);
+    targetLon += (fy * std::sin(yr) + fx * std::cos(yr)) / std::max(cosLat, 0.01f);
+    targetAlt  = double(terrain.Sample(targetLat, targetLon));
+}
+
 void Gimbal::DrawFrustum(const glm::vec3& aircraftNed, const Aircraft& aircraft) const {
     auto bodyToNed = aircraft.BodyToNed();
     auto gimbalNed = aircraftNed + bodyToNed * bodyOffset;
@@ -55,17 +70,8 @@ void Gimbal::DrawControls(const Aircraft& aircraft, const Terrain& terrain) {
 
     // Heading-relative joystick: forward = aircraft heading, cos(lat)-corrected lon
     glm::vec2 joy;
-    if (Widget::Joystick("##gimbal", &joy)) {
-        float dt   = ImGui::GetIO().DeltaTime;
-        float rate = 0.0002f;
-        float fx   = joy.x * std::abs(joy.x) * rate * dt;          // quadratic response
-        float fy   = -joy.y * std::abs(joy.y) * rate * dt;
-        float yr     = glm::radians(aircraft.yaw);
-        float cosLat = std::cos(glm::radians(float(aircraft.lat)));
-        targetLat += fy * std::cos(yr) - fx * std::sin(yr);
-        targetLon += (fy * std::sin(yr) + fx * std::cos(yr)) / std::max(cosLat, 0.01f);
-        targetAlt = double(terrain.Sample(targetLat, targetLon));
-    }
+    if (Widget::Joystick("##gimbal", &joy))
+        ApplyJoystickInput(joy, ImGui::GetIO().DeltaTime, aircraft, terrain);
 }
 
 } // namespace Kilo

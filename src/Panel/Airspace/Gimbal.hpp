@@ -26,6 +26,11 @@ public:
     // Target NED — uses named scene's GeoRef.
     glm::vec3 TargetInScene(const char* scene) const;
 
+    // Integrate heading-relative joystick input into geodetic target.
+    // Quadratic response, cos(lat) correction for east-west rate.
+    void ApplyJoystickInput(glm::vec2 joy, float dt,
+                            const Aircraft& aircraft, const Terrain& terrain);
+
     // Render sensor frustum + connecting lines (call inside Begin/End).
     // Uses current scene's GeoRef for target position.
     void DrawFrustum(const glm::vec3& aircraftNed, const Aircraft& aircraft) const;

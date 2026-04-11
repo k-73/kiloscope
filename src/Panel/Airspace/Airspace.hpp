@@ -9,7 +9,12 @@
 namespace Kilo {
 
 // Airspace — interactive flight visualization with terrain, waypoints, and gimbal POV.
-// Owns a small set of focused modules and orchestrates two scenes (flight + gimbal).
+// Orchestrates two scenes (flight + gimbal) over a shared world state.
+//
+// Method organization enforces separation between state mutation and rendering:
+//   Update*/Handle*  mutate state (camera math, input, physics sync)
+//   Draw*            read state and emit render calls (no state mutation)
+//   SaveSettings/LoadSettings  persistence
 class Airspace : public Panel {
 public:
     Airspace();
@@ -21,20 +26,39 @@ public:
     void LoadSettings(const json& j) override;
 
 private:
-    void DrawControls();
-    void DrawGlobeControls();
+    // ── orchestration ─────────────────────────────────────
     void DrawFlightView(float dt);
     void DrawGimbalView();
-    void DrawWorld(const glm::vec3& aircraftPosNed);
+
+    // ── state update (math, input, lifecycle) ────────────
+    void OnTerrainReady();
+    void UpdateFlightCamera(const glm::vec3& aircraftNed);
+    void HandleFlightInput(float dt);
+    void HandleFlightMouse();
+    void UpdateGimbalCamera(const glm::vec3& gimbalNed, const glm::vec3& targetNed);
+
+    // ── rendering (scene + overlays) ──────────────────────
+    void DrawFlightScene(const glm::vec3& aircraftNed);
+    void DrawFlightOverlays();
+    void DrawGimbalScene(const glm::vec3& aircraftNed);
+    void DrawGimbalOverlay(float distance);
+    void DrawWorld(const glm::vec3& aircraftNed);
+
+    // ── UI ────────────────────────────────────────────────
+    void DrawControls();
+    void DrawGlobeControls();
+
+    // ── scene config ──────────────────────────────────────
     void SetupEnv(const char* scene);
 
+    // ── state ─────────────────────────────────────────────
     Aircraft  aircraft_;
     Gimbal    gimbal_;
     Waypoints waypoints_;
     Terrain   terrain_;
     Render::TrailBuffer trail_{128, 1.0};
 
-    // Per-frame interaction state (not persisted).
+    // Per-frame interaction flags (not persisted).
     bool cameraFree_       = false;  // toggled with C
     bool rightOnMarker_    = false;  // right-press started on a marker — suppress terrain handler
     bool targetOnWaypoint_ = false;  // target coincides with a waypoint — skip standalone marker
