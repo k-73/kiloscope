@@ -61,9 +61,12 @@ void Gimbal::DrawTargetMarker(const Terrain& terrain) {
 void Gimbal::DrawControls(const Aircraft& aircraft, const Terrain& terrain) {
     ImGui::SliderFloat("FOV",    &fov,    5.f, 120.f, "%.1f\xc2\xb0");
     ImGui::SliderFloat("Aspect", &aspect, 0.5f, 3.f,   "%.2f");
-    if (ImGui::InputDouble("Target Lat", &targetLat, 0.01, 0.1, "%.6f") |
-        ImGui::InputDouble("Target Lon", &targetLon, 0.01, 0.1, "%.6f"))
-        targetAlt = double(terrain.Sample(targetLat, targetLon));
+
+    bool changed = false;
+    changed |= ImGui::InputDouble("Target Lat", &targetLat, 0.01, 0.1, "%.6f");
+    changed |= ImGui::InputDouble("Target Lon", &targetLon, 0.01, 0.1, "%.6f");
+    if (changed) targetAlt = double(terrain.Sample(targetLat, targetLon));
+
     ImGui::BeginDisabled();
     ImGui::InputDouble("Target Alt", &targetAlt, 0, 0, "%.0f m");
     ImGui::EndDisabled();

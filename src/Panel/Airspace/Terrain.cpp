@@ -13,11 +13,12 @@ Terrain::Terrain() {
     });
 }
 
-void Terrain::Poll() {
-    if (ready_ || !future_.valid()) return;
-    if (future_.wait_for(std::chrono::seconds(0)) != std::future_status::ready) return;
+bool Terrain::Poll() {
+    if (ready_ || !future_.valid()) return false;
+    if (future_.wait_for(std::chrono::seconds(0)) != std::future_status::ready) return false;
     set_   = future_.get();
     ready_ = true;
+    return true;
 }
 
 bool Terrain::ScreenToSurface(float sx, float sy, double& lat, double& lon, double& alt,

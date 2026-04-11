@@ -18,7 +18,7 @@ public:
     } config;
 
     Terrain();        // kicks off async load
-    void Poll();      // call from OnDraw — promotes future → ready when complete
+    bool Poll();      // call from OnDraw; returns true once when terrain becomes ready
 
     bool  Ready()                        const { return ready_; }
     float Sample(double lat, double lon) const { return set_.Sample(lat, lon); }

@@ -21,9 +21,7 @@ void Airspace::OnLoop() {
 }
 
 void Airspace::OnDraw() {
-    bool wasReady = terrain_.Ready();
-    terrain_.Poll();
-    if (!wasReady && terrain_.Ready()) OnTerrainReady();
+    if (terrain_.Poll()) OnTerrainReady();
     if (terrain_.Ready()) terrain_.RebuildIfNeeded(aircraft_.lat, aircraft_.lon);
 
     DrawControls();
@@ -87,12 +85,11 @@ void Airspace::HandleFlightMouse() {
         if (raycast(lat, lon, alt)) waypoints_.Add(lat, lon, alt);
     }
 
-    // Right-release clears "started on marker" suppressor
-    if (!ImGui::IsMouseDown(ImGuiMouseButton_Right))
-        rightOnMarker_ = false;
-
     // Right-hold on terrain → continuously update gimbal target
-    if (!rightOnMarker_ && ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
+    // (suppressed when the press started on a marker)
+    bool rmb = ImGui::IsMouseDown(ImGuiMouseButton_Right);
+    if (!rmb) rightOnMarker_ = false;
+    if (rmb && !rightOnMarker_) {
         double lat, lon, alt;
         if (raycast(lat, lon, alt)) gimbal_.SetTarget(lat, lon, alt);
     }
