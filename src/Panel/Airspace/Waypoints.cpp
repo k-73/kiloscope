@@ -12,16 +12,15 @@ void Waypoints::Add(double lat, double lon, double alt) {
     list.push_back({lat, lon, alt, "WP" + std::to_string(list.size() + 1)});
 }
 
-void Waypoints::SnapToTerrain(const Terrain& terrain) {
+void Waypoints::SnapToTerrain() {
     for (auto& wp : list)
-        wp.alt = double(terrain.Sample(wp.lat, wp.lon));
+        wp.alt = double(terrain_.Sample(wp.lat, wp.lon));
 }
 
-bool Waypoints::Draw(const glm::vec3& aircraftPos, Gimbal& gimbal, const Terrain& terrain,
-                     bool& rightOnMarker) {
+bool Waypoints::Draw(const glm::vec3& aircraftPos) {
     bool targetOnWaypoint = false;
     for (auto& wp : list) {
-        bool isTarget = (wp.lat == gimbal.targetLat && wp.lon == gimbal.targetLon);
+        bool isTarget = (wp.lat == gimbal_.targetLat && wp.lon == gimbal_.targetLon);
         if (isTarget) targetOnWaypoint = true;
 
         auto wpLocal = glm::vec3(Render::GeoToLocal(wp.lat, wp.lon, wp.alt));
@@ -36,13 +35,13 @@ bool Waypoints::Draw(const glm::vec3& aircraftPos, Gimbal& gimbal, const Terrain
         if (ev.Dragging()) {
             auto& io = ImGui::GetIO();
             double lat, lon, alt;
-            if (terrain.ScreenToSurface(io.MousePos.x, io.MousePos.y, lat, lon, alt)) {
+            if (terrain_.ScreenToSurface(io.MousePos.x, io.MousePos.y, lat, lon, alt)) {
                 wp.lat = lat; wp.lon = lon; wp.alt = alt;
-                if (isTarget) gimbal.SetTarget(lat, lon, alt);
+                if (isTarget) gimbal_.SetTarget(lat, lon, alt);
             }
         }
         if (ev.Clicked(Render::Right)) {
-            gimbal.SetTarget(wp.lat, wp.lon, wp.alt);
+            gimbal_.SetTarget(wp.lat, wp.lon, wp.alt);
             rightOnMarker = true;
         }
     }
@@ -83,7 +82,7 @@ void Waypoints::Load(const json& j) {
         Waypoint wp;
         wp.lat   = w.value("lat", 0.0);
         wp.lon   = w.value("lon", 0.0);
-        wp.alt   = w.value("alt", 0.0);   // re-snapped to terrain when it becomes ready
+        wp.alt   = w.value("alt", 0.0);
         wp.label = w.value("label", std::string("WP"));
         if (w.contains("color") && w["color"].is_array() && w["color"].size() == 4)
             wp.color = {w["color"][0], w["color"][1], w["color"][2], w["color"][3]};

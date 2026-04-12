@@ -14,27 +14,33 @@ class Terrain;
 struct Waypoint {
     double      lat = 0.0, lon = 0.0, alt = 0.0;
     std::string label;
-    glm::vec4   color = {1.f, .6f, .2f, 1.f};  // orange default
+    glm::vec4   color = {1.f, .6f, .2f, 1.f};
 };
 
 // Waypoints — geodetic markers with drag/right-click interaction.
-// Right-click sets gimbal target; drag moves marker on terrain surface.
+// Holds references to gimbal (for target tracking) and terrain (for surface snap).
 class Waypoints {
 public:
+    Waypoints(Gimbal& gimbal, const Terrain& terrain)
+        : gimbal_(gimbal), terrain_(terrain) {}
+
     std::vector<Waypoint> list;
+    bool rightOnMarker = false;  // set by Draw when right-click starts on a marker
 
     void Add(double lat, double lon, double alt);
-    void SnapToTerrain(const Terrain& terrain);
+    void SnapToTerrain();
 
-    // Draw markers in current scene; returns true if any waypoint matches the gimbal target.
-    // Sets `rightOnMarker` if right-click started on a marker (caller suppresses terrain handler).
-    bool Draw(const glm::vec3& aircraftPos, Gimbal& gimbal, const Terrain& terrain,
-              bool& rightOnMarker);
+    // Draw markers; returns true if any waypoint matches the gimbal target.
+    bool Draw(const glm::vec3& aircraftPos);
 
     void DrawControls();
 
     json Save() const;
-    void Load(const json& j);  // loads label/lat/lon/color/alt; alt may be re-snapped later
+    void Load(const json& j);
+
+private:
+    Gimbal&        gimbal_;
+    const Terrain& terrain_;
 };
 
 } // namespace Kilo

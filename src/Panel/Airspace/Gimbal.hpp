@@ -6,13 +6,16 @@ namespace Kilo {
 class Aircraft;
 class Terrain;
 
-// Gimbal — sensor mounted on aircraft body. Looks at a geodetic target.
-// State is plain public fields; helpers compute scene-relative positions
-// from a precomputed aircraft NED position (no redundant GeoToLocal).
+// Gimbal — sensor mounted on aircraft body, looking at a geodetic target.
+// Holds references to its aircraft and terrain (injected at construction).
 class Gimbal {
 public:
+    Gimbal(const Aircraft& aircraft, const Terrain& terrain)
+        : aircraft_(aircraft), terrain_(terrain) {}
+
+    // Config
     glm::vec3 bodyOffset = {0.0f, 0.f, 0.5f};  // body frame: X=fwd, Y=right, Z=down
-    float     fov        = 50.f;                // vertical FOV (degrees)
+    float     fov        = 50.f;
     float     aspect     = 16.f / 9.f;
     double    targetLat  = 52.2297, targetLon = 21.0122, targetAlt = 0.0;
 
@@ -20,26 +23,25 @@ public:
         targetLat = lat; targetLon = lon; targetAlt = alt;
     }
 
-    // Gimbal NED = aircraft NED + body-rotated mount offset.
-    glm::vec3 PositionFrom(const glm::vec3& aircraftNed, const Aircraft& aircraft) const;
+    // Compute gimbal + target positions for current scene. Call once per scene per frame.
+    void Update(const glm::vec3& aircraftNed, const char* scene);
 
-    // Target NED — uses named scene's GeoRef.
-    glm::vec3 TargetInScene(const char* scene) const;
+    // Computed state (valid after Update)
+    glm::vec3 position{0.f};
+    glm::vec3 target{0.f};
 
-    // Integrate heading-relative joystick input into geodetic target.
-    // Quadratic response, cos(lat) correction for east-west rate.
-    void ApplyJoystickInput(glm::vec2 joy, float dt,
-                            const Aircraft& aircraft, const Terrain& terrain);
+    // Render (call inside Begin/End, after Update)
+    void DrawFrustum(const glm::vec3& aircraftNed) const;
+    void DrawTargetMarker();
 
-    // Render sensor frustum + connecting lines (call inside Begin/End).
-    // Uses current scene's GeoRef for target position.
-    void DrawFrustum(const glm::vec3& aircraftNed, const Aircraft& aircraft) const;
+    void DrawControls();
 
-    // Render clickable/draggable target marker (call inside Begin/End).
-    // Drag updates target via terrain raycast.
-    void DrawTargetMarker(const Terrain& terrain);
+private:
+    void ApplyJoystickInput(glm::vec2 joy, float dt);
 
-    void DrawControls(const Aircraft& aircraft, const Terrain& terrain);
+    const Aircraft& aircraft_;
+    const Terrain&  terrain_;
+    glm::mat3       bodyToNed_{1.f};
 };
 
 } // namespace Kilo

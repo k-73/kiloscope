@@ -9,7 +9,6 @@
 namespace Kilo {
 
 // Airspace — interactive flight visualization with terrain, waypoints, and gimbal POV.
-// Orchestrates two scenes (flight + gimbal) over a shared world state.
 class Airspace : public Panel {
 public:
     Airspace();
@@ -21,7 +20,6 @@ public:
     void LoadSettings(const json& j) override;
 
 private:
-    // views
     void DrawFlightView(float dt);
     void DrawFlightScene(const glm::vec3& aircraftNed);
     void HandleFlightMouse();
@@ -29,26 +27,21 @@ private:
     void DrawGimbalView();
     void DrawGimbalScene(const glm::vec3& aircraftNed);
 
-    // shared world content (drawn in both scenes)
     void DrawWorld(const glm::vec3& aircraftNed);
-
-    // lifecycle & ui
     void OnTerrainReady();
     void DrawControls();
     void DrawGlobeControls();
     void SetupEnv(const char* scene);
 
-    // state
+    // Declaration order matters: deps before dependents.
     Aircraft  aircraft_;
-    Gimbal    gimbal_;
-    Waypoints waypoints_;
     Terrain   terrain_;
+    Gimbal    gimbal_{aircraft_, terrain_};
+    Waypoints waypoints_{gimbal_, terrain_};
     Render::TrailBuffer trail_{128, 1.0};
 
-    // Per-frame interaction flags (not persisted).
-    bool cameraFree_       = false;  // toggled with C
-    bool rightOnMarker_    = false;  // right-press started on a marker — suppress terrain handler
-    bool targetOnWaypoint_ = false;  // target coincides with a waypoint — skip standalone marker
+    bool cameraFree_       = false;
+    bool targetOnWaypoint_ = false;
 };
 
 } // namespace Kilo

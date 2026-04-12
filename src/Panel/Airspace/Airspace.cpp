@@ -15,7 +15,7 @@ Airspace::Airspace() : Panel("Airspace", "Airspace") {
 // ── lifecycle ──────────────────────────────────────────────────
 
 void Airspace::OnLoop() {
-    constexpr float kDt = 0.001f;  // 1 ms fixed timestep (worker thread)
+    constexpr float kDt = 0.001f;
     aircraft_.UpdatePhysics(kDt);
     trail_.Record(aircraft_.lat, aircraft_.lon, aircraft_.alt);
 }
@@ -29,11 +29,10 @@ void Airspace::OnDraw() {
     DrawGimbalView();
 }
 
-// First terrain-ready frame: snap aircraft/target/waypoints to surface.
 void Airspace::OnTerrainReady() {
     aircraft_.alt     = double(terrain_.Sample(aircraft_.lat, aircraft_.lon)) + 50.0;
     gimbal_.targetAlt = double(terrain_.Sample(gimbal_.targetLat, gimbal_.targetLon));
-    waypoints_.SnapToTerrain(terrain_);
+    waypoints_.SnapToTerrain();
     terrain_.RebuildIfNeeded(aircraft_.lat, aircraft_.lon, true);
 }
 
@@ -55,9 +54,9 @@ void Airspace::DrawFlightView(float dt) {
     else              cam.Unfollow();
     aircraft_.HandleInput(dt, focused && !cameraFree_);
 
+    gimbal_.Update(aircraftNed, "flight");
     DrawFlightScene(aircraftNed);
 
-    // Overlays: status bar + speed readout + loading indicator
     Render::StatusBar();
     Render::Overlay();
         ImGui::TextColored({1,1,1,.5f}, "Speed = %.1f km/h", aircraft_.speed * 3.6f);
@@ -82,23 +81,20 @@ void Airspace::DrawFlightScene(const glm::vec3& aircraftNed) {
 
         DrawWorld(aircraftNed);
 
-        // Hover tooltip with geodetic position
         if (Render::Event().Hovered())
             Render::Text(aircraftNed + glm::vec3(0, 0, -0.5f), {1,1,1,.5f},
                 "Lat %.6f\nLon %.6f\nAlt %.0f m", aircraft_.lat, aircraft_.lon, aircraft_.alt);
 
-        // Ground projection (surface cross + vertical drop line)
         Render::Cross({aircraftNed.x, aircraftNed.y, 0.f}, 0.5f, {1,1,1,.5f}, 2.f);
         Render::Line(aircraftNed, {aircraftNed.x, aircraftNed.y, 0.f}, {1,1,1,.15f}, 1.f);
 
         trail_.Draw({.5f, .5f, .55f, .4f}, 1.5f);
 
-        gimbal_.DrawFrustum(aircraftNed, aircraft_);
-        if (!targetOnWaypoint_) gimbal_.DrawTargetMarker(terrain_);
+        gimbal_.DrawFrustum(aircraftNed);
+        if (!targetOnWaypoint_) gimbal_.DrawTargetMarker();
     Render::End();
 }
 
-// Terrain-dependent mouse actions — run after scene render.
 void Airspace::HandleFlightMouse() {
     if (!terrain_.Ready()) return;
 
@@ -107,17 +103,14 @@ void Airspace::HandleFlightMouse() {
         return terrain_.ScreenToSurface(io.MousePos.x, io.MousePos.y, lat, lon, alt);
     };
 
-    // Double-click → add waypoint at surface
     if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
         double lat, lon, alt;
         if (raycast(lat, lon, alt)) waypoints_.Add(lat, lon, alt);
     }
 
-    // Right-hold on terrain → continuously update gimbal target
-    // (suppressed when the press started on a marker)
     bool rmb = ImGui::IsMouseDown(ImGuiMouseButton_Right);
-    if (!rmb) rightOnMarker_ = false;
-    if (rmb && !rightOnMarker_) {
+    if (!rmb) waypoints_.rightOnMarker = false;
+    if (rmb && !waypoints_.rightOnMarker) {
         double lat, lon, alt;
         if (raycast(lat, lon, alt)) gimbal_.SetTarget(lat, lon, alt);
     }
@@ -131,19 +124,17 @@ void Airspace::DrawGimbalView() {
 
         auto aircraftNed = glm::vec3(Render::GeoToLocal("gimbal",
             aircraft_.lat, aircraft_.lon, aircraft_.alt));
-        auto gimbalNed   = gimbal_.PositionFrom(aircraftNed, aircraft_);
-        auto targetNed   = gimbal_.TargetInScene("gimbal");
+        gimbal_.Update(aircraftNed, "gimbal");
 
-        // Camera: LookAt from gimbal mount to geodetic target
         auto& cam = Render::GetCamera("gimbal");
-        cam.LookAt(gimbalNed, targetNed);
+        cam.LookAt(gimbal_.position, gimbal_.target);
         cam.Fov()       = gimbal_.fov;
         cam.NearPlane() = 0.05f;
 
         DrawGimbalScene(aircraftNed);
 
         if (Render::Overlay()) {
-            float dist = glm::length(targetNed - gimbalNed);
+            float dist = glm::length(gimbal_.target - gimbal_.position);
             ImGui::TextColored({1,1,1,.4f}, "FOV %.0f\xc2\xb0  D %.0fm", gimbal_.fov, dist);
             ImGui::TextColored({1,1,1,.3f}, "%.6f  %.6f  %.0fm",
                 gimbal_.targetLat, gimbal_.targetLon, gimbal_.targetAlt);
@@ -162,12 +153,10 @@ void Airspace::DrawGimbalScene(const glm::vec3& aircraftNed) {
     Render::Crosshair();
 }
 
-// ── shared world content (drawn in both scenes) ────────────────
+// ── shared world content ──────────────────────────────────────
 
 void Airspace::DrawWorld(const glm::vec3& aircraftNed) {
-    targetOnWaypoint_ = terrain_.Ready()
-        ? waypoints_.Draw(aircraftNed, gimbal_, terrain_, rightOnMarker_)
-        : false;
+    targetOnWaypoint_ = terrain_.Ready() ? waypoints_.Draw(aircraftNed) : false;
     aircraft_.DrawAt(aircraftNed);
 }
 
@@ -179,7 +168,7 @@ void Airspace::DrawControls() {
     aircraft_.DrawControls();
     ImGui::Separator();
 
-    gimbal_.DrawControls(aircraft_, terrain_);
+    gimbal_.DrawControls();
     ImGui::Separator();
 
     if (ImGui::CollapsingHeader("Waypoints"))
