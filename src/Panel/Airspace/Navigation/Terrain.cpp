@@ -1,4 +1,5 @@
 #include "Terrain.hpp"
+#include "Panel/Airspace/Vehicle/Aircraft.hpp"
 #include <imgui.h>
 #include <chrono>
 #include <cmath>
@@ -6,7 +7,7 @@
 
 namespace Kilo {
 
-Terrain::Terrain() {
+Terrain::Terrain(const Aircraft& aircraft) : aircraft_(aircraft) {
     future_ = std::async(std::launch::async, [] {
         return Render::LoadTerrainDir(std::string(ASSETS_DIR) + "/terrain",
                                       std::string(ASSETS_DIR) + "/geoid/egm2008-5.pgm");
@@ -32,30 +33,30 @@ bool Terrain::ScreenToSurface(float sx, float sy, double& lat, double& lon, doub
     return true;
 }
 
-void Terrain::RebuildIfNeeded(double aircraftLat, double aircraftLon, bool force) {
+void Terrain::RebuildIfNeeded(bool force) {
     if (!ready_) return;
+    double lat = aircraft_.lat, lon = aircraft_.lon;
     constexpr double kDegPerKm = 1.0 / 111.32;
-    double cosLat    = std::cos(glm::radians(aircraftLat));
+    double cosLat    = std::cos(glm::radians(lat));
     double threshDeg = config.rebuildKm * kDegPerKm;
-    double dLat      = aircraftLat - centerLat_;
-    double dLon      = (aircraftLon - centerLon_) * cosLat;  // scale lon by cos(lat)
+    double dLat      = lat - centerLat_;
+    double dLon      = (lon - centerLon_) * cosLat;
     if (force || mesh_.indices.empty() || dLat * dLat + dLon * dLon > threshDeg * threshDeg) {
-        centerLat_ = aircraftLat;
-        centerLon_ = aircraftLon;
+        centerLat_ = lat;
+        centerLon_ = lon;
         float latRadDeg = float(config.radiusKm * kDegPerKm);
-        float lonRadDeg = float(latRadDeg / std::max(cosLat, 0.01));  // wider in lon at high lat
+        float lonRadDeg = float(latRadDeg / std::max(cosLat, 0.01));
         float stepDeg   = float(config.resolutionM / 111320.0);
-        mesh_ = Render::BuildTerrainMesh(set_, aircraftLat, aircraftLon,
-                                         latRadDeg, lonRadDeg, stepDeg);
+        mesh_ = Render::BuildTerrainMesh(set_, lat, lon, latRadDeg, lonRadDeg, stepDeg);
     }
 }
 
-void Terrain::DrawControls(double aircraftLat, double aircraftLon) {
+void Terrain::DrawControls() {
     bool changed = false;
     changed |= ImGui::DragFloat("Radius",     &config.radiusKm,    0.5f,  1.f,  50.f, "%.1f km");
     changed |= ImGui::DragFloat("Resolution", &config.resolutionM, 5.f,  10.f, 500.f, "%.0f m");
     changed |= ImGui::DragFloat("Rebuild",    &config.rebuildKm,   0.5f,  1.f,  30.f, "%.1f km");
-    if (changed) RebuildIfNeeded(aircraftLat, aircraftLon, true);
+    if (changed) RebuildIfNeeded(true);
     ImGui::TextDisabled("%d verts, %d tris",
         int(mesh_.relPos.size()), mesh_.indexCount / 3);
 }

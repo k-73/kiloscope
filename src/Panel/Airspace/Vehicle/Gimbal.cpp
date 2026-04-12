@@ -1,6 +1,6 @@
 #include "Gimbal.hpp"
 #include "Aircraft.hpp"
-#include "Terrain.hpp"
+#include "Panel/Airspace/Navigation/Terrain.hpp"
 #include "Render/Draw.hpp"
 #include "Render/Geo.hpp"
 #include "Ui/IconsFontAwesome7.h"
@@ -32,7 +32,7 @@ void Gimbal::DrawTargetMarker() {
     if (Render::Event().Dragging()) {
         auto& io = ImGui::GetIO();
         double lat, lon, alt;
-        if (terrain_.ScreenToSurface(io.MousePos.x, io.MousePos.y, lat, lon, alt))
+        if (terrain_.ScreenToSurface(io.MousePos.x, io.MousePos.y, lat, lon, alt, "flight"))
             SetTarget(lat, lon, alt);
     }
 }

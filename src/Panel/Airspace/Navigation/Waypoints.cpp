@@ -1,5 +1,5 @@
 #include "Waypoints.hpp"
-#include "Gimbal.hpp"
+#include "Panel/Airspace/Vehicle/Gimbal.hpp"
 #include "Terrain.hpp"
 #include "Render/Draw.hpp"
 #include "Render/Geo.hpp"
@@ -35,7 +35,7 @@ bool Waypoints::Draw(const glm::vec3& aircraftPos) {
         if (ev.Dragging()) {
             auto& io = ImGui::GetIO();
             double lat, lon, alt;
-            if (terrain_.ScreenToSurface(io.MousePos.x, io.MousePos.y, lat, lon, alt)) {
+            if (terrain_.ScreenToSurface(io.MousePos.x, io.MousePos.y, lat, lon, alt, "flight")) {
                 wp.lat = lat; wp.lon = lon; wp.alt = alt;
                 if (isTarget) gimbal_.SetTarget(lat, lon, alt);
             }

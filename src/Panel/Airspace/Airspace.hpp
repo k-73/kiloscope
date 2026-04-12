@@ -1,8 +1,8 @@
 #pragma once
-#include "Aircraft.hpp"
-#include "Gimbal.hpp"
-#include "Terrain.hpp"
-#include "Waypoints.hpp"
+#include "Vehicle/Aircraft.hpp"
+#include "Vehicle/Gimbal.hpp"
+#include "Navigation/Terrain.hpp"
+#include "Navigation/Waypoints.hpp"
 #include "Core/Panel/Panel.hpp"
 #include "Render/Trail.hpp"
 
@@ -35,7 +35,7 @@ private:
 
     // Declaration order matters: deps before dependents.
     Aircraft  aircraft_;
-    Terrain   terrain_;
+    Terrain   terrain_{aircraft_};
     Gimbal    gimbal_{aircraft_, terrain_};
     Waypoints waypoints_{gimbal_, terrain_};
     Render::TrailBuffer trail_{128, 1.0};

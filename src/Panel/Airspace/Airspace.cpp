@@ -22,7 +22,7 @@ void Airspace::OnLoop() {
 
 void Airspace::OnDraw() {
     if (terrain_.Poll()) OnTerrainReady();
-    if (terrain_.Ready()) terrain_.RebuildIfNeeded(aircraft_.lat, aircraft_.lon);
+    if (terrain_.Ready()) terrain_.RebuildIfNeeded();
 
     DrawControls();
     DrawFlightView(ImGui::GetIO().DeltaTime);
@@ -33,7 +33,7 @@ void Airspace::OnTerrainReady() {
     aircraft_.alt     = double(terrain_.Sample(aircraft_.lat, aircraft_.lon)) + 50.0;
     gimbal_.targetAlt = double(terrain_.Sample(gimbal_.targetLat, gimbal_.targetLon));
     waypoints_.SnapToTerrain();
-    terrain_.RebuildIfNeeded(aircraft_.lat, aircraft_.lon, true);
+    terrain_.RebuildIfNeeded(true);
 }
 
 // ── flight view ────────────────────────────────────────────────
@@ -100,7 +100,7 @@ void Airspace::HandleFlightMouse() {
 
     auto& io = ImGui::GetIO();
     auto raycast = [&](double& lat, double& lon, double& alt) {
-        return terrain_.ScreenToSurface(io.MousePos.x, io.MousePos.y, lat, lon, alt);
+        return terrain_.ScreenToSurface(io.MousePos.x, io.MousePos.y, lat, lon, alt, "flight");
     };
 
     if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
@@ -184,7 +184,7 @@ void Airspace::DrawControls() {
         DrawGlobeControls();
 
     if (ImGui::CollapsingHeader("Terrain"))
-        terrain_.DrawControls(aircraft_.lat, aircraft_.lon);
+        terrain_.DrawControls();
 
     ImGui::End();
 }
