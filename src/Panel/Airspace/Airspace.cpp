@@ -21,7 +21,7 @@ void Airspace::OnLoop() {
 }
 
 void Airspace::OnDraw() {
-    if (terrain_.Poll()) OnTerrainReady();
+    if (terrain_.Poll())  OnTerrainReady();
     if (terrain_.Ready()) terrain_.RebuildIfNeeded();
 
     DrawControls();
@@ -32,7 +32,7 @@ void Airspace::OnDraw() {
 void Airspace::OnTerrainReady() {
     aircraft_.alt     = double(terrain_.Sample(aircraft_.lat, aircraft_.lon)) + 50.0;
     gimbal_.targetAlt = double(terrain_.Sample(gimbal_.targetLat, gimbal_.targetLon));
-    waypoints_.SnapToTerrain();
+    waypoints_.SnapToTerrain(terrain_);
     terrain_.RebuildIfNeeded(true);
 }
 
@@ -43,7 +43,6 @@ void Airspace::DrawFlightView(float dt) {
     auto aircraftNed = glm::vec3(Render::GeoToLocal("flight",
         aircraft_.lat, aircraft_.lon, aircraft_.alt));
 
-    // Camera: chase follows heading, freecam orbits freely (C toggles)
     auto& cam = Render::GetCamera("flight");
     bool focused = ImGui::IsWindowFocused();
     if (focused && ImGui::IsKeyPressed(ImGuiKey_C, false)) {
@@ -54,32 +53,28 @@ void Airspace::DrawFlightView(float dt) {
     else              cam.Unfollow();
     aircraft_.HandleInput(dt, focused && !cameraFree_);
 
-    gimbal_.Update(aircraftNed, "flight");
-    DrawFlightScene(aircraftNed);
-
-    Render::StatusBar();
-    Render::Overlay();
-        ImGui::TextColored({1,1,1,.5f}, "Speed = %.1f km/h", aircraft_.speed * 3.6f);
-    Render::OverlayEnd();
-
-    if (!terrain_.Ready()) {
-        auto vp = ImGui::GetWindowPos();
-        auto sz = ImGui::GetWindowSize();
-        ImGui::SetCursorScreenPos({vp.x + sz.x * 0.5f - 60.f, vp.y + sz.y * 0.5f});
-        ImGui::TextColored({0.6f, 0.8f, 1.f, 1.f}, "Loading terrain...");
-    }
-
-    HandleFlightMouse();
-    if (!cameraFree_) cam.CaptureFollow();
-}
-
-void Airspace::DrawFlightScene(const glm::vec3& aircraftNed) {
     Render::Begin("flight");
         Render::SetFrame(Render::FrameId::NED);
-        Render::Globe();
-        terrain_.Draw();
-
         DrawWorld(aircraftNed);
+
+        // Waypoints are interactive only in the flight scene.
+        waypointEvents_ = terrain_.Ready()
+            ? waypoints_.Draw(aircraftNed,
+                              {gimbal_.targetLat, gimbal_.targetLon, gimbal_.targetAlt},
+                              terrain_)
+            : Waypoints::DrawResult{};
+
+        // Sync gimbal target from waypoint events:
+        //   • right-click on any marker  → that waypoint becomes the target
+        //   • drag on the target marker  → target follows the drag
+        if (waypointEvents_.rightClickedIdx >= 0) {
+            const auto& wp = waypoints_.list[waypointEvents_.rightClickedIdx];
+            gimbal_.SetTarget(wp.lat, wp.lon, wp.alt);
+            rmbOnMarker_ = true;
+        } else if (waypointEvents_.targetDragged) {
+            const auto& wp = waypoints_.list[waypointEvents_.draggedIdx];
+            gimbal_.SetTarget(wp.lat, wp.lon, wp.alt);
+        }
 
         if (Render::Event().Hovered())
             Render::Text(aircraftNed + glm::vec3(0, 0, -0.5f), {1,1,1,.5f},
@@ -87,32 +82,46 @@ void Airspace::DrawFlightScene(const glm::vec3& aircraftNed) {
 
         Render::Cross({aircraftNed.x, aircraftNed.y, 0.f}, 0.5f, {1,1,1,.5f}, 2.f);
         Render::Line(aircraftNed, {aircraftNed.x, aircraftNed.y, 0.f}, {1,1,1,.15f}, 1.f);
-
         trail_.Draw({.5f, .5f, .55f, .4f}, 1.5f);
 
         gimbal_.DrawFrustum(aircraftNed);
-        if (!targetOnWaypoint_) gimbal_.DrawTargetMarker();
+        if (!waypointEvents_.targetMatched) gimbal_.DrawTargetMarker();
     Render::End();
+
+    Render::StatusBar();
+    Render::Overlay();
+        ImGui::TextColored({1,1,1,.5f}, "Speed = %.1f km/h", aircraft_.speed * 3.6f);
+    Render::OverlayEnd();
+
+    if (!terrain_.Ready()) {
+        auto windowPos  = ImGui::GetWindowPos();
+        auto windowSize = ImGui::GetWindowSize();
+        ImGui::SetCursorScreenPos({windowPos.x + windowSize.x * 0.5f - 60.f,
+                                   windowPos.y + windowSize.y * 0.5f});
+        ImGui::TextColored({0.6f, 0.8f, 1.f, 1.f}, "Loading terrain...");
+    }
+
+    HandleFlightMouse();
+    if (!cameraFree_) cam.CaptureFollow();
 }
 
 void Airspace::HandleFlightMouse() {
     if (!terrain_.Ready()) return;
 
     auto& io = ImGui::GetIO();
-    auto raycast = [&](double& lat, double& lon, double& alt) {
+    if (!ImGui::IsMouseDown(ImGuiMouseButton_Right)) rmbOnMarker_ = false;
+
+    auto pickGround = [&](double& lat, double& lon, double& alt) {
         return terrain_.ScreenToSurface(io.MousePos.x, io.MousePos.y, lat, lon, alt, "flight");
     };
 
     if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
         double lat, lon, alt;
-        if (raycast(lat, lon, alt)) waypoints_.Add(lat, lon, alt);
+        if (pickGround(lat, lon, alt)) waypoints_.Add(lat, lon, alt);
     }
-
-    bool rmb = ImGui::IsMouseDown(ImGuiMouseButton_Right);
-    if (!rmb) waypoints_.rightOnMarker = false;
-    if (rmb && !waypoints_.rightOnMarker) {
+    if (ImGui::IsMouseDown(ImGuiMouseButton_Right) && !rmbOnMarker_) {
         double lat, lon, alt;
-        if (raycast(lat, lon, alt)) gimbal_.SetTarget(lat, lon, alt);
+        if (pickGround(lat, lon, alt)) gimbal_.SetTarget(lat, lon, alt);
     }
 }
 
@@ -121,21 +130,29 @@ void Airspace::HandleFlightMouse() {
 void Airspace::DrawGimbalView() {
     ImGui::Begin("Gimbal");
         SetupEnv("gimbal");
-
         auto aircraftNed = glm::vec3(Render::GeoToLocal("gimbal",
             aircraft_.lat, aircraft_.lon, aircraft_.alt));
-        gimbal_.Update(aircraftNed, "gimbal");
+        auto gimbalPos = gimbal_.PositionNed(aircraftNed);
+        auto targetPos = gimbal_.TargetNed("gimbal");
 
         auto& cam = Render::GetCamera("gimbal");
-        cam.LookAt(gimbal_.position, gimbal_.target);
+        cam.LookAt(gimbalPos, targetPos);
         cam.Fov()       = gimbal_.fov;
         cam.NearPlane() = 0.05f;
 
-        DrawGimbalScene(aircraftNed);
+        Render::Begin("gimbal");
+            Render::SetFrame(Render::FrameId::NED);
+            DrawWorld(aircraftNed);
+            if (terrain_.Ready())
+                waypoints_.Draw(aircraftNed,
+                                {gimbal_.targetLat, gimbal_.targetLon, gimbal_.targetAlt},
+                                terrain_);
+        Render::End();
+        Render::Crosshair();
 
         if (Render::Overlay()) {
-            float dist = glm::length(gimbal_.target - gimbal_.position);
-            ImGui::TextColored({1,1,1,.4f}, "FOV %.0f\xc2\xb0  D %.0fm", gimbal_.fov, dist);
+            float distance = glm::length(targetPos - gimbalPos);
+            ImGui::TextColored({1,1,1,.4f}, "FOV %.0f\xc2\xb0  D %.0fm", gimbal_.fov, distance);
             ImGui::TextColored({1,1,1,.3f}, "%.6f  %.6f  %.0fm",
                 gimbal_.targetLat, gimbal_.targetLon, gimbal_.targetAlt);
             Render::OverlayEnd();
@@ -143,20 +160,11 @@ void Airspace::DrawGimbalView() {
     ImGui::End();
 }
 
-void Airspace::DrawGimbalScene(const glm::vec3& aircraftNed) {
-    Render::Begin("gimbal");
-        Render::SetFrame(Render::FrameId::NED);
-        Render::Globe();
-        terrain_.Draw();
-        DrawWorld(aircraftNed);
-    Render::End();
-    Render::Crosshair();
-}
-
 // ── shared world content ──────────────────────────────────────
 
 void Airspace::DrawWorld(const glm::vec3& aircraftNed) {
-    targetOnWaypoint_ = terrain_.Ready() ? waypoints_.Draw(aircraftNed) : false;
+    Render::Globe();
+    terrain_.Draw();
     aircraft_.DrawAt(aircraftNed);
 }
 
@@ -181,37 +189,12 @@ void Airspace::DrawControls() {
         cam.Position().x, cam.Position().y, cam.Position().z, cam.Distance());
 
     if (ImGui::CollapsingHeader("Globe"))
-        DrawGlobeControls();
+        Render::GlobeControls(Render::GetGlobe("flight"));
 
     if (ImGui::CollapsingHeader("Terrain"))
         terrain_.DrawControls();
 
     ImGui::End();
-}
-
-void Airspace::DrawGlobeControls() {
-    auto& g = Render::GetGlobe("flight");
-    ImGui::Checkbox("Lighting", &g.lighting);
-    ImGui::SliderFloat("Ambient", &g.ambient, 0.f, 1.f);
-    ImGui::ColorEdit3("Surface", &g.surfaceColor.x);
-    ImGui::ColorEdit3("Grid",    &g.gratColor.x);
-    ImGui::Separator();
-    ImGui::Text("Atmosphere");
-    ImGui::ColorEdit3("Atmo Color", &g.atmosphereColor.x);
-    ImGui::SliderFloat("Atmo Power", &g.atmospherePow, 1.f, 10.f);
-    ImGui::SliderFloat("Atmo Str",   &g.atmosphereStr, 0.f, 2.f);
-    ImGui::Separator();
-    ImGui::Text("Fog");
-    ImGui::Checkbox("Fog", &g.fog);
-    ImGui::ColorEdit3("Fog Color", &g.fogColor.x);
-    ImGui::DragFloat("Fog Start", &g.fogStart, 100.f, 0.f, 100000.f, "%.0f m");
-    ImGui::DragFloat("Fog End",   &g.fogEnd, 1000.f, 1000.f, 500000.f, "%.0f m");
-    ImGui::Separator();
-    ImGui::Text("Grid Fades (m)");
-    ImGui::DragFloat("0.0001\xc2\xb0", &g.gridFades.x, 10.f,    50.f,    5000.f, "%.0f");
-    ImGui::DragFloat("0.001\xc2\xb0",  &g.gridFades.y, 100.f,  100.f,   50000.f, "%.0f");
-    ImGui::DragFloat("0.01\xc2\xb0",   &g.gridFades.z, 1000.f, 1000.f, 500000.f, "%.0f");
-    ImGui::DragFloat("0.1\xc2\xb0",    &g.gridFades.w, 5000.f, 5000.f, 2000000.f, "%.0f");
 }
 
 // ── scene setup ────────────────────────────────────────────────

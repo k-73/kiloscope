@@ -630,6 +630,30 @@ void StatusBar() {
     put(buf, lbl);
 }
 
+void GlobeControls(GlobeConfig& cfg) {
+    ImGui::Checkbox("Lighting",    &cfg.lighting);
+    ImGui::SliderFloat("Ambient",  &cfg.ambient, 0.f, 1.f);
+    ImGui::ColorEdit3("Surface",   &cfg.surfaceColor.x);
+    ImGui::ColorEdit3("Grid",      &cfg.gratColor.x);
+
+    ImGui::SeparatorText("Atmosphere");
+    ImGui::ColorEdit3("Atmo Color",  &cfg.atmosphereColor.x);
+    ImGui::SliderFloat("Atmo Power", &cfg.atmospherePow, 1.f, 10.f);
+    ImGui::SliderFloat("Atmo Str",   &cfg.atmosphereStr, 0.f, 2.f);
+
+    ImGui::SeparatorText("Fog");
+    ImGui::Checkbox("Enabled",    &cfg.fog);
+    ImGui::ColorEdit3("Fog Color", &cfg.fogColor.x);
+    ImGui::DragFloat("Fog Start", &cfg.fogStart, 100.f,    0.f, 100000.f, "%.0f m");
+    ImGui::DragFloat("Fog End",   &cfg.fogEnd,  1000.f, 1000.f, 500000.f, "%.0f m");
+
+    ImGui::SeparatorText("Grid fades (m)");
+    ImGui::DragFloat("0.0001\xc2\xb0", &cfg.gridFades.x,   10.f,   50.f,    5000.f, "%.0f");
+    ImGui::DragFloat("0.001\xc2\xb0",  &cfg.gridFades.y,  100.f,  100.f,   50000.f, "%.0f");
+    ImGui::DragFloat("0.01\xc2\xb0",   &cfg.gridFades.z, 1000.f, 1000.f,  500000.f, "%.0f");
+    ImGui::DragFloat("0.1\xc2\xb0",    &cfg.gridFades.w, 5000.f, 5000.f, 2000000.f, "%.0f");
+}
+
 void AABB(const glm::vec3& mn, const glm::vec3& mx,
           const glm::vec4& color, float width) {
     PickGroup pg; WireBox((mn + mx) * 0.5f, mx - mn, color, width);

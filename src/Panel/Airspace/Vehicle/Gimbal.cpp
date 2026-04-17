@@ -10,25 +10,36 @@
 
 namespace Kilo {
 
-void Gimbal::Update(const glm::vec3& aircraftNed, const char* scene) {
-    bodyToNed_ = aircraft_.BodyToNed();
-    position   = aircraftNed + bodyToNed_ * bodyOffset;
-    target     = glm::vec3(Render::GeoToLocal(scene, targetLat, targetLon, targetAlt));
+glm::vec3 Gimbal::PositionNed(const glm::vec3& aircraftNed) const {
+    return aircraftNed + aircraft_.BodyToNed() * bodyOffset;
+}
+
+glm::vec3 Gimbal::TargetNed(const char* scene) const {
+    return glm::vec3(Render::GeoToLocal(scene, targetLat, targetLon, targetAlt));
+}
+
+glm::vec3 Gimbal::TargetNed() const {
+    return glm::vec3(Render::GeoToLocal(targetLat, targetLon, targetAlt));
 }
 
 void Gimbal::DrawFrustum(const glm::vec3& aircraftNed) const {
-    auto dir = glm::normalize(target - position);
-    auto up  = bodyToNed_ * glm::vec3(0, 0, -1);
-    Render::Line(aircraftNed, position, Render::Color::Hex("#d4985b50"), 1.f);
-    Render::Sensor(position, dir, up, fov, aspect, 0.1,
+    auto bodyToNed = aircraft_.BodyToNed();
+    auto gimbalPos = aircraftNed + bodyToNed * bodyOffset;
+    auto targetPos = TargetNed();
+    auto sightDir  = glm::normalize(targetPos - gimbalPos);
+    auto upDir     = bodyToNed * glm::vec3(0, 0, -1);
+
+    Render::Line(aircraftNed, gimbalPos, Render::Color::Hex("#d4985b50"), 1.f);
+    Render::Sensor(gimbalPos, sightDir, upDir, fov, aspect, 0.1,
         Render::Color::Hex("#90B0D0"), 1.0f);
-    Render::Line(position, target, Render::Color::Hex("#00c3ffAA"), 1.f);
+    Render::Line(gimbalPos, targetPos, Render::Color::Hex("#00c3ffAA"), 1.f);
 }
 
 void Gimbal::DrawTargetMarker() {
-    Render::Group g;
-    Render::Marker(target, ICON_FA_CROSSHAIRS, "Target", Render::Color::Hex("#00ccffff"),
+    Render::Group group;
+    Render::Marker(TargetNed(), ICON_FA_CROSSHAIRS, "Target", Render::Color::Hex("#00ccffff"),
         "Lat %.6f\nLon %.6f\nAlt %.0f m", targetLat, targetLon, targetAlt);
+
     if (Render::Event().Dragging()) {
         auto& io = ImGui::GetIO();
         double lat, lon, alt;
@@ -38,14 +49,17 @@ void Gimbal::DrawTargetMarker() {
 }
 
 void Gimbal::ApplyJoystickInput(glm::vec2 joy, float dt) {
+    // Quadratic response — soft at center, precise aim at full deflection.
     constexpr float kRate = 0.0002f;
-    float fx = joy.x * std::abs(joy.x) * kRate * dt;
-    float fy = -joy.y * std::abs(joy.y) * kRate * dt;
+    float panRight   =  joy.x * std::abs(joy.x) * kRate * dt;
+    float panForward = -joy.y * std::abs(joy.y) * kRate * dt;
 
-    float yr     = glm::radians(aircraft_.yaw);
+    // Rotate body-relative pan (forward/right) into NED lat/lon deltas.
+    float yawRad = glm::radians(aircraft_.yaw);
     float cosLat = std::cos(glm::radians(float(aircraft_.lat)));
-    targetLat += fy * std::cos(yr) - fx * std::sin(yr);
-    targetLon += (fy * std::sin(yr) + fx * std::cos(yr)) / std::max(cosLat, 0.01f);
+    targetLat += panForward * std::cos(yawRad) - panRight * std::sin(yawRad);
+    targetLon += (panForward * std::sin(yawRad) + panRight * std::cos(yawRad))
+                 / std::max(cosLat, 0.01f);
     targetAlt  = double(terrain_.Sample(targetLat, targetLon));
 }
 

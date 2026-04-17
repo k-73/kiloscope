@@ -236,6 +236,7 @@ void Globe();
 void Globe(const GlobeConfig& cfg);
 GlobeConfig& GetGlobe();
 GlobeConfig& GetGlobe(const char* name);
+void GlobeControls(GlobeConfig& cfg);  // ImGui controls for all GlobeConfig fields
 glm::dvec3 GeoToLocal(double lat, double lon, double alt = 0.0);
 glm::dvec3 GeoToLocal(const char* scene, double lat, double lon, double alt = 0.0);
 glm::dvec3 EcefToLocal(const char* scene, const glm::dvec3& ecef);

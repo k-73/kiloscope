@@ -8,7 +8,6 @@ namespace Kilo {
 
 using json = nlohmann::json;
 
-class Gimbal;
 class Terrain;
 
 struct Waypoint {
@@ -17,30 +16,32 @@ struct Waypoint {
     glm::vec4   color = {1.f, .6f, .2f, 1.f};
 };
 
-// Waypoints — geodetic markers with drag/right-click interaction.
-// Holds references to gimbal (for target tracking) and terrain (for surface snap).
+// Waypoints — geodetic marker collection. No deps: terrain is passed where used.
+// Interaction result is returned from Draw; the caller decides what to do with it.
 class Waypoints {
 public:
-    Waypoints(Gimbal& gimbal, const Terrain& terrain)
-        : gimbal_(gimbal), terrain_(terrain) {}
+    struct DrawResult {
+        int  rightClickedIdx = -1;  // one-shot right-click on a marker
+        int  draggedIdx      = -1;  // marker being dragged this frame
+        bool targetMatched   = false;  // some wp matches currentTarget (lat/lon)
+        bool targetDragged   = false;  // the matched wp is the one being dragged
+    };
 
     std::vector<Waypoint> list;
-    bool rightOnMarker = false;  // set by Draw when right-click starts on a marker
 
     void Add(double lat, double lon, double alt);
-    void SnapToTerrain();
+    void SnapToTerrain(const Terrain& terrain);
 
-    // Draw markers; returns true if any waypoint matches the gimbal target.
-    bool Draw(const glm::vec3& aircraftPos);
+    // Draws markers; highlights wp matching currentTarget. Handles drag/right-click.
+    // `currentTarget` = (lat, lon, alt) of whatever the caller considers the active target.
+    DrawResult Draw(const glm::vec3& aircraftPos,
+                    const glm::dvec3& currentTarget,
+                    const Terrain& terrain);
 
     void DrawControls();
 
     json Save() const;
     void Load(const json& j);
-
-private:
-    Gimbal&        gimbal_;
-    const Terrain& terrain_;
 };
 
 } // namespace Kilo

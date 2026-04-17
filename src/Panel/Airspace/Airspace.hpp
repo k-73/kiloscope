@@ -21,27 +21,23 @@ public:
 
 private:
     void DrawFlightView(float dt);
-    void DrawFlightScene(const glm::vec3& aircraftNed);
-    void HandleFlightMouse();
-
     void DrawGimbalView();
-    void DrawGimbalScene(const glm::vec3& aircraftNed);
-
     void DrawWorld(const glm::vec3& aircraftNed);
+    void HandleFlightMouse();
     void OnTerrainReady();
     void DrawControls();
-    void DrawGlobeControls();
     void SetupEnv(const char* scene);
 
     // Declaration order matters: deps before dependents.
     Aircraft  aircraft_;
     Terrain   terrain_{aircraft_};
     Gimbal    gimbal_{aircraft_, terrain_};
-    Waypoints waypoints_{gimbal_, terrain_};
+    Waypoints waypoints_;
     Render::TrailBuffer trail_{128, 1.0};
 
-    bool cameraFree_       = false;
-    bool targetOnWaypoint_ = false;
+    Waypoints::DrawResult waypointEvents_;  // flight-scene interactions, consumed same frame
+    bool cameraFree_  = false;
+    bool rmbOnMarker_ = false;              // sticky across frames until RMB released
 };
 
 } // namespace Kilo

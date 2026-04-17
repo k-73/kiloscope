@@ -1,5 +1,4 @@
 #include "Waypoints.hpp"
-#include "Panel/Airspace/Vehicle/Gimbal.hpp"
 #include "Terrain.hpp"
 #include "Render/Draw.hpp"
 #include "Render/Geo.hpp"
@@ -12,40 +11,42 @@ void Waypoints::Add(double lat, double lon, double alt) {
     list.push_back({lat, lon, alt, "WP" + std::to_string(list.size() + 1)});
 }
 
-void Waypoints::SnapToTerrain() {
+void Waypoints::SnapToTerrain(const Terrain& terrain) {
     for (auto& wp : list)
-        wp.alt = double(terrain_.Sample(wp.lat, wp.lon));
+        wp.alt = double(terrain.Sample(wp.lat, wp.lon));
 }
 
-bool Waypoints::Draw(const glm::vec3& aircraftPos) {
-    bool targetOnWaypoint = false;
-    for (auto& wp : list) {
-        bool isTarget = (wp.lat == gimbal_.targetLat && wp.lon == gimbal_.targetLon);
-        if (isTarget) targetOnWaypoint = true;
+Waypoints::DrawResult Waypoints::Draw(const glm::vec3& aircraftPos,
+                                      const glm::dvec3& currentTarget,
+                                      const Terrain& terrain) {
+    DrawResult result;
+    for (size_t i = 0; i < list.size(); ++i) {
+        auto& wp = list[i];
+        bool isTarget = (wp.lat == currentTarget.x && wp.lon == currentTarget.y);
+        if (isTarget) result.targetMatched = true;
 
-        auto wpLocal = glm::vec3(Render::GeoToLocal(wp.lat, wp.lon, wp.alt));
-        float dist   = glm::length(wpLocal - aircraftPos) * 0.001f;
-        const char* icon = isTarget ? ICON_FA_CROSSHAIRS : ICON_FA_LOCATION_DOT;
-        auto color = isTarget ? Render::Color::Hex("#00ccffff") : wp.color;
-        Render::Marker(wpLocal, icon, wp.label.c_str(), color,
+        auto  waypointPos = glm::vec3(Render::GeoToLocal(wp.lat, wp.lon, wp.alt));
+        float distanceKm  = glm::length(waypointPos - aircraftPos) * 0.001f;
+        const char* icon  = isTarget ? ICON_FA_CROSSHAIRS : ICON_FA_LOCATION_DOT;
+        auto  color       = isTarget ? Render::Color::Hex("#00ccffff") : wp.color;
+        Render::Marker(waypointPos, icon, wp.label.c_str(), color,
             "%s%.2f km\n%.6f, %.6f\n%.0f m",
-            isTarget ? "Target\n" : "", dist, wp.lat, wp.lon, wp.alt);
+            isTarget ? "Target\n" : "", distanceKm, wp.lat, wp.lon, wp.alt);
 
-        auto ev = Render::Event();
-        if (ev.Dragging()) {
+        auto event = Render::Event();
+        if (event.Dragging()) {
             auto& io = ImGui::GetIO();
             double lat, lon, alt;
-            if (terrain_.ScreenToSurface(io.MousePos.x, io.MousePos.y, lat, lon, alt, "flight")) {
+            if (terrain.ScreenToSurface(io.MousePos.x, io.MousePos.y, lat, lon, alt, "flight")) {
                 wp.lat = lat; wp.lon = lon; wp.alt = alt;
-                if (isTarget) gimbal_.SetTarget(lat, lon, alt);
+                result.draggedIdx = int(i);
+                if (isTarget) result.targetDragged = true;
             }
         }
-        if (ev.Clicked(Render::Right)) {
-            gimbal_.SetTarget(wp.lat, wp.lon, wp.alt);
-            rightOnMarker = true;
-        }
+        if (event.Clicked(Render::Right))
+            result.rightClickedIdx = int(i);
     }
-    return targetOnWaypoint;
+    return result;
 }
 
 void Waypoints::DrawControls() {

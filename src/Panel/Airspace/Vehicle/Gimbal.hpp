@@ -7,13 +7,12 @@ class Aircraft;
 class Terrain;
 
 // Gimbal — sensor mounted on aircraft body, looking at a geodetic target.
-// Holds references to its aircraft and terrain (injected at construction).
+// State is geodetic only; NED positions are computed on demand (scene-aware).
 class Gimbal {
 public:
     Gimbal(const Aircraft& aircraft, const Terrain& terrain)
         : aircraft_(aircraft), terrain_(terrain) {}
 
-    // Config
     glm::vec3 bodyOffset = {0.0f, 0.f, 0.5f};  // body frame: X=fwd, Y=right, Z=down
     float     fov        = 50.f;
     float     aspect     = 16.f / 9.f;
@@ -23,15 +22,17 @@ public:
         targetLat = lat; targetLon = lon; targetAlt = alt;
     }
 
-    // Compute gimbal + target positions for current scene. Call once per scene per frame.
-    void Update(const glm::vec3& aircraftNed, const char* scene);
+    // Gimbal mount position in given scene's NED frame.
+    glm::vec3 PositionNed(const glm::vec3& aircraftNed) const;
 
-    // Computed state (valid after Update)
-    glm::vec3 position{0.f};
-    glm::vec3 target{0.f};
+    // Target position — scene-aware (pass scene explicitly or call inside Begin/End).
+    glm::vec3 TargetNed(const char* scene) const;
+    glm::vec3 TargetNed() const;  // uses current scene
 
-    // Render (call inside Begin/End, after Update)
+    // Renders frustum + line to target. Call inside Begin/End.
     void DrawFrustum(const glm::vec3& aircraftNed) const;
+
+    // Renders crosshair at target. Call inside Begin/End; handles drag raycast on terrain.
     void DrawTargetMarker();
 
     void DrawControls();
@@ -41,7 +42,6 @@ private:
 
     const Aircraft& aircraft_;
     const Terrain&  terrain_;
-    glm::mat3       bodyToNed_{1.f};
 };
 
 } // namespace Kilo
