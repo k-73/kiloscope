@@ -10,6 +10,10 @@
 
 namespace Kilo {
 
+// ─────────────────────────────────────────────────────────────
+// Computed positions
+// ─────────────────────────────────────────────────────────────
+
 glm::vec3 Gimbal::PositionNed(const glm::vec3& aircraftNed) const {
     return aircraftNed + aircraft_.BodyToNed() * bodyOffset;
 }
@@ -21,6 +25,10 @@ glm::vec3 Gimbal::TargetNed(const char* scene) const {
 glm::vec3 Gimbal::TargetNed() const {
     return glm::vec3(Render::GeoToLocal(targetLat, targetLon, targetAlt));
 }
+
+// ─────────────────────────────────────────────────────────────
+// Rendering
+// ─────────────────────────────────────────────────────────────
 
 void Gimbal::DrawFrustum(const glm::vec3& aircraftNed) const {
     auto bodyToNed = aircraft_.BodyToNed();
@@ -40,11 +48,38 @@ void Gimbal::DrawTargetMarker() {
     Render::Marker(TargetNed(), ICON_FA_CROSSHAIRS, "Target", Render::Color::Hex("#00ccffff"),
         "Lat %.6f\nLon %.6f\nAlt %.0f m", targetLat, targetLon, targetAlt);
 
-    if (Render::Event().Dragging()) {
-        auto& io = ImGui::GetIO();
-        double lat, lon, alt;
-        if (terrain_.ScreenToSurface(io.MousePos.x, io.MousePos.y, lat, lon, alt, "flight"))
-            SetTarget(lat, lon, alt);
+    if (!Render::Event().Dragging()) {
+        return;
+    }
+    auto& io = ImGui::GetIO();
+    double lat, lon, alt;
+    if (terrain_.ScreenToSurface(io.MousePos.x, io.MousePos.y, lat, lon, alt, "flight")) {
+        SetTarget(lat, lon, alt);
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Controls & input
+// ─────────────────────────────────────────────────────────────
+
+void Gimbal::DrawControls() {
+    ImGui::SliderFloat("FOV",    &fov,    5.f, 120.f, "%.1f\xc2\xb0");
+    ImGui::SliderFloat("Aspect", &aspect, 0.5f, 3.f,   "%.2f");
+
+    bool changed = false;
+    changed |= ImGui::InputDouble("Target Lat", &targetLat, 0.01, 0.1, "%.6f");
+    changed |= ImGui::InputDouble("Target Lon", &targetLon, 0.01, 0.1, "%.6f");
+    if (changed) {
+        targetAlt = double(terrain_.Sample(targetLat, targetLon));
+    }
+
+    ImGui::BeginDisabled();
+    ImGui::InputDouble("Target Alt", &targetAlt, 0, 0, "%.0f m");
+    ImGui::EndDisabled();
+
+    glm::vec2 joy;
+    if (Widget::Joystick("##gimbal", &joy)) {
+        ApplyJoystickInput(joy, ImGui::GetIO().DeltaTime);
     }
 }
 
@@ -61,24 +96,6 @@ void Gimbal::ApplyJoystickInput(glm::vec2 joy, float dt) {
     targetLon += (panForward * std::sin(yawRad) + panRight * std::cos(yawRad))
                  / std::max(cosLat, 0.01f);
     targetAlt  = double(terrain_.Sample(targetLat, targetLon));
-}
-
-void Gimbal::DrawControls() {
-    ImGui::SliderFloat("FOV",    &fov,    5.f, 120.f, "%.1f\xc2\xb0");
-    ImGui::SliderFloat("Aspect", &aspect, 0.5f, 3.f,   "%.2f");
-
-    bool changed = false;
-    changed |= ImGui::InputDouble("Target Lat", &targetLat, 0.01, 0.1, "%.6f");
-    changed |= ImGui::InputDouble("Target Lon", &targetLon, 0.01, 0.1, "%.6f");
-    if (changed) targetAlt = double(terrain_.Sample(targetLat, targetLon));
-
-    ImGui::BeginDisabled();
-    ImGui::InputDouble("Target Alt", &targetAlt, 0, 0, "%.0f m");
-    ImGui::EndDisabled();
-
-    glm::vec2 joy;
-    if (Widget::Joystick("##gimbal", &joy))
-        ApplyJoystickInput(joy, ImGui::GetIO().DeltaTime);
 }
 
 } // namespace Kilo

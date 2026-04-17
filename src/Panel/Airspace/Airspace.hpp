@@ -20,11 +20,26 @@ public:
     void LoadSettings(const json& j) override;
 
 private:
-    void DrawFlightView(float dt);
-    void DrawGimbalView();
-    void DrawWorld(const glm::vec3& aircraftNed);
-    void HandleFlightMouse();
+    // Lifecycle
     void OnTerrainReady();
+
+    // Flight view pipeline
+    void DrawFlightView(float dt);
+    void UpdateFlightCamera(const glm::vec3& aircraftNed, float dt);
+    void DrawFlightScene(const glm::vec3& aircraftNed);
+    void SyncWaypoints(const glm::vec3& aircraftNed);
+    void DrawAircraftIndicators(const glm::vec3& aircraftNed);
+    void DrawFlightHud();
+    void HandleFlightMouse();
+
+    // Gimbal view pipeline
+    void DrawGimbalView();
+    void UpdateGimbalCamera(const glm::vec3& gimbalPos, const glm::vec3& targetPos);
+    void DrawGimbalScene(const glm::vec3& aircraftNed);
+    void DrawGimbalHud(const glm::vec3& gimbalPos, const glm::vec3& targetPos);
+
+    // Shared
+    void DrawWorld(const glm::vec3& aircraftNed);
     void DrawControls();
     void SetupEnv(const char* scene);
 

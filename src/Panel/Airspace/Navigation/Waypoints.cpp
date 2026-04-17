@@ -7,14 +7,23 @@
 
 namespace Kilo {
 
+// ─────────────────────────────────────────────────────────────
+// Mutations
+// ─────────────────────────────────────────────────────────────
+
 void Waypoints::Add(double lat, double lon, double alt) {
     list.push_back({lat, lon, alt, "WP" + std::to_string(list.size() + 1)});
 }
 
 void Waypoints::SnapToTerrain(const Terrain& terrain) {
-    for (auto& wp : list)
+    for (auto& wp : list) {
         wp.alt = double(terrain.Sample(wp.lat, wp.lon));
+    }
 }
+
+// ─────────────────────────────────────────────────────────────
+// Rendering & interaction
+// ─────────────────────────────────────────────────────────────
 
 Waypoints::DrawResult Waypoints::Draw(const glm::vec3& aircraftPos,
                                       const glm::dvec3& currentTarget,
@@ -23,7 +32,9 @@ Waypoints::DrawResult Waypoints::Draw(const glm::vec3& aircraftPos,
     for (size_t i = 0; i < list.size(); ++i) {
         auto& wp = list[i];
         bool isTarget = (wp.lat == currentTarget.x && wp.lon == currentTarget.y);
-        if (isTarget) result.targetMatched = true;
+        if (isTarget) {
+            result.targetMatched = true;
+        }
 
         auto  waypointPos = glm::vec3(Render::GeoToLocal(wp.lat, wp.lon, wp.alt));
         float distanceKm  = glm::length(waypointPos - aircraftPos) * 0.001f;
@@ -38,13 +49,18 @@ Waypoints::DrawResult Waypoints::Draw(const glm::vec3& aircraftPos,
             auto& io = ImGui::GetIO();
             double lat, lon, alt;
             if (terrain.ScreenToSurface(io.MousePos.x, io.MousePos.y, lat, lon, alt, "flight")) {
-                wp.lat = lat; wp.lon = lon; wp.alt = alt;
+                wp.lat = lat;
+                wp.lon = lon;
+                wp.alt = alt;
                 result.draggedIdx = int(i);
-                if (isTarget) result.targetDragged = true;
+                if (isTarget) {
+                    result.targetDragged = true;
+                }
             }
         }
-        if (event.Clicked(Render::Right))
+        if (event.Clicked(Render::Right)) {
             result.rightClickedIdx = int(i);
+        }
     }
     return result;
 }
@@ -58,13 +74,20 @@ void Waypoints::DrawControls() {
         ImGui::SameLine();
         ImGui::Text("%.6f, %.6f", wp.lat, wp.lon);
         ImGui::SameLine();
-        if (ImGui::SmallButton("X")) removeIdx = int(i);
+        if (ImGui::SmallButton("X")) {
+            removeIdx = int(i);
+        }
         ImGui::PopID();
     }
-    if (removeIdx >= 0)
+    if (removeIdx >= 0) {
         list.erase(list.begin() + removeIdx);
+    }
     ImGui::TextDisabled("Double-click globe to add waypoint");
 }
+
+// ─────────────────────────────────────────────────────────────
+// Persistence
+// ─────────────────────────────────────────────────────────────
 
 json Waypoints::Save() const {
     json arr = json::array();
@@ -85,8 +108,9 @@ void Waypoints::Load(const json& j) {
         wp.lon   = w.value("lon", 0.0);
         wp.alt   = w.value("alt", 0.0);
         wp.label = w.value("label", std::string("WP"));
-        if (w.contains("color") && w["color"].is_array() && w["color"].size() == 4)
+        if (w.contains("color") && w["color"].is_array() && w["color"].size() == 4) {
             wp.color = {w["color"][0], w["color"][1], w["color"][2], w["color"][3]};
+        }
         list.push_back(std::move(wp));
     }
 }
